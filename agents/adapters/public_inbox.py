@@ -35,6 +35,35 @@ _MAX_EPOCH_ATTEMPTS = 10
 _GIT_TIMEOUT = 120                           # seconds — clone/fetch may be slow
 _MBOX_TTL_DAYS = 30                          # delete cached mbox after this many days
 _LIST_NAME_RE = re.compile(r"^[a-z][a-z0-9-]{0,63}$")  # strict allowlist
+# [PATCH v2 3/7] … — group 1 is the total patch count
+_PATCH_SERIES_RE = re.compile(
+    r"\[(?:PATCH|RFC|RFT)(?:\s+v\d+)?\s+\d+/(\d+)\]", re.IGNORECASE
+)
+
+
+def _series_id_from_subject(subject: str) -> str | None:
+    """Return a stable series key for [PATCH M/K] subjects where K > 1, else None."""
+    m = _PATCH_SERIES_RE.search(subject)
+    if m and int(m.group(1)) > 1:
+        # Strip all [...] tags and normalise to a lowercase topic string
+        clean = re.sub(r"\[.*?\]", "", subject).strip().lower()
+        return clean or None
+    return None
+
+
+def _thread_root(msg: email.message.Message) -> str | None:
+    """Return the root Message-ID from References (first entry) or In-Reply-To."""
+    refs = msg.get("References", "")
+    if refs:
+        ids = re.findall(r"<([^>]+)>", refs)
+        if ids:
+            return ids[0]
+    irt = msg.get("In-Reply-To", "")
+    if irt:
+        m = re.search(r"<([^>]+)>", irt)
+        if m:
+            return m.group(1)
+    return None
 
 
 def _validate_list_name(name: str) -> None:
@@ -168,10 +197,13 @@ class PublicInboxAdapter:
             message_id = msg.get("Message-ID", sha).strip("<>")
             self._cache_mbox(message_id, raw)
             msg_date = self._parse_date(msg.get("Date", ""))
+            subject = str(msg.get("Subject", "(no subject)"))
+            # Patch series takes priority; fall back to thread root
+            series_id = _series_id_from_subject(subject) or _thread_root(msg)
             results.append(
                 RawDiscussion(
                     id=message_id,
-                    title=str(msg.get("Subject", "(no subject)")),
+                    title=subject,
                     body=self._get_body(msg),
                     author=str(msg.get("From", "unknown")),
                     date=msg_date or datetime.now(tz=timezone.utc),
@@ -179,7 +211,7 @@ class PublicInboxAdapter:
                     replies=[],
                     diff_text=self._extract_diff(msg),
                     source_type="public_inbox",
-                    metadata={"list": list_name, "sha": sha},
+                    metadata={"list": list_name, "sha": sha, "series_id": series_id},
                 )
             )
         return results
@@ -237,6 +269,7 @@ class PublicInboxAdapter:
             commit_sha = self._extract_commit_sha(msg)
             self._cache_mbox(message_id, raw)
             msg_date = self._parse_date(msg.get("Date", ""))
+            series_id = _thread_root(msg)
             results.append(
                 RawCommit(
                     sha=commit_sha or sha,
@@ -246,7 +279,7 @@ class PublicInboxAdapter:
                     diff_stat=self._extract_diff_stat(msg),
                     url=f"{_SOURCEWARE_INBOX}/{list_name}/{message_id}",
                     source_type="public_inbox",
-                    metadata={"list": list_name, "message_id": message_id},
+                    metadata={"list": list_name, "message_id": message_id, "series_id": series_id},
                 )
             )
         return results

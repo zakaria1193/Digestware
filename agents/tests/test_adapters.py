@@ -273,6 +273,133 @@ class TestPublicInboxAdapter:
                 cache_dir=tmp_path,
             )
 
+    def _adapter_with_mboxes(self, tmp_path: Path, mboxes: list[bytes]):
+        """Helper: return an adapter + mock that emits *mboxes* as sequential emails."""
+        from agents.adapters.public_inbox import PublicInboxAdapter
+
+        adapter = PublicInboxAdapter(
+            discussion_lists=["gcc"],
+            cvs_lists=[],
+            cache_dir=tmp_path,
+        )
+        shas = [f"{i:040x}" for i in range(len(mboxes))]
+        mirror = tmp_path / "gcc.0.git"
+        mirror.mkdir(exist_ok=True)
+        mbox_by_sha = dict(zip(shas, mboxes))
+
+        def fake_run(cmd, cwd=None, **kwargs):
+            r = MagicMock()
+            r.returncode = 0
+            if "log" in cmd:
+                r.stdout = "\n".join(shas) + "\n"
+            elif "show" in cmd:
+                sha_arg = next((a for a in cmd if len(a) > 5 and ":" in a), None)
+                sha = sha_arg.split(":")[0] if sha_arg else shas[0]
+                r.stdout = mbox_by_sha.get(sha, mboxes[0])
+            else:
+                r.stdout = b""
+            return r
+
+        return adapter, mirror, fake_run
+
+    def test_patch_series_gets_series_id(self, tmp_path: Path):
+        """[PATCH M/K] emails with K>1 must share a series_id derived from the topic."""
+        mbox1 = (
+            b"From: Alice <alice@example.com>\r\n"
+            b"Message-ID: <p1@gcc.gnu.org>\r\n"
+            b"Date: Mon, 14 Apr 2026 10:00:00 +0000\r\n"
+            b"Subject: [PATCH 1/3] gcc/ipa: add inlining pass\r\n"
+            b"\r\n"
+            b"First patch body.\r\n"
+        )
+        mbox2 = (
+            b"From: Alice <alice@example.com>\r\n"
+            b"Message-ID: <p2@gcc.gnu.org>\r\n"
+            b"Date: Mon, 14 Apr 2026 10:01:00 +0000\r\n"
+            b"Subject: [PATCH 2/3] gcc/ipa: add inlining pass\r\n"
+            b"\r\n"
+            b"Second patch body.\r\n"
+        )
+        adapter, mirror, fake_run = self._adapter_with_mboxes(tmp_path, [mbox1, mbox2])
+
+        with (
+            patch("agents.adapters.public_inbox._mirror_list", return_value=[mirror]),
+            patch("agents.adapters.public_inbox.subprocess.run", side_effect=fake_run),
+        ):
+            discussions = adapter.fetch_discussions(since_hours=999)
+
+        assert len(discussions) == 2
+        series_ids = {d.metadata.get("series_id") for d in discussions}
+        # Both patches must share the same non-None series_id
+        assert len(series_ids) == 1
+        sid = series_ids.pop()
+        assert sid is not None
+        assert "gcc/ipa" in sid or "inlining" in sid
+
+    def test_single_patch_has_no_series_id(self, tmp_path: Path):
+        """[PATCH 1/1] (singleton series) must NOT produce a series_id."""
+        mbox = (
+            b"From: Bob <bob@example.com>\r\n"
+            b"Message-ID: <solo@gcc.gnu.org>\r\n"
+            b"Date: Mon, 14 Apr 2026 11:00:00 +0000\r\n"
+            b"Subject: [PATCH 1/1] gcc/ipa: trivial fix\r\n"
+            b"\r\n"
+            b"One-off patch.\r\n"
+        )
+        adapter, mirror, fake_run = self._adapter_with_mboxes(tmp_path, [mbox])
+
+        with (
+            patch("agents.adapters.public_inbox._mirror_list", return_value=[mirror]),
+            patch("agents.adapters.public_inbox.subprocess.run", side_effect=fake_run),
+        ):
+            discussions = adapter.fetch_discussions(since_hours=999)
+
+        assert len(discussions) == 1
+        assert discussions[0].metadata.get("series_id") is None
+
+    def test_reply_thread_gets_series_id_from_in_reply_to(self, tmp_path: Path):
+        """An email with In-Reply-To must get series_id equal to the root Message-ID."""
+        mbox = (
+            b"From: Carol <carol@example.com>\r\n"
+            b"Message-ID: <reply@gcc.gnu.org>\r\n"
+            b"In-Reply-To: <root@gcc.gnu.org>\r\n"
+            b"Date: Mon, 14 Apr 2026 12:00:00 +0000\r\n"
+            b"Subject: Re: Some RFC\r\n"
+            b"\r\n"
+            b"Reply body.\r\n"
+        )
+        adapter, mirror, fake_run = self._adapter_with_mboxes(tmp_path, [mbox])
+
+        with (
+            patch("agents.adapters.public_inbox._mirror_list", return_value=[mirror]),
+            patch("agents.adapters.public_inbox.subprocess.run", side_effect=fake_run),
+        ):
+            discussions = adapter.fetch_discussions(since_hours=999)
+
+        assert len(discussions) == 1
+        assert discussions[0].metadata.get("series_id") == "root@gcc.gnu.org"
+
+    def test_standalone_email_has_no_series_id(self, tmp_path: Path):
+        """A plain email with no patch tag or In-Reply-To must have series_id=None."""
+        mbox = (
+            b"From: Dave <dave@example.com>\r\n"
+            b"Message-ID: <standalone@gcc.gnu.org>\r\n"
+            b"Date: Mon, 14 Apr 2026 13:00:00 +0000\r\n"
+            b"Subject: Question about GCC internals\r\n"
+            b"\r\n"
+            b"Just a question.\r\n"
+        )
+        adapter, mirror, fake_run = self._adapter_with_mboxes(tmp_path, [mbox])
+
+        with (
+            patch("agents.adapters.public_inbox._mirror_list", return_value=[mirror]),
+            patch("agents.adapters.public_inbox.subprocess.run", side_effect=fake_run),
+        ):
+            discussions = adapter.fetch_discussions(since_hours=999)
+
+        assert len(discussions) == 1
+        assert discussions[0].metadata.get("series_id") is None
+
 
 # ---------------------------------------------------------------------------
 # PlainGitAdapter

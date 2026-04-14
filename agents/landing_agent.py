@@ -32,6 +32,7 @@ from pydantic_ai.models.openai import OpenAIModel
 from agents.models.landing import LandingDigest
 from agents.models.raw import RawCommit
 from agents.tools.patch_id import extract_patch_id
+from agents.tools.series_grouping import series_aware_batches
 from agents.tools.web_search import search_context
 
 logger = logging.getLogger(__name__)
@@ -172,8 +173,10 @@ def run_landing_agent(
     cheap_agent = _make_agent(cheap_model_name)
 
     results: list[LandingDigest] = []
-    for i in range(0, len(commits), _BATCH_SIZE):
-        batch = commits[i : i + _BATCH_SIZE]
+    batches = series_aware_batches(
+        commits, _BATCH_SIZE, lambda c: c.metadata.get("series_id")
+    )
+    for batch_idx, batch in enumerate(batches):
         prompt = (
             f"Digest the following {len(batch)} commit(s) for project "
             f"'{project}'. Return a JSON array of LandingDigest objects.\n\n"
@@ -184,12 +187,12 @@ def run_landing_agent(
             usage = result.usage()
             _append_usage("landing_agent", cheap_model_name, usage)
             logger.info(
-                "Batch %d–%d: %d digests, usage=%s",
-                i, i + len(batch) - 1, len(result.data), usage,
+                "Batch %d: %d digest(s), usage=%s",
+                batch_idx, len(result.data), usage,
             )
             results.extend(result.data)
         except Exception as exc:
-            logger.error("landing_agent batch %d failed: %s", i, exc)
+            logger.error("landing_agent batch %d failed: %s", batch_idx, exc)
             results.extend(_stub_digests(batch, project))
 
     # Deterministically apply extracted trailers (C3 fix: _extract_trailers is
