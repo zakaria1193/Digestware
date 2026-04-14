@@ -1,0 +1,13 @@
+sources:
+  - type: github
+    owner: gcc-mirror
+    repo: gcc
+
+  - type: public_inbox
+    discussion_lists: [gcc, libc-alpha]
+    cvs_lists: [gcc-cvs, glibc-cvs]
+    use_nntp: true
+
+  - type: plain_git
+    url: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
+    branch: master
