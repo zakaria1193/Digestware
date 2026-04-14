@@ -4,3 +4,5 @@ httpx>=0.27.0
 duckduckgo-search>=6.0.0
 openai>=1.0.0          # OpenRouter uses the OpenAI-compatible API
 python-dotenv>=1.0.0
+pyyaml>=6.0            # sources.yml parsing
+respx>=0.21.0          # HTTP mocking in tests

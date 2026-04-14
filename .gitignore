@@ -33,3 +33,7 @@ Thumbs.db
 # Agent runtime output (keep .gitkeep, ignore actual files)
 agents/output/*.md
 agents/output/usage.log
+
+# Agent cache (raw mbox files and bare git clones)
+agents/cache/**/*.mbox
+agents/cache/**/*.git/
