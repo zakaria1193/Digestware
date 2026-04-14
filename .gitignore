@@ -1,0 +1,35 @@
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+dist/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.pyright/
+
+# Node / Astro
+node_modules/
+web/dist/
+web/.astro/
+web/.cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Agent runtime output (keep .gitkeep, ignore actual files)
+agents/output/*.md
+agents/output/usage.log
