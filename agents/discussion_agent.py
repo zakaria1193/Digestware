@@ -19,6 +19,7 @@ from pydantic_ai.models.openai import OpenAIModel
 from agents.models.discussion import DiscussionDigest
 from agents.models.raw import RawDiscussion
 from agents.tools.patch_id import extract_patch_id
+from agents.tools.series_grouping import series_aware_batches
 from agents.tools.web_search import search_context
 
 logger = logging.getLogger(__name__)
@@ -128,8 +129,10 @@ def run_discussion_agent(
     )
 
     results: list[DiscussionDigest] = []
-    for i in range(0, len(discussions), _BATCH_SIZE):
-        batch = discussions[i : i + _BATCH_SIZE]
+    batches = series_aware_batches(
+        discussions, _BATCH_SIZE, lambda d: d.metadata.get("series_id")
+    )
+    for batch_idx, batch in enumerate(batches):
         prompt = (
             f"Digest the following {len(batch)} discussion(s) for project "
             f"'{project}'. Return a JSON array of DiscussionDigest objects.\n\n"
@@ -140,15 +143,14 @@ def run_discussion_agent(
             usage = result.usage()
             _append_usage("discussion_agent", usage)
             logger.info(
-                "Batch %d–%d: %d digests produced, usage=%s",
-                i,
-                i + len(batch) - 1,
+                "Batch %d: %d item(s) digested, usage=%s",
+                batch_idx,
                 len(result.data),
                 usage,
             )
             results.extend(result.data)
         except Exception as exc:
-            logger.error("discussion_agent batch %d failed: %s", i, exc)
+            logger.error("discussion_agent batch %d failed: %s", batch_idx, exc)
             results.extend(_stub_digests(batch, project))
 
     return results
