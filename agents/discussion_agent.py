@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 _BATCH_SIZE = 10
 _DEFAULT_MODEL = "google/gemini-2.0-flash-001"
 _USAGE_LOG = Path("agents/output/usage.log")
+_MAX_USAGE_LOG_BYTES = 10 * 1024 * 1024  # 10 MB — rotate when exceeded
 
 _SYSTEM_PROMPT = """\
 You are an expert open-source software analyst specialising in low-level systems
@@ -74,8 +75,18 @@ def _render_batch(batch: list[RawDiscussion]) -> str:
     return "\n".join(lines)
 
 
+def _maybe_rotate_log(path: Path) -> None:
+    """Rotate the usage log when it exceeds _MAX_USAGE_LOG_BYTES (one backup kept)."""
+    if path.exists() and path.stat().st_size > _MAX_USAGE_LOG_BYTES:
+        backup = path.with_suffix(".log.1")
+        backup.unlink(missing_ok=True)
+        path.rename(backup)
+        logger.info("Rotated usage log → %s", backup)
+
+
 def _append_usage(agent_name: str, usage: object) -> None:
     _USAGE_LOG.parent.mkdir(parents=True, exist_ok=True)
+    _maybe_rotate_log(_USAGE_LOG)
     record = {
         "agent": agent_name,
         "ts": datetime.now(tz=timezone.utc).isoformat(),

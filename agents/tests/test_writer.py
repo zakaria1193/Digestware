@@ -43,8 +43,33 @@ class TestWriteDiscussion:
 
     def test_file_path_pattern(self, sample_discussion_digest, tmp_output_dir):
         path = write_discussion(sample_discussion_digest, output_dir=tmp_output_dir)
-        assert re.match(r"\d{4}-\d{2}-\d{2}-", path.name)
-        assert path.suffix == ".md"
+        # Format: YYYY-MM-DD-<slug>-<6-char-id-hash>.md
+        assert re.match(r"\d{4}-\d{2}-\d{2}-.+-[0-9a-f]{6}\.md$", path.name)
+
+    def test_same_title_different_ids_no_collision(self, tmp_output_dir):
+        """Two discussions with identical titles on the same day must produce
+        distinct files thanks to the id_hash suffix."""
+        from agents.models.base import ConsensusStatus
+        from agents.models.discussion import DiscussionDigest
+
+        def _make(discussion_id: str) -> DiscussionDigest:
+            return DiscussionDigest(
+                project="gcc",
+                subsystem="gcc/ipa",
+                discussion_id=discussion_id,
+                source_type="public_inbox",
+                title="[PATCH] same title",
+                proposer="a@example.com",
+                consensus=ConsensusStatus.PROPOSED,
+                sentiment_score=5,
+                technical_tradeoffs=[],
+                summary="summary",
+                url=f"https://example.com/{discussion_id}",
+            )
+
+        p1 = write_discussion(_make("id-001"), output_dir=tmp_output_dir)
+        p2 = write_discussion(_make("id-002"), output_dir=tmp_output_dir)
+        assert p1 != p2
 
     def test_frontmatter_has_required_keys(self, sample_discussion_digest, tmp_output_dir):
         path = write_discussion(sample_discussion_digest, output_dir=tmp_output_dir)

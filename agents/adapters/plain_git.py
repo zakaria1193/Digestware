@@ -1,9 +1,14 @@
 """PlainGit adapter — bare-clone any public Git repo and iterate commits.
 
 Implements CommitSource only (no PR/discussion concept for plain Git).
+
+Security: repo_url and branch are validated against strict allowlists before
+being passed to git subprocesses, preventing git-option injection attacks.
+All subprocess calls carry an explicit timeout to prevent hangs on slow servers.
 """
 
 import logging
+import re
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,6 +18,25 @@ from agents.models.raw import RawCommit
 logger = logging.getLogger(__name__)
 
 _GIT_LOG_FORMAT = "%H\x1f%ae\x1f%aI\x1f%s\x1f%D"
+_GIT_TIMEOUT = 120  # seconds
+
+# Strict allowlists guard against git-option injection (e.g. --upload-pack=…)
+_ALLOWED_URL_SCHEMES = ("https://", "http://", "git://", "ssh://")
+_BRANCH_RE = re.compile(r"^[A-Za-z0-9._/-]{1,128}$")
+
+
+def _validate_repo_url(url: str) -> None:
+    if not any(url.startswith(s) for s in _ALLOWED_URL_SCHEMES):
+        raise ValueError(
+            f"Unsafe repo_url {url!r}: must start with one of {_ALLOWED_URL_SCHEMES}"
+        )
+
+
+def _validate_branch_name(branch: str) -> None:
+    if not _BRANCH_RE.match(branch):
+        raise ValueError(
+            f"Unsafe branch name {branch!r}: must match {_BRANCH_RE.pattern}"
+        )
 
 
 class PlainGitAdapter:
@@ -24,6 +48,8 @@ class PlainGitAdapter:
         branch: str = "master",
         cache_dir: Path | None = None,
     ) -> None:
+        _validate_repo_url(repo_url)
+        _validate_branch_name(branch)
         self.repo_url = repo_url
         self.branch = branch
         self._cache_dir = Path(cache_dir) if cache_dir else Path("agents/cache")
@@ -48,14 +74,15 @@ class PlainGitAdapter:
                 [
                     "git",
                     "log",
-                    self.branch,
+                    self.branch,           # validated; placed before option flags
                     f"--since={since_dt}",
                     f"--format={_GIT_LOG_FORMAT}",
                     "--no-merges",
+                    "--",                  # end of revision/option args; no path filter
                 ],
                 cwd=self._bare_path,
             )
-        except subprocess.CalledProcessError as exc:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
             logger.warning(
                 "git log failed for %s/%s: %s", self.repo_url, self.branch, exc
             )
@@ -98,16 +125,17 @@ class PlainGitAdapter:
             try:
                 self._run(["git", "fetch", "--quiet", "origin"], cwd=self._bare_path)
                 logger.debug("Fetched %s", self.repo_url)
-            except subprocess.CalledProcessError as exc:
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
                 logger.warning("git fetch failed for %s: %s", self.repo_url, exc)
         else:
             logger.info("Cloning %s → %s", self.repo_url, self._bare_path)
             try:
+                # `--` before URL prevents git from interpreting it as an option
                 self._run(
-                    ["git", "clone", "--bare", "--quiet", self.repo_url,
-                     str(self._bare_path)]
+                    ["git", "clone", "--bare", "--quiet", "--",
+                     self.repo_url, str(self._bare_path)]
                 )
-            except subprocess.CalledProcessError as exc:
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
                 logger.error("git clone failed for %s: %s", self.repo_url, exc)
                 raise
 
@@ -117,16 +145,14 @@ class PlainGitAdapter:
                 ["git", "diff-tree", "--stat", "--no-commit-id", "-r", sha],
                 cwd=self._bare_path,
             ).strip()
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return ""
 
     def _infer_url(self, sha: str) -> str:
         """Best-effort: convert known Git hosting URLs to web URLs."""
         url = self.repo_url.rstrip("/")
-        # kernel.org
         if "git.kernel.org" in url:
             return f"{url}/commit/?id={sha}"
-        # GitHub
         if "github.com" in url:
             url = url.removesuffix(".git")
             return f"{url}/commit/{sha}"
@@ -135,6 +161,7 @@ class PlainGitAdapter:
     @staticmethod
     def _run(cmd: list[str], cwd: Path | None = None) -> str:
         result = subprocess.run(
-            cmd, cwd=cwd, capture_output=True, text=True, check=True
+            cmd, cwd=cwd, capture_output=True, text=True, check=True,
+            timeout=_GIT_TIMEOUT,
         )
         return result.stdout

