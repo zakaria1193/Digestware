@@ -1,8 +1,8 @@
 """web_search — Gemini grounded search enrichment tool for cryptic commit/discussion titles.
 
 Uses the OpenRouter `:online` model suffix to enable Gemini's native Google Search
-grounding.  All traffic goes through OpenRouter (OPENROUTER_API_KEY) — no separate
-Gemini API key is required.
+grounding.  All traffic goes through OpenRouter via the shared ``agents._openrouter``
+client — no separate Gemini API key is required.
 
 Called only when a commit/discussion title is short (< 20 words) or lacks a
 recognisable subsystem keyword so the downstream LLM has enough context to produce
@@ -10,13 +10,13 @@ a meaningful summary.
 """
 
 import logging
-import os
+
+from agents._openrouter import build_client
 
 logger = logging.getLogger(__name__)
 
 # Appending :online tells OpenRouter to enable web-search grounding for this call.
 _SEARCH_MODEL = "google/gemini-2.0-flash-001:online"
-_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 
 def search_context(query: str, max_results: int = 5) -> list[str]:
@@ -29,14 +29,7 @@ def search_context(query: str, max_results: int = 5) -> list[str]:
     if not query or not query.strip():
         return []
     try:
-        from openai import OpenAI  # lazy import — already in requirements.txt
-
-        api_key = os.environ.get("OPENROUTER_API_KEY")
-        if not api_key:
-            logger.warning("OPENROUTER_API_KEY not set; web enrichment disabled")
-            return []
-
-        client = OpenAI(base_url=_OPENROUTER_BASE_URL, api_key=api_key)
+        client = build_client()
         response = client.chat.completions.create(
             model=_SEARCH_MODEL,
             messages=[
@@ -55,9 +48,6 @@ def search_context(query: str, max_results: int = 5) -> list[str]:
         lines = [ln.strip() for ln in text.split("\n") if ln.strip()]
         return lines[:max_results]
 
-    except ImportError:
-        logger.warning("openai package not installed; web enrichment disabled")
-        return []
     except Exception as exc:
         logger.warning("Gemini online search failed for %r: %s", query, exc)
         return []

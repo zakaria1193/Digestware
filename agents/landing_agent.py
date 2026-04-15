@@ -28,8 +28,8 @@ import re
 from urllib.parse import urlparse
 
 from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIModel
 
+from agents._openrouter import build_model
 from agents._retry import retry_with_backoff
 from agents.models.landing import LandingDigest
 from agents.models.raw import RawCommit
@@ -116,14 +116,6 @@ def _namespace_ref(raw_ref: str, commit: RawCommit) -> str:
     return raw_ref
 
 
-def _build_model(model_name: str) -> OpenAIModel:
-    api_key = os.environ.get("OPENROUTER_API_KEY", "")
-    return OpenAIModel(
-        model_name,
-        base_url="https://openrouter.ai/api/v1",
-        api_key=api_key,
-    )
-
 
 def _render_batch(batch: list[RawCommit]) -> str:
     lines: list[str] = []
@@ -146,7 +138,7 @@ def _render_batch(batch: list[RawCommit]) -> str:
 
 
 def _make_agent(model_name: str) -> Agent:
-    model = _build_model(model_name)
+    model = build_model(model_name)
     return Agent(
         model=model,
         result_type=list[LandingDigest],

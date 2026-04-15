@@ -11,8 +11,8 @@ import logging
 import os
 
 from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIModel
 
+from agents._openrouter import build_model
 from agents._retry import retry_with_backoff
 from agents.models.discussion import DiscussionDigest
 from agents.models.raw import RawDiscussion
@@ -42,14 +42,6 @@ Return a JSON array where each element matches the DiscussionDigest schema.
 Do not include markdown fences — raw JSON only.
 """
 
-
-def _build_openrouter_model(model_name: str) -> OpenAIModel:
-    api_key = os.environ.get("OPENROUTER_API_KEY", "")
-    return OpenAIModel(
-        model_name,
-        base_url="https://openrouter.ai/api/v1",
-        api_key=api_key,
-    )
 
 
 def _render_batch(batch: list[RawDiscussion]) -> str:
@@ -97,7 +89,7 @@ def run_discussion_agent(
         return _stub_digests(discussions)
 
     model_name = os.environ.get("SUMMARISER_MODEL", _DEFAULT_MODEL)
-    model = _build_openrouter_model(model_name)
+    model = build_model(model_name)
     agent: Agent[None, list[DiscussionDigest]] = Agent(
         model=model,
         result_type=list[DiscussionDigest],
