@@ -55,10 +55,16 @@ def _build_sources(
 
     for entry in config.get("sources", []):
         src_type = entry.get("type")
+        # `project` labels the output digests (e.g. "gcc", "glibc", "linux").
+        # For public_inbox there can be several mailing lists per adapter, so a
+        # per-list mapping is also accepted.
+        project = entry.get("project", "unknown")
+        list_projects = entry.get("list_projects") or {}
         if src_type == "github":
             adapter = GitHubAdapter(
                 owner=entry["owner"],
                 repo=entry["repo"],
+                project=project,
             )
             discussion_sources.append(adapter)
             commit_sources.append(adapter)
@@ -69,6 +75,8 @@ def _build_sources(
                 cvs_lists=entry.get("cvs_lists", []),
                 cache_dir=_CACHE_DIR,
                 use_nntp=entry.get("use_nntp", True),
+                project=project,
+                list_projects=list_projects,
             )
             discussion_sources.append(adapter)
             commit_sources.append(adapter)
@@ -78,6 +86,7 @@ def _build_sources(
                 repo_url=entry["url"],
                 branch=entry.get("branch", "master"),
                 cache_dir=_CACHE_DIR,
+                project=project,
             )
             commit_sources.append(adapter)
 
@@ -153,16 +162,18 @@ def main() -> int:
             logger.warning("Failed to write discussion %s: %s", d.discussion_id, exc)
 
     written_landings = 0
-    for l in landings:
+    for landing in landings:
         try:
-            path = write_landing(l)
+            path = write_landing(landing)
             logger.debug("Wrote landing → %s", path)
             written_landings += 1
         except Exception as exc:
-            logger.warning("Failed to write landing %s: %s", l.commit_hash, exc)
+            logger.warning(
+                "Failed to write landing %s: %s", landing.commit_hash, exc
+            )
 
     # Summary
-    bento_worthy = sum(1 for l in landings if l.impact_score >= 7)
+    bento_worthy = sum(1 for landing in landings if landing.impact_score >= 7)
     print(
         f"\n{'─'*60}\n"
         f"  Discussions written : {written_discussions}\n"

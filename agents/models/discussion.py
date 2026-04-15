@@ -1,5 +1,7 @@
 """DiscussionDigest — output model for the Lab (discussion) agent."""
 
+from datetime import datetime
+
 from pydantic import Field
 
 from agents.models.base import BimodalBase, ConsensusStatus
@@ -15,4 +17,5 @@ class DiscussionDigest(BimodalBase):
     technical_tradeoffs: list[str]
     summary: str
     url: str
+    date: datetime            # preserved from RawDiscussion — when the discussion happened
     bugzilla_url: str | None = None

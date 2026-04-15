@@ -8,13 +8,15 @@ Batching: 15 commits per LLM call.
 
 Cross-reference trailers (Closes #N, Message-Id:, Link:, PR N, Bugzilla: N) are
 extracted deterministically from raw commit messages and applied post-hoc to
-LandingDigest.discussion_id_link, regardless of what the LLM finds.
+LandingDigest.discussion_id_link / bugzilla_pr, regardless of what the LLM
+finds. Trailers are applied AFTER the premium re-run so the premium merge
+doesn't clobber deterministic data.
 
-The premium re-run receives the ORIGINAL RawCommit (not the cheap LLM's summary),
-so the premium model has at least as much context as the cheap one.
+The premium re-run receives the ORIGINAL RawCommit (not the cheap LLM's
+summary), so the premium model has at least as much context as the cheap one.
 
-Token usage is appended as JSON lines to agents/output/usage.log, which is
-rotated when it exceeds _MAX_USAGE_LOG_BYTES.
+Token usage goes through the shared ``agents.usage_log`` module (structured
+JSON with parsed token counts, anchored path, rotated at 10 MB).
 """
 
 from __future__ import annotations
@@ -23,25 +25,24 @@ import json
 import logging
 import os
 import re
-from datetime import datetime, timezone
-from pathlib import Path
+from urllib.parse import urlparse
 
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIModel
 
+from agents._retry import retry_with_backoff
 from agents.models.landing import LandingDigest
 from agents.models.raw import RawCommit
 from agents.tools.patch_id import extract_patch_id
 from agents.tools.series_grouping import series_aware_batches
 from agents.tools.web_search import search_context
+from agents.usage_log import append_usage
 
 logger = logging.getLogger(__name__)
 
 _BATCH_SIZE = 15
 _DEFAULT_MODEL = "google/gemini-2.0-flash-001"
 _PREMIUM_MODEL = "anthropic/claude-sonnet-4-5"
-_USAGE_LOG = Path("agents/output/usage.log")
-_MAX_USAGE_LOG_BYTES = 10 * 1024 * 1024  # 10 MB — rotate when exceeded
 
 _TRAILER_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("closes",      re.compile(r"Closes\s+#(\d+)", re.IGNORECASE)),
@@ -65,7 +66,8 @@ Source-type heuristics:
 - "plain_git"    → commit body only; no PR metadata available
 
 Cross-reference trailers are listed explicitly — use them to populate
-discussion_id_link where present.
+discussion_id_link where present. The ``commit_hash`` field MUST be echoed
+verbatim from the input so each digest can be matched back.
 
 Return a JSON array — raw JSON only, no markdown fences.
 """
@@ -81,6 +83,39 @@ def _extract_trailers(message: str) -> dict[str, str]:
     return found
 
 
+def _github_owner_repo(url: str) -> tuple[str, str] | None:
+    """Parse ``https://github.com/{owner}/{repo}/...`` → (owner, repo)."""
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return None
+    if parsed.netloc != "github.com":
+        return None
+    parts = parsed.path.lstrip("/").split("/")
+    if len(parts) < 2 or not parts[0] or not parts[1]:
+        return None
+    return parts[0], parts[1]
+
+
+def _namespace_ref(raw_ref: str, commit: RawCommit) -> str:
+    """Turn a raw cross-ref (bare PR #, message-id, URL) into a globally-unique id.
+
+    - URLs and message-ids pass through unchanged.
+    - Bare digits get prefixed with a platform-aware namespace so that GitHub
+      PR #123 on project A doesn't collide with PR #123 on project B.
+    """
+    # Already a URL or contains '@' (message-id) — already globally unique.
+    if raw_ref.startswith(("http://", "https://")) or "@" in raw_ref:
+        return raw_ref
+    if raw_ref.isdigit():
+        if commit.source_type == "github":
+            owner_repo = _github_owner_repo(commit.url)
+            if owner_repo:
+                return f"github:{owner_repo[0]}/{owner_repo[1]}#{raw_ref}"
+        return f"{commit.source_type}:{commit.project}#{raw_ref}"
+    return raw_ref
+
+
 def _build_model(model_name: str) -> OpenAIModel:
     api_key = os.environ.get("OPENROUTER_API_KEY", "")
     return OpenAIModel(
@@ -93,7 +128,8 @@ def _build_model(model_name: str) -> OpenAIModel:
 def _render_batch(batch: list[RawCommit]) -> str:
     lines: list[str] = []
     for c in batch:
-        lines.append(f"--- Commit {c.sha[:12]} ---")
+        lines.append(f"--- Commit {c.sha} ---")
+        lines.append(f"project: {c.project}")
         lines.append(f"source_type: {c.source_type}")
         lines.append(f"author: {c.author}")
         lines.append(f"date: {c.date.isoformat()}")
@@ -107,28 +143,6 @@ def _render_batch(batch: list[RawCommit]) -> str:
             lines.append(f"cross_refs: {json.dumps(trailers)}")
         lines.append("")
     return "\n".join(lines)
-
-
-def _maybe_rotate_log(path: Path) -> None:
-    """Rotate the usage log when it exceeds _MAX_USAGE_LOG_BYTES (one backup kept)."""
-    if path.exists() and path.stat().st_size > _MAX_USAGE_LOG_BYTES:
-        backup = path.with_suffix(".log.1")
-        backup.unlink(missing_ok=True)
-        path.rename(backup)
-        logger.info("Rotated usage log → %s", backup)
-
-
-def _append_usage(agent_name: str, model: str, usage: object) -> None:
-    _USAGE_LOG.parent.mkdir(parents=True, exist_ok=True)
-    _maybe_rotate_log(_USAGE_LOG)
-    record = {
-        "agent": agent_name,
-        "model": model,
-        "ts": datetime.now(tz=timezone.utc).isoformat(),
-        "usage": str(usage),
-    }
-    with _USAGE_LOG.open("a") as fh:
-        fh.write(json.dumps(record) + "\n")
 
 
 def _make_agent(model_name: str) -> Agent:
@@ -146,7 +160,6 @@ def _make_agent(model_name: str) -> Agent:
 
 def run_landing_agent(
     commits: list[RawCommit],
-    project: str = "gcc",
     dry_run: bool = False,
 ) -> list[LandingDigest]:
     """Process all commits in batches and return LandingDigest objects.
@@ -154,19 +167,22 @@ def run_landing_agent(
     Items with impact_score >= 9 are re-run through the premium model using the
     original RawCommit data (not the cheap model's summary).
 
+    Each digest's ``project`` and ``date`` fields are overridden post-hoc from
+    the originating ``RawCommit`` so they reflect the source (and never depend
+    on the LLM echoing them correctly).
+
     Args:
         commits: Raw items from IngestionEngine.
-        project: Default project name injected into each digest.
         dry_run: If True, skip LLM calls and return stub digests.
     """
     if not commits:
         return []
 
     if dry_run:
-        return _stub_digests(commits, project)
+        return _stub_digests(commits)
 
-    # Build SHA → original RawCommit map for deterministic trailer injection
-    # and premium re-run (C5 fix: premium model gets original data, not LLM summary)
+    # SHA → original RawCommit for deterministic trailer injection and
+    # premium re-run (premium model gets original data, not LLM summary).
     commit_by_sha: dict[str, RawCommit] = {c.sha: c for c in commits}
 
     cheap_model_name = os.environ.get("SUMMARISER_MODEL", _DEFAULT_MODEL)
@@ -177,59 +193,140 @@ def run_landing_agent(
         commits, _BATCH_SIZE, lambda c: c.metadata.get("series_id")
     )
     for batch_idx, batch in enumerate(batches):
-        prompt = (
-            f"Digest the following {len(batch)} commit(s) for project "
-            f"'{project}'. Return a JSON array of LandingDigest objects.\n\n"
-            + _render_batch(batch)
-        )
-        try:
-            result = cheap_agent.run_sync(prompt)
-            usage = result.usage()
-            _append_usage("landing_agent", cheap_model_name, usage)
-            logger.info(
-                "Batch %d: %d digest(s), usage=%s",
-                batch_idx, len(result.data), usage,
-            )
-            results.extend(result.data)
-        except Exception as exc:
-            logger.error("landing_agent batch %d failed: %s", batch_idx, exc)
-            results.extend(_stub_digests(batch, project))
+        results.extend(_run_batch(cheap_agent, cheap_model_name, batch, batch_idx))
 
-    # Deterministically apply extracted trailers (C3 fix: _extract_trailers is
-    # now actually called; LLM cross-ref is supplemented, not replaced)
-    results = _apply_trailers(results, commit_by_sha)
-
-    # Re-run high-impact items with premium model
+    # Re-run high-impact items with premium model BEFORE applying trailers —
+    # otherwise the premium merge would clobber deterministically-extracted
+    # discussion_id_link / bugzilla_pr values.
     premium_items = [r for r in results if r.impact_score >= 9]
     if premium_items:
         logger.info("Re-running %d high-impact items with premium model", len(premium_items))
-        results = _rerun_premium(results, premium_items, commit_by_sha, project)
+        results = _rerun_premium(results, premium_items, commit_by_sha)
 
-    return results
+    # Deterministically apply extracted trailers AFTER the premium re-run,
+    # supplementing (not replacing) any discussion_id_link / bugzilla_pr the
+    # LLM already set.
+    results = _apply_trailers(results, commit_by_sha)
+
+    # Deterministic project + date override from the original RawCommit,
+    # applied last so premium/cheap/stub paths all converge here.
+    return _override_from_raw(results, commit_by_sha)
+
+
+def _run_batch(
+    agent: Agent,
+    model_name: str,
+    batch: list[RawCommit],
+    batch_idx: int,
+) -> list[LandingDigest]:
+    """Run one batch through the LLM with retry + input/output correlation.
+
+    Missing items (present in input, absent from LLM response) are filled in
+    with stub digests so batches never silently shrink.
+    """
+    batch_projects = sorted({c.project for c in batch})
+    prompt = (
+        f"Digest the following {len(batch)} commit(s) "
+        f"(projects: {', '.join(batch_projects)}). "
+        f"Return a JSON array of LandingDigest objects. The ``commit_hash``, "
+        f"``project`` and ``date`` fields MUST be taken verbatim from each input "
+        f"item — preserve them exactly so each digest can be matched back.\n\n"
+        + _render_batch(batch)
+    )
+
+    try:
+        result = retry_with_backoff(
+            lambda: agent.run_sync(prompt),
+            label=f"landing_agent batch {batch_idx}",
+        )
+    except Exception as exc:
+        logger.error(
+            "landing_agent batch %d failed after retries: %s", batch_idx, exc
+        )
+        return _stub_digests(batch)
+
+    append_usage("landing_agent", model_name, result.usage())
+    data: list[LandingDigest] = list(result.data)
+    logger.info(
+        "Batch %d: %d digest(s), usage=%s",
+        batch_idx, len(data), result.usage(),
+    )
+
+    # Correlation: stub any input item the LLM failed to return.
+    returned_shas = {d.commit_hash for d in data}
+    missing = [raw for raw in batch if raw.sha not in returned_shas]
+    if missing:
+        logger.warning(
+            "landing_agent batch %d: LLM omitted %d of %d items (shas=%s)",
+            batch_idx, len(missing), len(batch), [m.sha for m in missing],
+        )
+        data.extend(_stub_digests(missing))
+
+    # Correlation: drop hallucinated items the LLM invented.
+    input_shas = {raw.sha for raw in batch}
+    extra = [d for d in data if d.commit_hash not in input_shas]
+    if extra:
+        logger.warning(
+            "landing_agent batch %d: LLM returned %d unknown shas=%s — dropping",
+            batch_idx, len(extra), [d.commit_hash for d in extra],
+        )
+        data = [d for d in data if d.commit_hash in input_shas]
+
+    return data
+
+
+def _override_from_raw(
+    digests: list[LandingDigest],
+    commit_by_sha: dict[str, RawCommit],
+) -> list[LandingDigest]:
+    """Force ``project`` and ``date`` to match the originating RawCommit."""
+    fixed: list[LandingDigest] = []
+    for d in digests:
+        raw = commit_by_sha.get(d.commit_hash)
+        if raw is not None:
+            d = d.model_copy(update={"project": raw.project, "date": raw.date})
+        fixed.append(d)
+    return fixed
 
 
 def _apply_trailers(
     digests: list[LandingDigest],
     commit_by_sha: dict[str, RawCommit],
 ) -> list[LandingDigest]:
-    """Backfill discussion_id_link from deterministically-extracted trailers.
+    """Backfill discussion_id_link + bugzilla_pr from extracted trailers.
 
-    Only overwrites if the LLM left the field None (prefer LLM-set values).
+    Only overwrites fields the LLM left unset (prefer LLM-set values).
+    Bare-number references are namespaced so PR #123 on project A can't
+    collide with PR #123 on project B.
     """
     updated: list[LandingDigest] = []
     for d in digests:
+        original = commit_by_sha.get(d.commit_hash)
+        if original is None:
+            updated.append(d)
+            continue
+
+        trailers = _extract_trailers(original.message)
+        patch: dict[str, object] = {}
+
         if d.discussion_id_link is None:
-            original = commit_by_sha.get(d.commit_hash)
-            if original:
-                trailers = _extract_trailers(original.message)
-                link = (
-                    trailers.get("message_id")
-                    or trailers.get("link")
-                    or trailers.get("closes")
-                    or trailers.get("pr")
-                )
-                if link:
-                    d = d.model_copy(update={"discussion_id_link": str(link)})
+            raw_link = (
+                trailers.get("message_id")
+                or trailers.get("link")
+                or trailers.get("closes")
+                or trailers.get("pr")
+            )
+            if raw_link:
+                patch["discussion_id_link"] = _namespace_ref(raw_link, original)
+
+        if d.bugzilla_pr is None and "bugzilla" in trailers:
+            try:
+                patch["bugzilla_pr"] = int(trailers["bugzilla"])
+            except ValueError:
+                pass
+
+        if patch:
+            d = d.model_copy(update=patch)
         updated.append(d)
     return updated
 
@@ -238,41 +335,56 @@ def _rerun_premium(
     all_results: list[LandingDigest],
     high_impact: list[LandingDigest],
     commit_by_sha: dict[str, RawCommit],
-    project: str,
 ) -> list[LandingDigest]:
     """Re-analyse high-impact items with the premium model.
 
-    C5 fix: uses the original RawCommit (full message + diff_stat), not the
-    cheap LLM's summary — ensuring the premium model has at least as much
-    context as the cheap one did.
+    Uses the original RawCommit (full message + diff_stat), not the cheap
+    LLM's summary — ensuring the premium model has at least as much context
+    as the cheap one did. Wrapped in retry_with_backoff so a single 429 blip
+    doesn't cost us the depth we paid for.
     """
     premium_model_name = os.environ.get("BENTO_MODEL", _PREMIUM_MODEL)
     premium_agent = _make_agent(premium_model_name)
 
-    # Look up original commits; fall back to stub if SHA is missing
+    # Look up original commits; fall back to cheap result if SHA is missing.
     original_commits: list[RawCommit] = []
     for d in high_impact:
         original = commit_by_sha.get(d.commit_hash)
         if original:
             original_commits.append(original)
         else:
-            logger.warning("No original RawCommit for %s — skipping premium re-run", d.commit_hash)
+            logger.warning(
+                "No original RawCommit for %s — skipping premium re-run",
+                d.commit_hash,
+            )
 
     if not original_commits:
         return all_results
 
+    batch_projects = sorted({c.project for c in original_commits})
     prompt = (
-        f"Re-analyse these {len(original_commits)} high-impact commit(s) for project "
-        f"'{project}' with greater depth. Return a JSON array of LandingDigest.\n\n"
+        f"Re-analyse these {len(original_commits)} high-impact commit(s) "
+        f"(projects: {', '.join(batch_projects)}) with greater depth. "
+        f"Return a JSON array of LandingDigest. The ``commit_hash``, "
+        f"``project`` and ``date`` fields MUST be echoed verbatim.\n\n"
         + _render_batch(original_commits)
     )
 
     refined_by_sha: dict[str, LandingDigest] = {}
     try:
-        result = premium_agent.run_sync(prompt)
-        usage = result.usage()
-        _append_usage("landing_agent_premium", premium_model_name, usage)
+        result = retry_with_backoff(
+            lambda: premium_agent.run_sync(prompt),
+            label="landing_agent premium rerun",
+        )
+        append_usage("landing_agent_premium", premium_model_name, result.usage())
+        input_shas = {c.sha for c in original_commits}
         for refined in result.data:
+            if refined.commit_hash not in input_shas:
+                logger.warning(
+                    "Premium model returned unknown commit_hash=%s — dropping",
+                    refined.commit_hash,
+                )
+                continue
             refined_by_sha[refined.commit_hash] = refined
     except Exception as exc:
         logger.error("Premium re-run failed: %s — keeping cheap results", exc)
@@ -280,10 +392,10 @@ def _rerun_premium(
     return [refined_by_sha.get(d.commit_hash, d) for d in all_results]
 
 
-def _stub_digests(items: list[RawCommit], project: str) -> list[LandingDigest]:
+def _stub_digests(items: list[RawCommit]) -> list[LandingDigest]:
     return [
         LandingDigest(
-            project=project,
+            project=c.project,
             subsystem="unknown",
             commit_hash=c.sha,
             source_type=c.source_type,
@@ -291,6 +403,7 @@ def _stub_digests(items: list[RawCommit], project: str) -> list[LandingDigest]:
             impact_score=5,
             summary=c.message[:200] if c.message else "(no message)",
             url=c.url,
+            date=c.date,
         )
         for c in items
     ]

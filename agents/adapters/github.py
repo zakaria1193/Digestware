@@ -37,9 +37,11 @@ class GitHubAdapter:
         owner: str,
         repo: str,
         token: str | None = None,
+        project: str = "unknown",
     ) -> None:
         self.owner = owner
         self.repo = repo
+        self.project = project
         self._token = token or os.getenv("GITHUB_TOKEN")
         headers: dict[str, str] = {
             "Accept": "application/vnd.github+json",
@@ -72,8 +74,10 @@ class GitHubAdapter:
     ) -> httpx.Response:
         """Single GET with rate-limit awareness and retry on 429 / quota-403."""
         url = f"{_GITHUB_API}{path}"
+        last_resp: httpx.Response | None = None
         for attempt in range(_MAX_RETRIES):
             resp = self._client.get(url, params=params, headers=extra_headers)
+            last_resp = resp
 
             remaining = int(resp.headers.get("X-RateLimit-Remaining", "9999"))
             if remaining < _RATE_LIMIT_WARN:
@@ -100,10 +104,10 @@ class GitHubAdapter:
             resp.raise_for_status()
             return resp
 
-        # Last-chance attempt — will raise on failure
-        resp = self._client.get(url, params=params, headers=extra_headers)
-        resp.raise_for_status()
-        return resp
+        # All retries exhausted — raise on the last response we saw.
+        assert last_resp is not None
+        last_resp.raise_for_status()
+        return last_resp
 
     def _paginate(self, path: str, params: dict | None = None) -> list:
         """Fetch all pages using the Link: rel="next" header for reliability."""
@@ -115,7 +119,13 @@ class GitHubAdapter:
             params["page"] = page
             resp = self._request(path, params)
             data = resp.json()
-            if not isinstance(data, list) or not data:
+            if not isinstance(data, list):
+                logger.warning(
+                    "GitHub %s returned non-list payload (type=%s) — stopping pagination",
+                    path, type(data).__name__,
+                )
+                break
+            if not data:
                 break
             results.extend(data)
             if 'rel="next"' not in resp.headers.get("Link", ""):
@@ -143,9 +153,13 @@ class GitHubAdapter:
             updated_at = self._parse_dt(pr["updated_at"])
             if updated_at.timestamp() < cutoff:
                 break  # sorted desc by updated_at — safe to stop here
+            # The /pulls list endpoint does NOT include `changed_files`; we must
+            # fetch per-PR detail to get that count before gating the diff fetch.
+            pr_detail = self._fetch_pr_detail(pr["number"])
+            changed_files = (pr_detail or pr).get("changed_files", 0)
             replies = self._fetch_pr_comments(pr["number"])
             diff_text = self._fetch_pr_diff(
-                pr["number"], changed_files=pr.get("changed_files", 0)
+                pr["number"], changed_files=changed_files
             )
             discussions.append(
                 RawDiscussion(
@@ -158,15 +172,30 @@ class GitHubAdapter:
                     replies=replies,
                     diff_text=diff_text,
                     source_type="github_pr",
+                    project=self.project,
                     metadata={
                         "state": pr["state"],
                         "draft": pr.get("draft", False),
                         "labels": [lb["name"] for lb in pr.get("labels", [])],
-                        "changed_files": pr.get("changed_files", 0),
+                        "changed_files": changed_files,
                     },
                 )
             )
         return discussions
+
+    def _fetch_pr_detail(self, pr_number: int) -> dict | None:
+        """Fetch per-PR detail (list endpoint omits fields like `changed_files`)."""
+        try:
+            resp = self._request(
+                f"/repos/{self.owner}/{self.repo}/pulls/{pr_number}"
+            )
+            data = resp.json()
+            if isinstance(data, dict):
+                return data
+        except (httpx.HTTPError, ValueError) as exc:
+            # ValueError covers JSONDecodeError for non-JSON bodies.
+            logger.warning("Could not fetch detail for PR %s: %s", pr_number, exc)
+        return None
 
     def _fetch_pr_comments(self, pr_number: int) -> list[dict]:
         try:
@@ -219,7 +248,10 @@ class GitHubAdapter:
         )
         commits: list[RawCommit] = []
         for item in raw:
-            commit_data = item["commit"]
+            # The /commits list endpoint does NOT populate `stats` or `files`.
+            # Fetch per-commit detail so diff_stat and the files list are real.
+            detail = self._fetch_commit_detail(item["sha"]) or item
+            commit_data = detail.get("commit", item.get("commit", {}))
             author_info = commit_data.get("author") or {}
             date_str = author_info.get("date", "1970-01-01T00:00:00Z")
             commits.append(
@@ -228,19 +260,34 @@ class GitHubAdapter:
                     author=author_info.get("name", "unknown"),
                     date=self._parse_dt(date_str),
                     message=commit_data.get("message", ""),
-                    diff_stat=self._format_diff_stat(item.get("stats")),
+                    diff_stat=self._format_diff_stat(detail.get("stats")),
                     url=item["html_url"],
                     source_type="github",
+                    project=self.project,
                     metadata={
                         # Cap at _MAX_FILES_IN_META to bound memory usage
                         "files": [
                             f["filename"]
-                            for f in item.get("files", [])[:_MAX_FILES_IN_META]
+                            for f in detail.get("files", [])[:_MAX_FILES_IN_META]
                         ],
                     },
                 )
             )
         return commits
+
+    def _fetch_commit_detail(self, sha: str) -> dict | None:
+        """Fetch per-commit detail (the list endpoint omits stats/files)."""
+        try:
+            resp = self._request(
+                f"/repos/{self.owner}/{self.repo}/commits/{sha}"
+            )
+            data = resp.json()
+            if isinstance(data, dict):
+                return data
+        except (httpx.HTTPError, ValueError) as exc:
+            # ValueError covers JSONDecodeError for non-JSON bodies.
+            logger.warning("Could not fetch detail for commit %s: %s", sha, exc)
+        return None
 
     @staticmethod
     def _format_diff_stat(stats: dict | None) -> str:

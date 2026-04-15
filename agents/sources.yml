@@ -1,5 +1,6 @@
 sources:
   - type: github
+    project: gcc
     owner: gcc-mirror
     repo: gcc
 
@@ -7,7 +8,14 @@ sources:
     discussion_lists: [gcc, libc-alpha]
     cvs_lists: [gcc-cvs, glibc-cvs]
     use_nntp: true
+    # Per-list project override — each mailing list belongs to a different project
+    list_projects:
+      gcc: gcc
+      gcc-cvs: gcc
+      libc-alpha: glibc
+      glibc-cvs: glibc
 
   - type: plain_git
+    project: linux
     url: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
     branch: master

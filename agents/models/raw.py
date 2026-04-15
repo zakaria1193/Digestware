@@ -19,6 +19,7 @@ class RawDiscussion:
     replies: list[dict]   # comments, review threads, email replies
     diff_text: str | None  # patch/diff if attached
     source_type: str      # "github_pr" | "gitlab_mr" | "public_inbox"
+    project: str = "unknown"  # e.g. "gcc", "binutils", "linux" — from sources.yml
     metadata: dict = field(default_factory=dict)  # source-specific pass-through
 
 
@@ -31,4 +32,5 @@ class RawCommit:
     diff_stat: str
     url: str
     source_type: str      # "github" | "gitlab" | "public_inbox" | "plain_git"
+    project: str = "unknown"  # e.g. "gcc", "binutils", "linux" — from sources.yml
     metadata: dict = field(default_factory=dict)

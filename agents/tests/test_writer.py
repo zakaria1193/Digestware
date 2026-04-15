@@ -49,6 +49,8 @@ class TestWriteDiscussion:
     def test_same_title_different_ids_no_collision(self, tmp_output_dir):
         """Two discussions with identical titles on the same day must produce
         distinct files thanks to the id_hash suffix."""
+        from datetime import datetime, timezone
+
         from agents.models.base import ConsensusStatus
         from agents.models.discussion import DiscussionDigest
 
@@ -65,6 +67,7 @@ class TestWriteDiscussion:
                 technical_tradeoffs=[],
                 summary="summary",
                 url=f"https://example.com/{discussion_id}",
+                date=datetime(2026, 4, 14, tzinfo=timezone.utc),
             )
 
         p1 = write_discussion(_make("id-001"), output_dir=tmp_output_dir)
