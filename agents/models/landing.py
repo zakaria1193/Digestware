@@ -1,5 +1,7 @@
 """LandingDigest — output model for the Factory (landing) agent."""
 
+from datetime import datetime
+
 from pydantic import Field
 
 from agents.models.base import BimodalBase
@@ -16,3 +18,4 @@ class LandingDigest(BimodalBase):
     discussion_id_link: str | None = None  # cross-ref back to DiscussionDigest
     bugzilla_pr: int | None = None
     url: str
+    date: datetime            # preserved from RawCommit — when the commit landed

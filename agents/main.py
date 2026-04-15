@@ -55,10 +55,16 @@ def _build_sources(
 
     for entry in config.get("sources", []):
         src_type = entry.get("type")
+        # `project` labels the output digests (e.g. "gcc", "glibc", "linux").
+        # For public_inbox there can be several mailing lists per adapter, so a
+        # per-list mapping is also accepted.
+        project = entry.get("project", "unknown")
+        list_projects = entry.get("list_projects") or {}
         if src_type == "github":
             adapter = GitHubAdapter(
                 owner=entry["owner"],
                 repo=entry["repo"],
+                project=project,
             )
             discussion_sources.append(adapter)
             commit_sources.append(adapter)
@@ -69,6 +75,8 @@ def _build_sources(
                 cvs_lists=entry.get("cvs_lists", []),
                 cache_dir=_CACHE_DIR,
                 use_nntp=entry.get("use_nntp", True),
+                project=project,
+                list_projects=list_projects,
             )
             discussion_sources.append(adapter)
             commit_sources.append(adapter)
@@ -78,6 +86,7 @@ def _build_sources(
                 repo_url=entry["url"],
                 branch=entry.get("branch", "master"),
                 cache_dir=_CACHE_DIR,
+                project=project,
             )
             commit_sources.append(adapter)
 

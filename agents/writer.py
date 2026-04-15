@@ -39,8 +39,11 @@ def _slugify(title: str) -> str:
     return slug.strip("-")[:80]
 
 
-def _today() -> str:
-    return datetime.now(tz=timezone.utc).strftime("%Y-%m-%d")
+def _format_date(dt: datetime) -> str:
+    """Format a datetime as YYYY-MM-DD in UTC."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%d")
 
 
 # ---------------------------------------------------------------------------
@@ -55,7 +58,9 @@ def write_discussion(
     base = Path(output_dir) if output_dir else _DEFAULT_DISCUSSION_DIR
     base.mkdir(parents=True, exist_ok=True)
 
-    date_str = _today()
+    # Use the discussion's own date so re-runs stay idempotent and the filename
+    # reflects when the discussion actually happened, not when the job ran.
+    date_str = _format_date(d.date)
     slug = _slugify(d.title)
     # Append a 6-char hash of discussion_id to guarantee uniqueness even when
     # two discussions share the same normalised title on the same day (C15).
@@ -90,7 +95,9 @@ def write_landing(
     base = Path(output_dir) if output_dir else _DEFAULT_LANDING_DIR
     base.mkdir(parents=True, exist_ok=True)
 
-    date_str = _today()
+    # Use the commit's own landing date so re-runs stay idempotent and the
+    # filename reflects when the commit actually landed.
+    date_str = _format_date(landing.date)
     slug = _slugify(landing.subsystem + "-" + landing.commit_hash[:8])
     path = base / f"{date_str}-{slug}.md"
 

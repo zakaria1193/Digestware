@@ -94,6 +94,7 @@ def _render_batch(batch: list[RawCommit]) -> str:
     lines: list[str] = []
     for c in batch:
         lines.append(f"--- Commit {c.sha[:12]} ---")
+        lines.append(f"project: {c.project}")
         lines.append(f"source_type: {c.source_type}")
         lines.append(f"author: {c.author}")
         lines.append(f"date: {c.date.isoformat()}")
@@ -146,7 +147,6 @@ def _make_agent(model_name: str) -> Agent:
 
 def run_landing_agent(
     commits: list[RawCommit],
-    project: str = "gcc",
     dry_run: bool = False,
 ) -> list[LandingDigest]:
     """Process all commits in batches and return LandingDigest objects.
@@ -154,16 +154,19 @@ def run_landing_agent(
     Items with impact_score >= 9 are re-run through the premium model using the
     original RawCommit data (not the cheap model's summary).
 
+    Each digest's ``project`` and ``date`` fields are overridden post-hoc from
+    the originating ``RawCommit`` so they reflect the source (and never depend
+    on the LLM echoing them correctly).
+
     Args:
         commits: Raw items from IngestionEngine.
-        project: Default project name injected into each digest.
         dry_run: If True, skip LLM calls and return stub digests.
     """
     if not commits:
         return []
 
     if dry_run:
-        return _stub_digests(commits, project)
+        return _stub_digests(commits)
 
     # Build SHA → original RawCommit map for deterministic trailer injection
     # and premium re-run (C5 fix: premium model gets original data, not LLM summary)
@@ -177,9 +180,13 @@ def run_landing_agent(
         commits, _BATCH_SIZE, lambda c: c.metadata.get("series_id")
     )
     for batch_idx, batch in enumerate(batches):
+        batch_projects = sorted({c.project for c in batch})
         prompt = (
-            f"Digest the following {len(batch)} commit(s) for project "
-            f"'{project}'. Return a JSON array of LandingDigest objects.\n\n"
+            f"Digest the following {len(batch)} commit(s) "
+            f"(projects: {', '.join(batch_projects)}). "
+            f"Return a JSON array of LandingDigest objects. The ``project`` "
+            f"and ``date`` fields for each item MUST be taken verbatim from the "
+            f"corresponding 'project:' and 'date:' values in the input.\n\n"
             + _render_batch(batch)
         )
         try:
@@ -193,7 +200,7 @@ def run_landing_agent(
             results.extend(result.data)
         except Exception as exc:
             logger.error("landing_agent batch %d failed: %s", batch_idx, exc)
-            results.extend(_stub_digests(batch, project))
+            results.extend(_stub_digests(batch))
 
     # Deterministically apply extracted trailers (C3 fix: _extract_trailers is
     # now actually called; LLM cross-ref is supplemented, not replaced)
@@ -203,9 +210,25 @@ def run_landing_agent(
     premium_items = [r for r in results if r.impact_score >= 9]
     if premium_items:
         logger.info("Re-running %d high-impact items with premium model", len(premium_items))
-        results = _rerun_premium(results, premium_items, commit_by_sha, project)
+        results = _rerun_premium(results, premium_items, commit_by_sha)
 
-    return results
+    # Deterministic project + date override from the original RawCommit,
+    # applied last so premium/cheap/stub paths all converge here.
+    return _override_from_raw(results, commit_by_sha)
+
+
+def _override_from_raw(
+    digests: list[LandingDigest],
+    commit_by_sha: dict[str, RawCommit],
+) -> list[LandingDigest]:
+    """Force ``project`` and ``date`` to match the originating RawCommit."""
+    fixed: list[LandingDigest] = []
+    for d in digests:
+        raw = commit_by_sha.get(d.commit_hash)
+        if raw is not None:
+            d = d.model_copy(update={"project": raw.project, "date": raw.date})
+        fixed.append(d)
+    return fixed
 
 
 def _apply_trailers(
@@ -238,7 +261,6 @@ def _rerun_premium(
     all_results: list[LandingDigest],
     high_impact: list[LandingDigest],
     commit_by_sha: dict[str, RawCommit],
-    project: str,
 ) -> list[LandingDigest]:
     """Re-analyse high-impact items with the premium model.
 
@@ -261,9 +283,11 @@ def _rerun_premium(
     if not original_commits:
         return all_results
 
+    batch_projects = sorted({c.project for c in original_commits})
     prompt = (
-        f"Re-analyse these {len(original_commits)} high-impact commit(s) for project "
-        f"'{project}' with greater depth. Return a JSON array of LandingDigest.\n\n"
+        f"Re-analyse these {len(original_commits)} high-impact commit(s) "
+        f"(projects: {', '.join(batch_projects)}) with greater depth. "
+        f"Return a JSON array of LandingDigest.\n\n"
         + _render_batch(original_commits)
     )
 
@@ -280,10 +304,10 @@ def _rerun_premium(
     return [refined_by_sha.get(d.commit_hash, d) for d in all_results]
 
 
-def _stub_digests(items: list[RawCommit], project: str) -> list[LandingDigest]:
+def _stub_digests(items: list[RawCommit]) -> list[LandingDigest]:
     return [
         LandingDigest(
-            project=project,
+            project=c.project,
             subsystem="unknown",
             commit_hash=c.sha,
             source_type=c.source_type,
@@ -291,6 +315,7 @@ def _stub_digests(items: list[RawCommit], project: str) -> list[LandingDigest]:
             impact_score=5,
             summary=c.message[:200] if c.message else "(no message)",
             url=c.url,
+            date=c.date,
         )
         for c in items
     ]

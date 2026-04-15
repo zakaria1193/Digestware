@@ -47,11 +47,13 @@ class PlainGitAdapter:
         repo_url: str,
         branch: str = "master",
         cache_dir: Path | None = None,
+        project: str = "unknown",
     ) -> None:
         _validate_repo_url(repo_url)
         _validate_branch_name(branch)
         self.repo_url = repo_url
         self.branch = branch
+        self.project = project
         self._cache_dir = Path(cache_dir) if cache_dir else Path("agents/cache")
         # Derive a safe directory name from the URL
         safe_name = repo_url.rstrip("/").split("/")[-1]
@@ -110,6 +112,7 @@ class PlainGitAdapter:
                     diff_stat=self._get_diff_stat(sha),
                     url=self._infer_url(sha),
                     source_type="plain_git",
+                    project=self.project,
                     metadata={"refs": refs, "repo_url": self.repo_url},
                 )
             )

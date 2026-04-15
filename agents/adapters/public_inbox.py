@@ -136,11 +136,16 @@ class PublicInboxAdapter:
         cvs_lists: list[str],
         cache_dir: Path,
         use_nntp: bool = True,  # accepted for API compatibility; NNTP not implemented
+        project: str = "unknown",
+        list_projects: dict[str, str] | None = None,
     ) -> None:
         for name in discussion_lists + cvs_lists:
             _validate_list_name(name)
         self.discussion_lists = discussion_lists
         self.cvs_lists = cvs_lists
+        self.project = project
+        # Optional per-list project override, e.g. {"gcc": "gcc", "libc-alpha": "glibc"}
+        self._list_projects = dict(list_projects) if list_projects else {}
         self.cache_dir = Path(cache_dir)
         self._raw_cache = self.cache_dir / "raw"
         self._raw_cache.mkdir(parents=True, exist_ok=True)
@@ -211,6 +216,7 @@ class PublicInboxAdapter:
                     replies=[],
                     diff_text=self._extract_diff(msg),
                     source_type="public_inbox",
+                    project=self._list_projects.get(list_name, self.project),
                     metadata={"list": list_name, "sha": sha, "series_id": series_id},
                 )
             )
@@ -270,15 +276,22 @@ class PublicInboxAdapter:
             self._cache_mbox(message_id, raw)
             msg_date = self._parse_date(msg.get("Date", ""))
             series_id = _thread_root(msg)
+            # Compose a commit-message-like payload: subject + body. The body
+            # carries the trailers (Closes/Link/Bugzilla/…) that the landing
+            # agent's _extract_trailers scans for.
+            subject = str(msg.get("Subject", ""))
+            body = self._get_body(msg)
+            full_message = f"{subject}\n\n{body}" if body else subject
             results.append(
                 RawCommit(
                     sha=commit_sha or sha,
                     author=str(msg.get("From", "unknown")),
                     date=msg_date or datetime.now(tz=timezone.utc),
-                    message=str(msg.get("Subject", "")),
+                    message=full_message,
                     diff_stat=self._extract_diff_stat(msg),
                     url=f"{_SOURCEWARE_INBOX}/{list_name}/{message_id}",
                     source_type="public_inbox",
+                    project=self._list_projects.get(list_name, self.project),
                     metadata={"list": list_name, "message_id": message_id, "series_id": series_id},
                 )
             )

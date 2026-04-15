@@ -68,6 +68,7 @@ def sample_discussion_digest() -> DiscussionDigest:
         summary="This patch refines GCC's inliner to better handle hot functions "
                 "by introducing a configurable frequency threshold.",
         url="https://gcc.gnu.org/ml/gcc-patches/2026-04/msg00042.html",
+        date=datetime(2026, 4, 14, 10, 0, 0, tzinfo=timezone.utc),
         bugzilla_url=None,
     )
 
@@ -89,6 +90,7 @@ def sample_landing_digest() -> LandingDigest:
         discussion_id_link=None,
         bugzilla_pr=1234,
         url="https://sourceware.org/git/?p=binutils-gdb.git;a=commit;h=deadbeef",
+        date=datetime(2026, 4, 14, 9, 0, 0, tzinfo=timezone.utc),
     )
 
 

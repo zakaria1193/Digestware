@@ -59,6 +59,7 @@ def _render_batch(batch: list[RawDiscussion]) -> str:
     lines: list[str] = []
     for d in batch:
         lines.append(f"--- Discussion {d.id} ---")
+        lines.append(f"project: {d.project}")
         lines.append(f"source_type: {d.source_type}")
         lines.append(f"title: {d.title}")
         lines.append(f"author: {d.author}")
@@ -99,21 +100,25 @@ def _append_usage(agent_name: str, usage: object) -> None:
 
 def run_discussion_agent(
     discussions: list[RawDiscussion],
-    project: str = "gcc",
     dry_run: bool = False,
 ) -> list[DiscussionDigest]:
     """Process all discussions in batches and return DiscussionDigest objects.
 
+    Each digest's ``project`` and ``date`` fields are overridden post-hoc from
+    the originating ``RawDiscussion`` so they reflect the source (and never
+    depend on the LLM echoing them correctly).
+
     Args:
         discussions: Raw items from IngestionEngine.
-        project: Default project name injected into each digest.
         dry_run: If True, skip LLM calls and return stub digests.
     """
     if not discussions:
         return []
 
+    raw_by_id: dict[str, RawDiscussion] = {d.id: d for d in discussions}
+
     if dry_run:
-        return _stub_digests(discussions, project)
+        return _stub_digests(discussions)
 
     model = _build_openrouter_model(
         os.environ.get("SUMMARISER_MODEL", _DEFAULT_MODEL)
@@ -133,9 +138,13 @@ def run_discussion_agent(
         discussions, _BATCH_SIZE, lambda d: d.metadata.get("series_id")
     )
     for batch_idx, batch in enumerate(batches):
+        batch_projects = sorted({d.project for d in batch})
         prompt = (
-            f"Digest the following {len(batch)} discussion(s) for project "
-            f"'{project}'. Return a JSON array of DiscussionDigest objects.\n\n"
+            f"Digest the following {len(batch)} discussion(s) "
+            f"(projects: {', '.join(batch_projects)}). "
+            f"Return a JSON array of DiscussionDigest objects. The ``project`` "
+            f"and ``date`` fields for each item MUST be taken verbatim from the "
+            f"corresponding 'project:' and 'date:' values in the input.\n\n"
             + _render_batch(batch)
         )
         try:
@@ -151,19 +160,32 @@ def run_discussion_agent(
             results.extend(result.data)
         except Exception as exc:
             logger.error("discussion_agent batch %d failed: %s", batch_idx, exc)
-            results.extend(_stub_digests(batch, project))
+            results.extend(_stub_digests(batch))
 
-    return results
+    # Deterministic project + date override from the original RawDiscussion.
+    return _override_from_raw(results, raw_by_id)
 
 
-def _stub_digests(
-    items: list[RawDiscussion], project: str
+def _override_from_raw(
+    digests: list[DiscussionDigest],
+    raw_by_id: dict[str, RawDiscussion],
 ) -> list[DiscussionDigest]:
+    """Force ``project`` and ``date`` to match the originating RawDiscussion."""
+    fixed: list[DiscussionDigest] = []
+    for d in digests:
+        raw = raw_by_id.get(d.discussion_id)
+        if raw is not None:
+            d = d.model_copy(update={"project": raw.project, "date": raw.date})
+        fixed.append(d)
+    return fixed
+
+
+def _stub_digests(items: list[RawDiscussion]) -> list[DiscussionDigest]:
     from agents.models.base import ConsensusStatus
 
     return [
         DiscussionDigest(
-            project=project,
+            project=d.project,
             subsystem="unknown",
             discussion_id=d.id,
             source_type=d.source_type,
@@ -174,6 +196,7 @@ def _stub_digests(
             technical_tradeoffs=[],
             summary=d.body[:200] if d.body else "(no body)",
             url=d.url,
+            date=d.date,
         )
         for d in items
     ]

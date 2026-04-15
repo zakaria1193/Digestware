@@ -24,6 +24,17 @@ from agents.models.raw import RawCommit, RawDiscussion
 # GitHubAdapter
 # ---------------------------------------------------------------------------
 
+def _recent_iso(hours_ago: int = 1) -> str:
+    """Return an ISO-8601 timestamp within the last *hours_ago* hours (UTC).
+
+    Used so adapter tests aren't date-brittle as wall-clock time advances.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    dt = datetime.now(tz=timezone.utc) - timedelta(hours=hours_ago)
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 class TestGitHubAdapter:
     def _make_pr(self, number: int = 101) -> dict:
         return {
@@ -31,8 +42,8 @@ class TestGitHubAdapter:
             "title": f"gcc/ipa: inline improvement #{number}",
             "body": "Improve inliner.",
             "user": {"login": "dev"},
-            "created_at": "2026-04-14T08:00:00Z",
-            "updated_at": "2026-04-14T09:00:00Z",
+            "created_at": _recent_iso(2),
+            "updated_at": _recent_iso(1),
             "html_url": f"https://github.com/gcc-mirror/gcc/pull/{number}",
             "state": "open",
             "draft": False,
@@ -48,7 +59,7 @@ class TestGitHubAdapter:
                 "author": {
                     "name": "Dev User",
                     "email": "dev@example.com",
-                    "date": "2026-04-14T08:00:00Z",
+                    "date": _recent_iso(1),
                 },
             },
             "html_url": f"https://github.com/gcc-mirror/gcc/commit/{sha}",
@@ -65,11 +76,21 @@ class TestGitHubAdapter:
         pr = self._make_pr()
         # Create adapter INSIDE the mock context so the persistent client is mocked
         with respx.mock(base_url="https://api.github.com") as mock:
-            adapter = GitHubAdapter("gcc-mirror", "gcc", token="fake-token")
+            adapter = GitHubAdapter(
+                "gcc-mirror", "gcc", token="fake-token", project="gcc"
+            )
             mock.get("/repos/gcc-mirror/gcc/pulls").respond(200, json=[pr])
             mock.get("/repos/gcc-mirror/gcc/pulls/101/comments").respond(200, json=[])
-            mock.get("/repos/gcc-mirror/gcc/pulls/101").respond(
-                200, text="diff --git a/gcc/ipa-inline.cc b/gcc/ipa-inline.cc\n"
+            # /pulls/{id} is hit twice: once for JSON detail (changed_files),
+            # once for the diff (different Accept header — same URL).
+            mock.get("/repos/gcc-mirror/gcc/pulls/101").mock(
+                side_effect=[
+                    respx.MockResponse(200, json=pr),
+                    respx.MockResponse(
+                        200,
+                        text="diff --git a/gcc/ipa-inline.cc b/gcc/ipa-inline.cc\n",
+                    ),
+                ]
             )
 
             discussions = adapter.fetch_discussions(since_hours=24)
@@ -79,6 +100,7 @@ class TestGitHubAdapter:
         assert isinstance(d, RawDiscussion)
         assert d.id == "101"
         assert d.source_type == "github_pr"
+        assert d.project == "gcc"
         assert "inline" in d.title.lower()
 
     def test_fetch_commits(self):
@@ -89,8 +111,15 @@ class TestGitHubAdapter:
 
         commit = self._make_commit("deadbeef")
         with respx.mock(base_url="https://api.github.com") as mock:
-            adapter = GitHubAdapter("gcc-mirror", "gcc", token="fake-token")
+            adapter = GitHubAdapter(
+                "gcc-mirror", "gcc", token="fake-token", project="gcc"
+            )
             mock.get("/repos/gcc-mirror/gcc/commits").respond(200, json=[commit])
+            # New: per-commit detail fetch for stats + files (list endpoint
+            # does not include them).
+            mock.get("/repos/gcc-mirror/gcc/commits/deadbeef").respond(
+                200, json=commit
+            )
 
             commits = adapter.fetch_commits(since_hours=24)
 
@@ -99,6 +128,9 @@ class TestGitHubAdapter:
         assert isinstance(c, RawCommit)
         assert c.sha == "deadbeef"
         assert c.source_type == "github"
+        assert c.project == "gcc"
+        # diff_stat must be populated from the detail endpoint's `stats`
+        assert "+10" in c.diff_stat and "-3" in c.diff_stat
 
     def test_http_error_on_comments_returns_empty_replies(self):
         try:
@@ -111,7 +143,13 @@ class TestGitHubAdapter:
             adapter = GitHubAdapter("gcc-mirror", "gcc", token="fake-token")
             mock.get("/repos/gcc-mirror/gcc/pulls").respond(200, json=[pr])
             mock.get("/repos/gcc-mirror/gcc/pulls/200/comments").respond(500, json={})
-            mock.get("/repos/gcc-mirror/gcc/pulls/200").respond(200, text="")
+            # /pulls/200 is hit twice: detail (JSON), then diff (text)
+            mock.get("/repos/gcc-mirror/gcc/pulls/200").mock(
+                side_effect=[
+                    respx.MockResponse(200, json=pr),
+                    respx.MockResponse(200, text=""),
+                ]
+            )
 
             discussions = adapter.fetch_discussions(since_hours=24)
 
@@ -130,12 +168,19 @@ class TestGitHubAdapter:
         with respx.mock(base_url="https://api.github.com") as mock:
             adapter = GitHubAdapter("gcc-mirror", "gcc", token="fake-token")
             mock.get("/repos/gcc-mirror/gcc/pulls").respond(200, json=[pr])
+            # Detail endpoint must now be hit (changed_files lives here, not
+            # in the list response). It is called EXACTLY ONCE — the diff
+            # fetch must be skipped because changed_files > 500.
+            detail_route = mock.get(
+                "/repos/gcc-mirror/gcc/pulls/300"
+            ).respond(200, json=pr)
             mock.get("/repos/gcc-mirror/gcc/pulls/300/comments").respond(200, json=[])
-            # Diff endpoint should NOT be called — if it is, respx raises
 
             discussions = adapter.fetch_discussions(since_hours=24)
 
         assert discussions[0].diff_text is None
+        # The detail endpoint was hit exactly once (detail only, no diff).
+        assert detail_route.call_count == 1
 
 
 # ---------------------------------------------------------------------------

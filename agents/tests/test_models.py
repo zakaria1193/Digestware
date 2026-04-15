@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import pytest
 from pydantic import ValidationError
 
 from agents.models.base import BimodalBase, ConsensusStatus
 from agents.models.discussion import DiscussionDigest
 from agents.models.landing import LandingDigest
+
+_DUMMY_DATE = datetime(2026, 4, 14, 12, 0, 0, tzinfo=timezone.utc)
 
 
 # ---------------------------------------------------------------------------
@@ -141,6 +145,7 @@ class TestLandingDigest:
             impact_score=5,
             summary="s",
             url="https://example.com",
+            date=_DUMMY_DATE,
         )
         assert l.performance_win is False
         assert l.breaking_change is False
