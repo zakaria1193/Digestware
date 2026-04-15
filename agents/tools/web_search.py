@@ -1,36 +1,53 @@
-"""web_search — DuckDuckGo enrichment tool for cryptic commit/discussion titles.
+"""web_search — Gemini grounded search enrichment tool for cryptic commit/discussion titles.
 
-Returns up to 5 result snippets. Called only when the title is short
-(< 20 words) or lacks a recognisable subsystem keyword so the LLM has
-enough context to produce a meaningful summary.
+Uses the OpenRouter `:online` model suffix to enable Gemini's native Google Search
+grounding.  All traffic goes through OpenRouter via the shared ``agents._openrouter``
+client — no separate Gemini API key is required.
+
+Called only when a commit/discussion title is short (< 20 words) or lacks a
+recognisable subsystem keyword so the downstream LLM has enough context to produce
+a meaningful summary.
 """
 
 import logging
 
+from agents._openrouter import build_client
+
 logger = logging.getLogger(__name__)
+
+# Appending :online tells OpenRouter to enable web-search grounding for this call.
+_SEARCH_MODEL = "google/gemini-2.0-flash-001:online"
 
 
 def search_context(query: str, max_results: int = 5) -> list[str]:
-    """Return up to *max_results* DuckDuckGo text snippets for *query*.
+    """Return up to *max_results* Gemini-grounded search snippets for *query*.
 
-    Falls back to an empty list on any error so the agent can continue
-    without web enrichment.
+    Calls Gemini Flash with OpenRouter's :online grounding so results are
+    AI-synthesised rather than raw page snippets.  Falls back to an empty list
+    on any error so the agent can continue without web enrichment.
     """
     if not query or not query.strip():
         return []
     try:
-        from duckduckgo_search import DDGS  # lazy import — not always installed
+        client = build_client()
+        response = client.chat.completions.create(
+            model=_SEARCH_MODEL,
+            messages=[
+                {
+                    "role": "user",
+                    "content": (
+                        f"Search for concise technical context about: {query}. "
+                        "Return key facts as short bullet points."
+                    ),
+                }
+            ],
+            max_tokens=512,
+        )
 
-        snippets: list[str] = []
-        with DDGS() as ddgs:
-            for result in ddgs.text(query, max_results=max_results):
-                body = result.get("body") or result.get("snippet") or ""
-                if body:
-                    snippets.append(body)
-        return snippets[:max_results]
-    except ImportError:
-        logger.warning("duckduckgo-search not installed; web enrichment disabled")
-        return []
+        text = (response.choices[0].message.content or "").strip()
+        lines = [ln.strip() for ln in text.split("\n") if ln.strip()]
+        return lines[:max_results]
+
     except Exception as exc:
-        logger.warning("DuckDuckGo search failed for %r: %s", query, exc)
+        logger.warning("Gemini online search failed for %r: %s", query, exc)
         return []
