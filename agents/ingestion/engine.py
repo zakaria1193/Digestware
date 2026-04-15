@@ -72,20 +72,30 @@ class IngestionEngine:
 
     @staticmethod
     def _dedup_discussions(items: list[RawDiscussion]) -> list[RawDiscussion]:
-        seen: set[str] = set()
+        """Dedup by (source_type, project, id) — bare PR number "123" on
+        project A must not collide with message-id "123" or PR "123" on
+        project B. Namespacing the key keeps the guarantee explicit.
+        """
+        seen: set[tuple[str, str, str]] = set()
         result: list[RawDiscussion] = []
         for item in items:
-            if item.id not in seen:
-                seen.add(item.id)
+            key = (item.source_type, item.project, item.id)
+            if key not in seen:
+                seen.add(key)
                 result.append(item)
         return result
 
     @staticmethod
     def _dedup_commits(items: list[RawCommit]) -> list[RawCommit]:
-        seen: set[str] = set()
+        """Commit SHAs are globally unique (git is content-addressed) but we
+        still namespace by source_type so a plain-git mirror + its GitHub
+        twin don't produce double digests for the same sha.
+        """
+        seen: set[tuple[str, str]] = set()
         result: list[RawCommit] = []
         for item in items:
-            if item.sha not in seen:
-                seen.add(item.sha)
+            key = (item.source_type, item.sha)
+            if key not in seen:
+                seen.add(key)
                 result.append(item)
         return result

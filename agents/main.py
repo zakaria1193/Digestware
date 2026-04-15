@@ -162,16 +162,18 @@ def main() -> int:
             logger.warning("Failed to write discussion %s: %s", d.discussion_id, exc)
 
     written_landings = 0
-    for l in landings:
+    for landing in landings:
         try:
-            path = write_landing(l)
+            path = write_landing(landing)
             logger.debug("Wrote landing → %s", path)
             written_landings += 1
         except Exception as exc:
-            logger.warning("Failed to write landing %s: %s", l.commit_hash, exc)
+            logger.warning(
+                "Failed to write landing %s: %s", landing.commit_hash, exc
+            )
 
     # Summary
-    bento_worthy = sum(1 for l in landings if l.impact_score >= 7)
+    bento_worthy = sum(1 for landing in landings if landing.impact_score >= 7)
     print(
         f"\n{'─'*60}\n"
         f"  Discussions written : {written_discussions}\n"

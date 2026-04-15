@@ -74,8 +74,10 @@ class GitHubAdapter:
     ) -> httpx.Response:
         """Single GET with rate-limit awareness and retry on 429 / quota-403."""
         url = f"{_GITHUB_API}{path}"
+        last_resp: httpx.Response | None = None
         for attempt in range(_MAX_RETRIES):
             resp = self._client.get(url, params=params, headers=extra_headers)
+            last_resp = resp
 
             remaining = int(resp.headers.get("X-RateLimit-Remaining", "9999"))
             if remaining < _RATE_LIMIT_WARN:
@@ -102,10 +104,10 @@ class GitHubAdapter:
             resp.raise_for_status()
             return resp
 
-        # Last-chance attempt — will raise on failure
-        resp = self._client.get(url, params=params, headers=extra_headers)
-        resp.raise_for_status()
-        return resp
+        # All retries exhausted — raise on the last response we saw.
+        assert last_resp is not None
+        last_resp.raise_for_status()
+        return last_resp
 
     def _paginate(self, path: str, params: dict | None = None) -> list:
         """Fetch all pages using the Link: rel="next" header for reliability."""
@@ -117,7 +119,13 @@ class GitHubAdapter:
             params["page"] = page
             resp = self._request(path, params)
             data = resp.json()
-            if not isinstance(data, list) or not data:
+            if not isinstance(data, list):
+                logger.warning(
+                    "GitHub %s returned non-list payload (type=%s) — stopping pagination",
+                    path, type(data).__name__,
+                )
+                break
+            if not data:
                 break
             results.extend(data)
             if 'rel="next"' not in resp.headers.get("Link", ""):

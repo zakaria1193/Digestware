@@ -33,9 +33,14 @@ _DEFAULT_LANDING_DIR = Path("web/src/content/landings")
 # ---------------------------------------------------------------------------
 
 def _slugify(title: str) -> str:
-    """Convert a title to a URL-safe slug (max 80 chars)."""
+    """Convert a title to a URL-safe slug (max 80 chars).
+
+    ``re.ASCII`` forces ``\\w`` to match only [A-Za-z0-9_]; without it the
+    Unicode default would keep accented/CJK characters, which break URL
+    slugs and filesystem paths on non-UTF8 filesystems.
+    """
     slug = title.lower()
-    slug = re.sub(r"[^\w]+", "-", slug)
+    slug = re.sub(r"[^\w]+", "-", slug, flags=re.ASCII)
     return slug.strip("-")[:80]
 
 
