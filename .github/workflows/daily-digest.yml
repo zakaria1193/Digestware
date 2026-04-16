@@ -4,6 +4,10 @@ on:
   schedule:
     - cron: '0 2 * * *'   # 02:00 UTC every day
   workflow_dispatch:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
 
 jobs:
   # ── 1. Quality gate ──────────────────────────────────────────────────────────
@@ -35,6 +39,7 @@ jobs:
   digest:
     name: Run Digest Pipeline
     needs: test
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
