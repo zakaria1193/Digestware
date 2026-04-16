@@ -26,6 +26,7 @@ from dotenv import load_dotenv
 from agents.adapters.github import GitHubAdapter
 from agents.adapters.plain_git import PlainGitAdapter
 from agents.adapters.public_inbox import PublicInboxAdapter
+from agents.dedup import build_seen_index, filter_raw
 from agents.discussion_agent import run_discussion_agent
 from agents.ingestion.engine import IngestionEngine
 from agents.landing_agent import run_landing_agent
@@ -40,6 +41,7 @@ logger = logging.getLogger("agents.main")
 
 _SOURCES_YML = Path(__file__).parent / "sources.yml"
 _CACHE_DIR = Path(__file__).parent / "cache"
+_DEFAULT_CONTENT_ROOT = Path("web/src/content")
 
 
 # ---------------------------------------------------------------------------
@@ -115,6 +117,17 @@ def main() -> int:
         action="store_true",
         help="Skip LLM calls; write stub digests (for testing pipeline wiring)",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Reprocess items even if their output Markdown already exists",
+    )
+    parser.add_argument(
+        "--content-root",
+        type=Path,
+        default=_DEFAULT_CONTENT_ROOT,
+        help=f"Output content root (default: {_DEFAULT_CONTENT_ROOT})",
+    )
     args = parser.parse_args()
 
     # Load sources config
@@ -144,6 +157,24 @@ def main() -> int:
     if not raw_discussions and not raw_commits:
         logger.info("Nothing to process — exiting")
         return 0
+
+    # Skip items already on disk (unless --force). This happens BEFORE the LLM
+    # batches so re-runs of overlapping windows don't burn tokens.
+    skipped_discussions = skipped_commits = 0
+    if not args.force:
+        seen_ids, seen_shas = build_seen_index(args.content_root)
+        raw_discussions, raw_commits, skipped_discussions, skipped_commits = (
+            filter_raw(raw_discussions, raw_commits, seen_ids, seen_shas)
+        )
+        if skipped_discussions or skipped_commits:
+            logger.info(
+                "Skipped %d already-processed discussion(s), %d commit(s)",
+                skipped_discussions,
+                skipped_commits,
+            )
+        if not raw_discussions and not raw_commits:
+            logger.info("Nothing new to process — exiting")
+            return 0
 
     # Run agents
     discussions = run_discussion_agent(
@@ -178,6 +209,8 @@ def main() -> int:
         f"\n{'─'*60}\n"
         f"  Discussions written : {written_discussions}\n"
         f"  Landings written    : {written_landings}\n"
+        f"  Skipped (dedup)     : {skipped_discussions} discussions, "
+        f"{skipped_commits} commits\n"
         f"  Bento-worthy (≥7)   : {bento_worthy}\n"
         f"{'─'*60}"
     )
