@@ -81,7 +81,9 @@ class GitHubAdapter:
 
             remaining = int(resp.headers.get("X-RateLimit-Remaining", "9999"))
             if remaining < _RATE_LIMIT_WARN:
-                logger.warning("GitHub rate limit low: %d requests remaining", remaining)
+                logger.warning(
+                    "GitHub rate limit low: %d requests remaining", remaining,
+                )
 
             if resp.status_code == 429:
                 wait = int(resp.headers.get("Retry-After", "60"))
@@ -121,7 +123,8 @@ class GitHubAdapter:
             data = resp.json()
             if not isinstance(data, list):
                 logger.warning(
-                    "GitHub %s returned non-list payload (type=%s) — stopping pagination",
+                    "GitHub %s returned non-list payload (type=%s) — "
+                    "stopping pagination",
                     path, type(data).__name__,
                 )
                 break

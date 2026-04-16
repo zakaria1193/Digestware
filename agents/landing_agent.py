@@ -47,7 +47,9 @@ _PREMIUM_MODEL = "anthropic/claude-sonnet-4-5"
 _TRAILER_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("closes",      re.compile(r"Closes\s+#(\d+)", re.IGNORECASE)),
     ("message_id",  re.compile(r"Message-Id:\s*<([^>]+)>", re.IGNORECASE)),
-    ("link",        re.compile(r"^Link:\s*(https?://\S+)", re.IGNORECASE | re.MULTILINE)),
+    ("link",        re.compile(
+        r"^Link:\s*(https?://\S+)", re.IGNORECASE | re.MULTILINE,
+    )),
     ("pr",          re.compile(r"\bPR\s+(\d+)\b", re.IGNORECASE)),
     ("bugzilla",    re.compile(r"Bugzilla:\s*(\d+)", re.IGNORECASE)),
 ]
@@ -192,7 +194,10 @@ def run_landing_agent(
     # discussion_id_link / bugzilla_pr values.
     premium_items = [r for r in results if r.impact_score >= 9]
     if premium_items:
-        logger.info("Re-running %d high-impact items with premium model", len(premium_items))
+        logger.info(
+            "Re-running %d high-impact items with premium model",
+            len(premium_items),
+        )
         results = _rerun_premium(results, premium_items, commit_by_sha)
 
     # Deterministically apply extracted trailers AFTER the premium re-run,

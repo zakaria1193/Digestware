@@ -107,9 +107,9 @@ class TestDiscussionDigest:
 
 class TestLandingDigest:
     def test_valid(self, sample_landing_digest: LandingDigest):
-        l = sample_landing_digest
-        assert l.project == "binutils"
-        assert 1 <= l.impact_score <= 10
+        landing = sample_landing_digest
+        assert landing.project == "binutils"
+        assert 1 <= landing.impact_score <= 10
 
     def test_impact_score_bounds(self):
         with pytest.raises(ValidationError):
@@ -136,7 +136,7 @@ class TestLandingDigest:
             )
 
     def test_boolean_defaults(self):
-        l = LandingDigest(
+        landing = LandingDigest(
             project="p",
             subsystem="s",
             commit_hash="c",
@@ -147,9 +147,9 @@ class TestLandingDigest:
             url="https://example.com",
             date=_DUMMY_DATE,
         )
-        assert l.performance_win is False
-        assert l.breaking_change is False
+        assert landing.performance_win is False
+        assert landing.breaking_change is False
 
     def test_serialisation_roundtrip(self, sample_landing_digest: LandingDigest):
-        l = LandingDigest.model_validate(sample_landing_digest.model_dump())
-        assert l == sample_landing_digest
+        landing = LandingDigest.model_validate(sample_landing_digest.model_dump())
+        assert landing == sample_landing_digest

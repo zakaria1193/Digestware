@@ -19,7 +19,6 @@ from agents.adapters.plain_git import PlainGitAdapter
 from agents.ingestion.engine import IngestionEngine
 from agents.models.raw import RawCommit, RawDiscussion
 
-
 # ---------------------------------------------------------------------------
 # GitHubAdapter
 # ---------------------------------------------------------------------------
@@ -226,8 +225,14 @@ class TestPublicInboxAdapter:
 
         # _mirror_list now returns list[Path] — mock returns a list
         with (
-            patch("agents.adapters.public_inbox._mirror_list", return_value=[mock_mirror]),
-            patch("agents.adapters.public_inbox.subprocess.run", side_effect=fake_run),
+            patch(
+                "agents.adapters.public_inbox._mirror_list",
+                return_value=[mock_mirror],
+            ),
+            patch(
+                "agents.adapters.public_inbox.subprocess.run",
+                side_effect=fake_run,
+            ),
         ):
             discussions = adapter.fetch_discussions(since_hours=999)
 
@@ -255,8 +260,12 @@ class TestPublicInboxAdapter:
 
         # Each epoch must have a distinct Message-ID, otherwise the dedup
         # logic (seen_ids) correctly suppresses the duplicate.
-        MBOX_EPOCH0 = SAMPLE_MBOX.replace(b"patch-42@gcc.gnu.org", b"patch-42@gcc.gnu.org")
-        MBOX_EPOCH1 = SAMPLE_MBOX.replace(b"patch-42@gcc.gnu.org", b"patch-99@gcc.gnu.org")
+        MBOX_EPOCH0 = SAMPLE_MBOX.replace(
+            b"patch-42@gcc.gnu.org", b"patch-42@gcc.gnu.org",
+        )
+        MBOX_EPOCH1 = SAMPLE_MBOX.replace(
+            b"patch-42@gcc.gnu.org", b"patch-99@gcc.gnu.org",
+        )
 
         def fake_run(cmd, cwd=None, **kwargs):
             r = MagicMock()
@@ -305,8 +314,9 @@ class TestPublicInboxAdapter:
 
     def test_invalid_list_name_rejected(self, tmp_path: Path):
         """List names that could cause git-option injection must be rejected."""
-        from agents.adapters.public_inbox import PublicInboxAdapter, _validate_list_name
         import pytest
+
+        from agents.adapters.public_inbox import PublicInboxAdapter, _validate_list_name
 
         with pytest.raises(ValueError, match="Invalid list name"):
             _validate_list_name("--upload-pack=evil")
@@ -587,7 +597,7 @@ class TestEngineDeduplication:
         assert len(result["commits"]) == 1
 
     def test_adapter_exception_does_not_propagate(self):
-        """Adapter errors must be caught by the engine — results are empty, not raises."""
+        """Adapter errors must be caught by the engine — results are empty."""
         class BrokenSource:
             def fetch_discussions(self, since_hours=24):
                 raise RuntimeError("adapter exploded")

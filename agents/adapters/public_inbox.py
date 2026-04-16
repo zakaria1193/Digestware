@@ -292,7 +292,11 @@ class PublicInboxAdapter:
                     url=f"{_SOURCEWARE_INBOX}/{list_name}/{message_id}",
                     source_type="public_inbox",
                     project=self._list_projects.get(list_name, self.project),
-                    metadata={"list": list_name, "message_id": message_id, "series_id": series_id},
+                    metadata={
+                        "list": list_name,
+                        "message_id": message_id,
+                        "series_id": series_id,
+                    },
                 )
             )
         return results
