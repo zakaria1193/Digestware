@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 import yaml
 
 from agents.writer import _slugify, write_discussion, write_landing
-
 
 # ---------------------------------------------------------------------------
 # Slug sanitisation
@@ -74,7 +72,9 @@ class TestWriteDiscussion:
         p2 = write_discussion(_make("id-002"), output_dir=tmp_output_dir)
         assert p1 != p2
 
-    def test_frontmatter_has_required_keys(self, sample_discussion_digest, tmp_output_dir):
+    def test_frontmatter_has_required_keys(
+        self, sample_discussion_digest, tmp_output_dir,
+    ):
         path = write_discussion(sample_discussion_digest, output_dir=tmp_output_dir)
         content = path.read_text(encoding="utf-8")
         # Strip fences

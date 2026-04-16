@@ -1,4 +1,4 @@
-"""web_search — Gemini grounded search enrichment tool for cryptic commit/discussion titles.
+"""web_search — Gemini grounded search enrichment for cryptic titles.
 
 Uses the OpenRouter `:online` model suffix to enable Gemini's native Google Search
 grounding.  All traffic goes through OpenRouter via the shared ``agents._openrouter``

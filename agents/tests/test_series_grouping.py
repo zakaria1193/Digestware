@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from agents.tools.series_grouping import series_aware_batches
 
 
@@ -45,10 +43,8 @@ def test_series_never_split_across_batches():
     # Series has 3 items → fills one batch; singletons fill another
     items = [{"s": "X"}, {"s": None}, {"s": "X"}, {"s": "X"}, {"s": None}]
     batches = series_aware_batches(items, 3, key)
-    for batch in batches:
-        series_keys_in_batch = {x["s"] for x in batch if x["s"] is not None}
-        # A batch must not contain X mixed with another named series
-        # (here there's only one named series, so this just verifies X is never split)
+    # A batch must not contain X mixed with another named series
+    # (here there's only one named series, so this just verifies X is never split)
     # Verify all X items are in the same batch
     x_batches = [i for i, b in enumerate(batches) if any(x["s"] == "X" for x in b)]
     assert len(x_batches) == 1, "All X items must be in the same batch"
@@ -89,7 +85,9 @@ def test_first_seen_series_order_respected():
     flat = [item for b in batches for item in b]
     a_pos = [i for i, x in enumerate(flat) if x["s"] == "A"]
     b_pos = [i for i, x in enumerate(flat) if x["s"] == "B"]
-    assert max(a_pos) < min(b_pos), "A's group should precede B's group (first-seen order)"
+    assert max(a_pos) < min(b_pos), (
+        "A's group should precede B's group (first-seen order)"
+    )
 
 
 def test_all_items_present_in_output():

@@ -17,5 +17,6 @@ class DiscussionDigest(BimodalBase):
     technical_tradeoffs: list[str]
     summary: str
     url: str
-    date: datetime            # preserved from RawDiscussion — when the discussion happened
+    # preserved from RawDiscussion — when the discussion happened
+    date: datetime
     bugzilla_url: str | None = None

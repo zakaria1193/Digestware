@@ -6,7 +6,8 @@ audit trail for €5/month budget enforcement.
 Schema (stable; both agents emit the same keys):
 
     {
-        "agent":            "discussion_agent" | "landing_agent" | "landing_agent_premium",
+        "agent":            "discussion_agent" | "landing_agent"
+                              | "landing_agent_premium",
         "model":            "<model-id>",
         "ts":               "<ISO-8601 UTC>",
         "request_tokens":   <int | null>,
