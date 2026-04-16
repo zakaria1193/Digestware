@@ -18,6 +18,7 @@ of _MBOX_TTL_DAYS days to cap disk usage.
 """
 
 import email
+import email.message
 import email.policy
 import logging
 import re

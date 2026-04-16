@@ -139,11 +139,11 @@ def _render_batch(batch: list[RawCommit]) -> str:
     return "\n".join(lines)
 
 
-def _make_agent(model_name: str) -> Agent:
+def _make_agent(model_name: str) -> Agent[None, list[LandingDigest]]:
     model = build_model(model_name)
     return Agent(
         model=model,
-        result_type=list[LandingDigest],
+        output_type=list[LandingDigest],
         system_prompt=_SYSTEM_PROMPT,
         tools=[
             extract_patch_id,  # type: ignore[arg-type]
@@ -211,7 +211,7 @@ def run_landing_agent(
 
 
 def _run_batch(
-    agent: Agent,
+    agent: Agent[None, list[LandingDigest]],
     model_name: str,
     batch: list[RawCommit],
     batch_idx: int,
@@ -243,7 +243,7 @@ def _run_batch(
         return _stub_digests(batch)
 
     append_usage("landing_agent", model_name, result.usage())
-    data: list[LandingDigest] = list(result.data)
+    data: list[LandingDigest] = list(result.output)
     logger.info(
         "Batch %d: %d digest(s), usage=%s",
         batch_idx, len(data), result.usage(),
@@ -375,7 +375,7 @@ def _rerun_premium(
         )
         append_usage("landing_agent_premium", premium_model_name, result.usage())
         input_shas = {c.sha for c in original_commits}
-        for refined in result.data:
+        for refined in result.output:
             if refined.commit_hash not in input_shas:
                 logger.warning(
                     "Premium model returned unknown commit_hash=%s — dropping",
