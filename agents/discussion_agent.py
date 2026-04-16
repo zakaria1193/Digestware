@@ -92,7 +92,7 @@ def run_discussion_agent(
     model = build_model(model_name)
     agent: Agent[None, list[DiscussionDigest]] = Agent(
         model=model,
-        result_type=list[DiscussionDigest],
+        output_type=list[DiscussionDigest],
         system_prompt=_SYSTEM_PROMPT,
         tools=[
             extract_patch_id,  # type: ignore[arg-type]
@@ -112,7 +112,7 @@ def run_discussion_agent(
 
 
 def _run_batch(
-    agent: Agent,
+    agent: Agent[None, list[DiscussionDigest]],
     model_name: str,
     batch: list[RawDiscussion],
     batch_idx: int,
@@ -144,7 +144,7 @@ def _run_batch(
         return _stub_digests(batch)
 
     append_usage("discussion_agent", model_name, result.usage())
-    data: list[DiscussionDigest] = list(result.data)
+    data: list[DiscussionDigest] = list(result.output)
     logger.info(
         "Batch %d: %d item(s) digested, usage=%s",
         batch_idx, len(data), result.usage(),

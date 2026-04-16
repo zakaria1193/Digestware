@@ -9,6 +9,7 @@ import os
 
 from openai import OpenAI
 from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.providers.openai import OpenAIProvider
 
 BASE_URL = "https://openrouter.ai/api/v1"
 
@@ -19,7 +20,8 @@ def _api_key() -> str:
 
 def build_model(model_name: str) -> OpenAIModel:
     """Return a PydanticAI OpenAIModel routed through OpenRouter."""
-    return OpenAIModel(model_name, base_url=BASE_URL, api_key=_api_key())
+    provider = OpenAIProvider(base_url=BASE_URL, api_key=_api_key())
+    return OpenAIModel(model_name, provider=provider)
 
 
 def build_client() -> OpenAI:

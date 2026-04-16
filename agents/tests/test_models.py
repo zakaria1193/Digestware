@@ -73,6 +73,7 @@ class TestDiscussionDigest:
                 technical_tradeoffs=[],
                 summary="s",
                 url="https://example.com",
+                date=_DUMMY_DATE,
             )
 
     def test_sentiment_too_high(self):
@@ -89,6 +90,7 @@ class TestDiscussionDigest:
                 technical_tradeoffs=[],
                 summary="s",
                 url="https://example.com",
+                date=_DUMMY_DATE,
             )
 
     def test_bugzilla_url_optional(self, sample_discussion_digest: DiscussionDigest):
@@ -122,6 +124,7 @@ class TestLandingDigest:
                 impact_score=0,  # invalid
                 summary="s",
                 url="https://example.com",
+                date=_DUMMY_DATE,
             )
         with pytest.raises(ValidationError):
             LandingDigest(
@@ -133,6 +136,7 @@ class TestLandingDigest:
                 impact_score=11,  # invalid
                 summary="s",
                 url="https://example.com",
+                date=_DUMMY_DATE,
             )
 
     def test_boolean_defaults(self):
