@@ -14,10 +14,15 @@ from pydantic_ai import Agent
 
 from agents._openrouter import build_model
 from agents._retry import retry_with_backoff
+from agents.models.base import Outcome
 from agents.models.discussion import DiscussionDigest
 from agents.models.raw import RawDiscussion
+from agents.tools.headline import clean_subject
+from agents.tools.outcome import derive_discussion_outcome
 from agents.tools.patch_id import extract_patch_id
+from agents.tools.series import parse_patch_tag, series_id_for, split_canonical
 from agents.tools.series_grouping import series_aware_batches
+from agents.tools.subsystem import extract_subsystem
 from agents.tools.web_search import search_context
 from agents.usage_log import append_usage
 
@@ -27,19 +32,50 @@ _BATCH_SIZE = 10
 _DEFAULT_MODEL = "google/gemini-2.0-flash-001"
 
 _SYSTEM_PROMPT = """\
-You are an expert open-source software analyst specialising in low-level systems
-software (compilers, linkers, kernels, libc). Your job is to read batches of
-raw discussions (GitHub PRs, mailing-list threads, etc.) and produce structured
-digests for each one.
+You are the editor of a WSJ-style daily for working systems developers. You
+read in-flight proposals (PRs, mailing-list RFCs, patch series) and produce a
+DiscussionDigest JSON object for each one.
 
-Source-type heuristics:
-- "github_pr"      → infer consensus from review state (approvals,
-                     "changes_requested", LGTM comments).
-- "public_inbox"   → infer consensus from ACK / NACK / RFC patterns in email.
-- "gitlab_mr"      → same as github_pr.
+AUDIENCE
+A working dev who does NOT specialise in this subsystem should understand in
+under 30 seconds what's being proposed and whether they should care.
 
-Return a JSON array where each element matches the DiscussionDigest schema.
-Do not include markdown fences — raw JSON only.
+WRITING RULES
+- Active voice, concrete verbs. No filler ("basically", "in a nutshell",
+  "this patch aims to", "see commit message").
+- ``headline`` is a sentence, not a subject line. Strip "[PATCH …]", "Re:",
+  and ``N/M`` markers. Capitalise the first word.
+- Never copy raw email lines into ``summary`` — always rewrite as prose.
+- Never echo quoted email lines (``> …`` or ``On … wrote:``).
+- ``summary`` is 2–4 sentences of prose. No trailing ellipsis.
+
+FIELDS (all required unless noted):
+- ``subsystem`` — e.g. "gcc/ipa", "malloc", "kernel/mm". Never "unknown".
+- ``headline`` — readable title, ≤ 80 chars, no brackets, no "Re:".
+- ``tldr`` — one sentence, ≤ 140 chars.
+- ``stakes`` — 1–2 sentences: why a general dev should care (perf, ABI,
+  security, ergonomics, policy).
+- ``summary`` — 2–4 sentences covering what's proposed and where the thread
+  sits.
+- ``tags`` — up to 5 topic tags.
+- ``technical_tradeoffs`` — bullet list; never empty for a non-trivial RFC.
+- ``sentiment_score`` 1–10 (1=hostile/NACK storm, 5=neutral debate, 10=wide
+  approval) with a one-line ``sentiment_rationale``.
+- ``outcome`` — one of proposed / under_review / needs_revision / nackd /
+  ready / committed / withdrawn / stalled. Use the ``outcome_hint`` from
+  the input unless the thread clearly contradicts it.
+- ``series_role`` — "cover" for the 0/N cover letter, "reply" for discussion
+  replies in a series, "standalone" otherwise. ``series_id`` may be set from
+  the input hint.
+
+INPUT HINTS
+Each discussion arrives with pre-extracted ``subsystem_hint``,
+``headline_hint``, ``outcome_hint``, and (if applicable) ``series_id_hint``.
+Use these as defaults; override only when the thread contradicts them.
+
+The ``discussion_id`` field MUST be echoed verbatim from the input.
+
+Return a JSON array — raw JSON only, no markdown fences.
 """
 
 
@@ -47,10 +83,28 @@ Do not include markdown fences — raw JSON only.
 def _render_batch(batch: list[RawDiscussion]) -> str:
     lines: list[str] = []
     for d in batch:
+        reply_bodies = [
+            r.get("body", r.get("comment", "")) or ""
+            for r in (d.replies or [])
+        ]
+        subsystem_hint = extract_subsystem(
+            d.title, d.diff_text, d.project
+        )
+        headline_hint = clean_subject(d.title)
+        outcome_hint = derive_discussion_outcome(
+            d.title, d.body, reply_bodies, last_activity=d.date
+        ).value
+        series_hint = series_id_for(d.title, d.project)
+
         lines.append(f"--- Discussion {d.id} ---")
         lines.append(f"project: {d.project}")
         lines.append(f"source_type: {d.source_type}")
         lines.append(f"title: {d.title}")
+        lines.append(f"subsystem_hint: {subsystem_hint}")
+        lines.append(f"headline_hint: {headline_hint}")
+        lines.append(f"outcome_hint: {outcome_hint}")
+        if series_hint:
+            lines.append(f"series_id_hint: {series_hint}")
         lines.append(f"author: {d.author}")
         lines.append(f"date: {d.date.isoformat()}")
         lines.append(f"url: {d.url}")
@@ -83,10 +137,19 @@ def run_discussion_agent(
     if not discussions:
         return []
 
+    # Collapse ``[PATCH N/M]`` series so the feed shows one card per series.
+    canonical, parts_by_canonical_index = split_canonical(
+        discussions,
+        title_of=lambda d: d.title or "",
+        project_of=lambda d: d.project,
+        url_of=lambda d: d.url,
+    )
+    discussions = canonical
     raw_by_id: dict[str, RawDiscussion] = {d.id: d for d in discussions}
 
     if dry_run:
-        return _stub_digests(discussions)
+        stubs = _stub_digests(discussions)
+        return _apply_series_and_subsystem(stubs, discussions, parts_by_canonical_index)
 
     model_name = os.environ.get("SUMMARISER_MODEL", _DEFAULT_MODEL)
     model = build_model(model_name)
@@ -108,7 +171,72 @@ def run_discussion_agent(
         results.extend(_run_batch(agent, model_name, batch, batch_idx))
 
     # Deterministic project + date override from the original RawDiscussion.
-    return _override_from_raw(results, raw_by_id)
+    results = _override_from_raw(results, raw_by_id)
+    return _apply_series_and_subsystem(
+        results, discussions, parts_by_canonical_index
+    )
+
+
+def _apply_series_and_subsystem(
+    results: list[DiscussionDigest],
+    canonical: list[RawDiscussion],
+    parts_by_canonical_index: dict[int, list[dict]],
+) -> list[DiscussionDigest]:
+    """Enforce subsystem / headline / outcome invariants and attach parts."""
+    by_id: dict[str, RawDiscussion] = {d.id: d for d in canonical}
+    parts_by_id: dict[str, list[dict]] = {
+        canonical[i].id: parts
+        for i, parts in parts_by_canonical_index.items()
+        if 0 <= i < len(canonical)
+    }
+
+    fixed: list[DiscussionDigest] = []
+    for d in results:
+        raw = by_id.get(d.discussion_id)
+        patch: dict[str, object] = {}
+
+        if raw is not None:
+            if not d.subsystem or d.subsystem.lower() in {"unknown", "general", ""}:
+                patch["subsystem"] = extract_subsystem(
+                    raw.title, raw.diff_text, raw.project
+                )
+            clean_hl = clean_subject(d.headline or raw.title)
+            if clean_hl and clean_hl != d.headline:
+                patch["headline"] = clean_hl
+
+            sid = series_id_for(raw.title, raw.project)
+            if sid:
+                patch["series_id"] = sid
+                tag = parse_patch_tag(raw.title) or {}
+                patch["series_role"] = "cover" if tag.get("n") == 0 else "reply"
+            elif d.series_role is None:
+                patch["series_role"] = "standalone"
+
+            parts = parts_by_id.get(d.discussion_id)
+            if parts:
+                patch["series_parts"] = parts
+
+            # Trust the deterministic outcome if the LLM hasn't set one or
+            # set it to a value that contradicts strong signals.
+            reply_texts = [
+                r.get("body", r.get("comment", "")) or ""
+                for r in (raw.replies or [])
+            ]
+            derived = derive_discussion_outcome(
+                raw.title,
+                raw.body,
+                reply_texts,
+                last_activity=raw.date,
+            )
+            # Only override when LLM's output is the default PROPOSED but
+            # stronger signals were present.
+            if d.outcome == Outcome.PROPOSED and derived != Outcome.PROPOSED:
+                patch["outcome"] = derived
+
+        if patch:
+            d = d.model_copy(update=patch)
+        fixed.append(d)
+    return fixed
 
 
 def _run_batch(
@@ -190,20 +318,36 @@ def _override_from_raw(
 def _stub_digests(items: list[RawDiscussion]) -> list[DiscussionDigest]:
     from agents.models.base import ConsensusStatus
 
-    return [
-        DiscussionDigest(
-            project=d.project,
-            subsystem="unknown",
-            discussion_id=d.id,
-            source_type=d.source_type,
-            title=d.title,
-            proposer=d.author,
-            consensus=ConsensusStatus.PROPOSED,
-            sentiment_score=5,
-            technical_tradeoffs=[],
-            summary=d.body[:200] if d.body else "(no body)",
-            url=d.url,
-            date=d.date,
+    out: list[DiscussionDigest] = []
+    for d in items:
+        headline = clean_subject(d.title) or (d.title or d.id)
+        subsystem = extract_subsystem(d.title, d.diff_text, d.project)
+        reply_bodies = [
+            r.get("body", r.get("comment", "")) or ""
+            for r in (d.replies or [])
+        ]
+        outcome = derive_discussion_outcome(
+            d.title, d.body, reply_bodies, last_activity=d.date
         )
-        for d in items
-    ]
+        out.append(
+            DiscussionDigest(
+                project=d.project,
+                subsystem=subsystem,
+                discussion_id=d.id,
+                source_type=d.source_type,
+                title=d.title,
+                headline=headline,
+                tldr=headline[:160] if headline else "Discussion open.",
+                stakes="Summary unavailable — see source link.",
+                proposer=d.author,
+                consensus=ConsensusStatus.PROPOSED,
+                outcome=outcome,
+                sentiment_score=5,
+                sentiment_rationale="Stub digest; sentiment not evaluated.",
+                technical_tradeoffs=[],
+                summary="Summary unavailable — see source link.",
+                url=d.url,
+                date=d.date,
+            )
+        )
+    return out

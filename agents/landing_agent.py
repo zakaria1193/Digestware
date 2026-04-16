@@ -31,10 +31,14 @@ from pydantic_ai import Agent
 
 from agents._openrouter import build_model
 from agents._retry import retry_with_backoff
+from agents.models.base import Outcome
 from agents.models.landing import LandingDigest
 from agents.models.raw import RawCommit
+from agents.tools.headline import clean_subject
 from agents.tools.patch_id import extract_patch_id
+from agents.tools.series import parse_patch_tag, series_id_for, split_canonical
 from agents.tools.series_grouping import series_aware_batches
+from agents.tools.subsystem import extract_subsystem
 from agents.tools.web_search import search_context
 from agents.usage_log import append_usage
 
@@ -55,21 +59,47 @@ _TRAILER_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 ]
 
 _SYSTEM_PROMPT = """\
-You are an expert open-source systems-software analyst. For each commit
-provided, produce a LandingDigest JSON object capturing:
-- subsystem (e.g. "gcc/ipa", "kernel/mm", "binutils/ld")
-- impact_score 1–10 (higher = more significant to end users / the ecosystem)
-- whether it's a performance_win or breaking_change
-- a 2–4 sentence plain-English summary
+You are the editor of a WSJ-style daily for working systems developers. You
+read raw commits (compilers, linkers, kernels, libc) and produce a
+LandingDigest JSON object for each one.
 
-Source-type heuristics:
-- "github"       → commit message conventions (Conventional Commits, etc.)
-- "public_inbox" → look for Reviewed-by / Tested-by / Signed-off-by chains
-- "plain_git"    → commit body only; no PR metadata available
+AUDIENCE
+A working dev who does NOT specialise in this subsystem should understand
+the change in under 30 seconds. Write for them.
 
-Cross-reference trailers are listed explicitly — use them to populate
-discussion_id_link where present. The ``commit_hash`` field MUST be echoed
-verbatim from the input so each digest can be matched back.
+WRITING RULES
+- Use active voice and concrete verbs. No filler ("In a nutshell",
+  "This patch aims to", "See commit message for details", "basically").
+- Headlines are sentences, not subject lines. Strip "[PATCH …]", "Re:",
+  and ``N/M`` series markers. Capitalise the first word.
+- Never copy raw commit-message lines into ``summary`` verbatim — always
+  rewrite into prose.
+- Never echo quoted email lines (``> …`` or ``On … wrote:``).
+- Keep ``summary`` at 2–4 sentences. No trailing ellipsis.
+
+FIELDS (all required unless noted):
+- ``subsystem`` — e.g. "gcc/ipa", "kernel/mm", "binutils/ld". Never "unknown".
+- ``headline`` — human-readable title, ≤ 80 chars.
+- ``tldr`` — one short sentence, ≤ 140 chars.
+- ``why_it_matters`` — 1–2 sentences framing the stakes for a general dev.
+- ``summary`` — 2–4 sentences of prose covering what + how.
+- ``tags`` — up to 5 short topic tags (e.g. ["optimization", "risc-v"]).
+- ``impact_score`` 1–10 with a one-line ``impact_rationale``. Rubric:
+    9–10 : CVE, ABI break, perf ≥ 10%, new arch / language feature.
+    7–8  : user-visible feature, non-trivial optimisation, toolchain policy.
+    4–6  : refactor, internal API, test infra, bugfix with limited user impact.
+    1–3  : typo, comment, docs, cosmetic.
+- ``performance_win`` / ``breaking_change`` — booleans; set only when clear.
+- ``outcome`` — almost always "committed" for landed commits.
+- ``headline`` / ``tldr`` / ``summary`` must NOT contain "Re:", "[PATCH", or
+  ``N/M`` series markers.
+
+INPUT HINTS
+Each commit arrives with pre-extracted ``subsystem_hint`` (deterministic) and
+``cross_refs`` (closes/bugzilla/etc). Use these if they're present; don't
+invent values for them.
+
+The ``commit_hash`` field MUST be echoed verbatim from the input.
 
 Return a JSON array — raw JSON only, no markdown fences.
 """
@@ -122,12 +152,18 @@ def _namespace_ref(raw_ref: str, commit: RawCommit) -> str:
 def _render_batch(batch: list[RawCommit]) -> str:
     lines: list[str] = []
     for c in batch:
+        first_line = (c.message or "").splitlines()[0] if c.message else ""
+        subsystem_hint = extract_subsystem(first_line, c.diff_stat, c.project)
+        headline_hint = clean_subject(first_line)
+
         lines.append(f"--- Commit {c.sha} ---")
         lines.append(f"project: {c.project}")
         lines.append(f"source_type: {c.source_type}")
         lines.append(f"author: {c.author}")
         lines.append(f"date: {c.date.isoformat()}")
         lines.append(f"url: {c.url}")
+        lines.append(f"subsystem_hint: {subsystem_hint}")
+        lines.append(f"headline_hint: {headline_hint}")
         lines.append(f"message:\n{c.message[:2000]}")
         if c.diff_stat:
             lines.append(f"diff_stat:\n{c.diff_stat[:500]}")
@@ -172,8 +208,20 @@ def run_landing_agent(
     if not commits:
         return []
 
+    # Collapse ``[PATCH N/M]`` series into one canonical item per series so
+    # the feed doesn't show 8 near-identical cards. Non-canonical parts
+    # become ``series_parts`` pointers on the canonical digest.
+    canonical_commits, parts_by_canonical_index = split_canonical(
+        commits,
+        title_of=lambda c: (c.message.splitlines()[0] if c.message else ""),
+        project_of=lambda c: c.project,
+        url_of=lambda c: c.url,
+    )
+    commits = canonical_commits
+
     if dry_run:
-        return _stub_digests(commits)
+        stubs = _stub_digests(commits)
+        return _apply_series_and_subsystem(stubs, commits, parts_by_canonical_index)
 
     # SHA → original RawCommit for deterministic trailer injection and
     # premium re-run (premium model gets original data, not LLM summary).
@@ -207,7 +255,63 @@ def run_landing_agent(
 
     # Deterministic project + date override from the original RawCommit,
     # applied last so premium/cheap/stub paths all converge here.
-    return _override_from_raw(results, commit_by_sha)
+    results = _override_from_raw(results, commit_by_sha)
+    return _apply_series_and_subsystem(
+        results, commits, parts_by_canonical_index
+    )
+
+
+def _apply_series_and_subsystem(
+    results: list[LandingDigest],
+    canonical_commits: list[RawCommit],
+    parts_by_canonical_index: dict[int, list[dict]],
+) -> list[LandingDigest]:
+    """Force subsystem/headline sanity + attach series_parts.
+
+    Runs after every other post-processing step so LLM output, stubs, and
+    premium re-runs all converge on the same invariants.
+    """
+    by_sha: dict[str, RawCommit] = {c.sha: c for c in canonical_commits}
+    # Map canonical-sha → parts pointers using the canonical list's ordering.
+    parts_by_sha: dict[str, list[dict]] = {
+        canonical_commits[i].sha: parts
+        for i, parts in parts_by_canonical_index.items()
+        if 0 <= i < len(canonical_commits)
+    }
+
+    fixed: list[LandingDigest] = []
+    for d in results:
+        raw = by_sha.get(d.commit_hash)
+        patch: dict[str, object] = {}
+
+        if raw is not None:
+            first_line = (raw.message or "").splitlines()[0] if raw.message else ""
+            # Never publish "unknown" — always derive deterministically.
+            if not d.subsystem or d.subsystem.lower() in {"unknown", "general", ""}:
+                patch["subsystem"] = extract_subsystem(
+                    first_line, raw.diff_stat, raw.project
+                )
+            # Headline must not carry bracketed tags or "Re:".
+            clean_hl = clean_subject(d.headline or first_line)
+            if clean_hl and clean_hl != d.headline:
+                patch["headline"] = clean_hl
+
+            sid = series_id_for(first_line, raw.project)
+            if sid:
+                patch["series_id"] = sid
+                tag = parse_patch_tag(first_line) or {}
+                patch["outcome"] = Outcome.COMMITTED
+                # n==0 → cover letter; else ``part``. Standalone items skipped.
+                if tag.get("n") == 0:
+                    pass  # cover letter; canonical by construction
+            parts = parts_by_sha.get(d.commit_hash)
+            if parts:
+                patch["series_parts"] = parts
+
+        if patch:
+            d = d.model_copy(update=patch)
+        fixed.append(d)
+    return fixed
 
 
 def _run_batch(
@@ -390,17 +494,33 @@ def _rerun_premium(
 
 
 def _stub_digests(items: list[RawCommit]) -> list[LandingDigest]:
-    return [
-        LandingDigest(
-            project=c.project,
-            subsystem="unknown",
-            commit_hash=c.sha,
-            source_type=c.source_type,
-            author=c.author,
-            impact_score=5,
-            summary=c.message[:200] if c.message else "(no message)",
-            url=c.url,
-            date=c.date,
+    """Deterministic placeholders when the LLM path is skipped or fails.
+
+    Every field the UI relies on is populated with a best-effort derivation so
+    dry-run output still looks publishable in structure (even if the prose is
+    thin).
+    """
+    out: list[LandingDigest] = []
+    for c in items:
+        first_line = (c.message or "").splitlines()[0] if c.message else ""
+        headline = clean_subject(first_line) or c.sha[:12]
+        subsystem = extract_subsystem(first_line, c.diff_stat, c.project)
+        tldr = headline[:160] if headline else "Commit landed."
+        out.append(
+            LandingDigest(
+                project=c.project,
+                subsystem=subsystem,
+                commit_hash=c.sha,
+                source_type=c.source_type,
+                author=c.author,
+                headline=headline,
+                tldr=tldr,
+                why_it_matters="Summary unavailable — see source link.",
+                impact_score=5,
+                impact_rationale="Stub digest; score not evaluated.",
+                summary="Summary unavailable — see source link.",
+                url=c.url,
+                date=c.date,
+            )
         )
-        for c in items
-    ]
+    return out

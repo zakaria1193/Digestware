@@ -59,39 +59,34 @@ class TestDiscussionDigest:
         assert d.subsystem == "gcc/ipa"
         assert 1 <= d.sentiment_score <= 10
 
+    def _discussion(self, **overrides) -> dict:
+        base: dict = dict(
+            project="gcc",
+            subsystem="gcc/ipa",
+            discussion_id="1",
+            source_type="public_inbox",
+            title="x",
+            headline="x",
+            tldr="x",
+            stakes="x",
+            proposer="a",
+            consensus=ConsensusStatus.PROPOSED,
+            sentiment_score=5,
+            technical_tradeoffs=[],
+            summary="s",
+            url="https://example.com",
+            date=_DUMMY_DATE,
+        )
+        base.update(overrides)
+        return base
+
     def test_sentiment_too_low(self):
         with pytest.raises(ValidationError):
-            DiscussionDigest(
-                project="gcc",
-                subsystem="gcc/ipa",
-                discussion_id="1",
-                source_type="public_inbox",
-                title="x",
-                proposer="a",
-                consensus=ConsensusStatus.PROPOSED,
-                sentiment_score=0,  # invalid
-                technical_tradeoffs=[],
-                summary="s",
-                url="https://example.com",
-                date=_DUMMY_DATE,
-            )
+            DiscussionDigest(**self._discussion(sentiment_score=0))
 
     def test_sentiment_too_high(self):
         with pytest.raises(ValidationError):
-            DiscussionDigest(
-                project="gcc",
-                subsystem="gcc/ipa",
-                discussion_id="1",
-                source_type="public_inbox",
-                title="x",
-                proposer="a",
-                consensus=ConsensusStatus.PROPOSED,
-                sentiment_score=11,  # invalid
-                technical_tradeoffs=[],
-                summary="s",
-                url="https://example.com",
-                date=_DUMMY_DATE,
-            )
+            DiscussionDigest(**self._discussion(sentiment_score=11))
 
     def test_bugzilla_url_optional(self, sample_discussion_digest: DiscussionDigest):
         assert sample_discussion_digest.bugzilla_url is None
@@ -113,44 +108,32 @@ class TestLandingDigest:
         assert landing.project == "binutils"
         assert 1 <= landing.impact_score <= 10
 
-    def test_impact_score_bounds(self):
-        with pytest.raises(ValidationError):
-            LandingDigest(
-                project="gcc",
-                subsystem="gcc/lto",
-                commit_hash="abc",
-                source_type="github",
-                author="a",
-                impact_score=0,  # invalid
-                summary="s",
-                url="https://example.com",
-                date=_DUMMY_DATE,
-            )
-        with pytest.raises(ValidationError):
-            LandingDigest(
-                project="gcc",
-                subsystem="gcc/lto",
-                commit_hash="abc",
-                source_type="github",
-                author="a",
-                impact_score=11,  # invalid
-                summary="s",
-                url="https://example.com",
-                date=_DUMMY_DATE,
-            )
-
-    def test_boolean_defaults(self):
-        landing = LandingDigest(
-            project="p",
-            subsystem="s",
-            commit_hash="c",
+    def _landing(self, **overrides) -> dict:
+        base: dict = dict(
+            project="gcc",
+            subsystem="gcc/lto",
+            commit_hash="abc",
             source_type="github",
             author="a",
+            headline="x",
+            tldr="x",
+            why_it_matters="x",
             impact_score=5,
             summary="s",
             url="https://example.com",
             date=_DUMMY_DATE,
         )
+        base.update(overrides)
+        return base
+
+    def test_impact_score_bounds(self):
+        with pytest.raises(ValidationError):
+            LandingDigest(**self._landing(impact_score=0))
+        with pytest.raises(ValidationError):
+            LandingDigest(**self._landing(impact_score=11))
+
+    def test_boolean_defaults(self):
+        landing = LandingDigest(**self._landing())
         assert landing.performance_win is False
         assert landing.breaking_change is False
 

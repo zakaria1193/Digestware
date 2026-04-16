@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from agents.models.base import ConsensusStatus
+from agents.models.base import ConsensusStatus, Outcome
 from agents.models.discussion import DiscussionDigest
 from agents.models.landing import LandingDigest
 from agents.models.raw import RawCommit, RawDiscussion
@@ -58,12 +58,18 @@ def sample_discussion_digest() -> DiscussionDigest:
         project="gcc",
         subsystem="gcc/ipa",
         patch_id="abc123",
+        tags=["optimization", "inliner"],
         discussion_id="42",
         source_type="public_inbox",
         title="[PATCH] gcc/ipa: improve inline heuristics for hot functions",
+        headline="GCC inliner adds frequency-aware hot-function threshold",
+        tldr="GCC's inliner gains a configurable threshold for hot functions.",
+        stakes="Affects code-size vs runtime trade-offs on every GCC-compiled binary.",
         proposer="jane.doe@example.com",
         consensus=ConsensusStatus.UNDER_REVIEW,
+        outcome=Outcome.UNDER_REVIEW,
         sentiment_score=7,
+        sentiment_rationale="One ACK, one blocker on arm64.",
         technical_tradeoffs=["May increase code size", "Improves hot-path performance"],
         summary="This patch refines GCC's inliner to better handle hot functions "
                 "by introducing a configurable frequency threshold.",
@@ -79,12 +85,18 @@ def sample_landing_digest() -> LandingDigest:
         project="binutils",
         subsystem="binutils/ld",
         patch_id="def456",
+        tags=["risc-v", "bugfix"],
         commit_hash="deadbeef" * 5,
         source_type="plain_git",
         author="John Smith",
+        headline="Binutils LD fixes RISC-V relaxation loop for compressed insns",
+        tldr="LD no longer loops on RISC-V compressed instructions near section ends.",
+        why_it_matters="Anyone linking RISC-V binaries with -Os was hitting this.",
         impact_score=6,
+        impact_rationale="Bugfix with narrow but real user impact.",
         performance_win=False,
         breaking_change=False,
+        outcome=Outcome.COMMITTED,
         summary="Fixes an infinite loop in the RISC-V relaxation pass when "
                 "compressed instructions are present near section boundaries.",
         discussion_id_link=None,
