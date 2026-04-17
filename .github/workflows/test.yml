@@ -18,7 +18,10 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: uv pip install --system -r agents/requirements.txt pytest ruff pyright
+        run: |
+          uv venv
+          uv pip install -r agents/requirements.txt pytest ruff pyright
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Lint (ruff)
         run: ruff check agents/
