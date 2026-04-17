@@ -1,7 +1,7 @@
 name: GCC Manual (limited)
 
 # Manual iteration workflow for the GCC pipeline:
-#   1. Purge existing GCC digests (landings + discussions).
+#   1. Purge existing landings + discussions (all projects, not just GCC).
 #   2. Re-ingest the last 24 h of GCC activity, capped at N landings and N
 #      discussions. GCC is active enough that 24 h reliably yields enough
 #      items; caps keep token spend bounded. Fewer than N is fine — we take
@@ -55,10 +55,10 @@ jobs:
             exit 1
           fi
 
-      - name: Purge GCC-only content
+      - name: Purge all landings and discussions
         run: |
           python - <<'PY'
-          import pathlib, sys
+          import pathlib
           roots = [
               pathlib.Path("web/src/content/landings"),
               pathlib.Path("web/src/content/discussions"),
@@ -68,16 +68,9 @@ jobs:
               if not root.is_dir():
                   continue
               for md in root.glob("*.md"):
-                  head = md.read_text(errors="replace").split("---", 2)
-                  fm = head[1] if len(head) >= 3 else ""
-                  # match 'project: gcc' on its own frontmatter line
-                  if any(
-                      line.strip() in ("project: gcc", 'project: "gcc"', "project: 'gcc'")
-                      for line in fm.splitlines()
-                  ):
-                      md.unlink()
-                      removed += 1
-          print(f"Purged {removed} GCC file(s).")
+                  md.unlink()
+                  removed += 1
+          print(f"Purged {removed} file(s).")
           PY
 
       - name: Run digest pipeline (GCC, capped)
