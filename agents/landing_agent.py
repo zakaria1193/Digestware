@@ -105,22 +105,72 @@ Each commit arrives with pre-extracted ``subsystem_hint`` (deterministic) and
 ``cross_refs`` (closes/bugzilla/etc). Use these if they're present; don't
 invent values for them.
 
-The ``commit_hash`` field MUST be echoed verbatim from the input.
+VERBATIM FIELDS (echo each one exactly as given in the input):
+``commit_hash`` (= input ``sha``), ``project``, ``source_type``, ``author``,
+``url``, ``date``.
 
 Return a JSON array — raw JSON only, no markdown fences.
 """
 
 _ADAPTER: TypeAdapter[list[LandingDigest]] = TypeAdapter(list[LandingDigest])
 
+# Max length enforced by LandingDigest.tldr — mirror it here so we can clamp
+# overlong LLM output before validation instead of failing the whole batch.
+_TLDR_MAX = 160
 
-def _parse_landing_batch(text: str) -> list[LandingDigest]:
-    """Parse raw JSON text (with optional markdown fences) into LandingDigest list."""
+
+def _fill_required_from_raw(item: dict, raw: RawCommit) -> None:
+    """Backfill required fields the LLM dropped from a parsed JSON item.
+
+    The model schema requires several fields (project, source_type, author,
+    url, date, commit_hash) that we expect the LLM to echo verbatim from
+    input. When it doesn't, inject deterministic values from the originating
+    RawCommit before validation so a single missing field doesn't fail the
+    whole batch. LLM-provided values win when present.
+    """
+    defaults = {
+        "commit_hash": raw.sha,
+        "project": raw.project,
+        "source_type": raw.source_type,
+        "author": raw.author,
+        "url": raw.url,
+        "date": raw.date.isoformat(),
+    }
+    for key, value in defaults.items():
+        if item.get(key) in (None, ""):
+            item[key] = value
+    tldr = item.get("tldr")
+    if isinstance(tldr, str) and len(tldr) > _TLDR_MAX:
+        item["tldr"] = tldr[: _TLDR_MAX - 1].rstrip() + "…"
+
+
+def _parse_landing_batch(
+    text: str,
+    batch: list[RawCommit] | None = None,
+) -> list[LandingDigest]:
+    """Parse raw JSON text (with optional markdown fences) into LandingDigest list.
+
+    When ``batch`` is provided, each parsed item is matched back to its raw
+    input (by ``commit_hash``, else by position) and missing required fields
+    are backfilled from the raw data.
+    """
     text = text.strip()
     if text.startswith("```"):
         text = text[text.index("\n") + 1:] if "\n" in text else text[3:]
     if text.endswith("```"):
         text = text[:text.rindex("```")].rstrip()
-    return _ADAPTER.validate_python(json.loads(text))
+    raw_list = json.loads(text)
+    if batch and isinstance(raw_list, list):
+        by_sha = {c.sha: c for c in batch}
+        for idx, item in enumerate(raw_list):
+            if not isinstance(item, dict):
+                continue
+            raw = by_sha.get(item.get("commit_hash"))
+            if raw is None and idx < len(batch):
+                raw = batch[idx]
+            if raw is not None:
+                _fill_required_from_raw(item, raw)
+    return _ADAPTER.validate_python(raw_list)
 
 
 def _extract_trailers(message: str) -> dict[str, str]:
@@ -355,7 +405,7 @@ def _run_batch(
 
     def _call():
         r = agent.run_sync(prompt)
-        items = _parse_landing_batch(r.output)
+        items = _parse_landing_batch(r.output, batch=batch)
         if not items and batch:
             raise ValueError(f"Model returned 0 items for {len(batch)} input item(s)")
         return r, items
@@ -503,7 +553,7 @@ def _rerun_premium(
     try:
         def _premium_call():
             r = premium_agent.run_sync(prompt)
-            return r, _parse_landing_batch(r.output)
+            return r, _parse_landing_batch(r.output, batch=original_commits)
 
         result, refined_digests = retry_with_backoff(
             _premium_call,
