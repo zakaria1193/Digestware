@@ -298,6 +298,10 @@ def run_landing_agent(
 
     cheap_model_name = os.environ.get("SUMMARISER_MODEL", _DEFAULT_MODEL)
     cheap_agent = _make_agent(cheap_model_name)
+    logger.debug(
+        "\033[1;35m── landing_agent: model=%s │ system prompt ──\n%s\033[0m",
+        cheap_model_name, _SYSTEM_PROMPT,
+    )
 
     results: list[LandingDigest] = []
     batches = series_aware_batches(
@@ -405,7 +409,17 @@ def _run_batch(
     )
 
     def _call():
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                "\033[1;33m── landing_agent batch %d ▶ SENDING TO %s ──\n%s\033[0m",
+                batch_idx, model_name, prompt,
+            )
         r = agent.run_sync(prompt)
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                "\033[1;32m── landing_agent batch %d ◀ RESPONSE FROM %s ──\n%s\033[0m",
+                batch_idx, model_name, r.output,
+            )
         items = _parse_landing_batch(r.output, batch=batch)
         if not items and batch:
             raise ValueError(f"Model returned 0 items for {len(batch)} input item(s)")
@@ -550,10 +564,25 @@ def _rerun_premium(
         + _render_batch(original_commits)
     )
 
+    logger.debug(
+        "\033[1;35m── landing_agent premium: model=%s │ system prompt ──\n%s\033[0m",
+        premium_model_name, _SYSTEM_PROMPT,
+    )
+
     refined_by_sha: dict[str, LandingDigest] = {}
     try:
         def _premium_call():
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(
+                    "\033[1;33m── landing_agent PREMIUM ▶ SENDING TO %s ──\n%s\033[0m",
+                    premium_model_name, prompt,
+                )
             r = premium_agent.run_sync(prompt)
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(
+                    "\033[1;32m── landing_agent PREMIUM ◀ RESPONSE FROM %s ──\n%s\033[0m",
+                    premium_model_name, r.output,
+                )
             return r, _parse_landing_batch(r.output, batch=original_commits)
 
         result, refined_digests = retry_with_backoff(
