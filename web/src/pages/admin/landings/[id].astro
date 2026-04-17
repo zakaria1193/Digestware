@@ -1,0 +1,76 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getCollection } from 'astro:content';
+
+export async function getStaticPaths() {
+  const landings = await getCollection('landings');
+  return landings.map(entry => ({ params: { id: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await entry.render();
+const d = entry.data;
+---
+
+<AdminLayout title={`Landing: ${d.commit_hash?.slice(0, 12) ?? entry.id}`} section="landings">
+  <div class="mb-4">
+    <a href="/admin/landings" class="text-xs text-zinc-500 hover:text-zinc-300">← All landings</a>
+  </div>
+
+  <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+    <div class="lg:col-span-1 space-y-4">
+      <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-3 text-sm">
+        <div>
+          <p class="text-xs text-zinc-500 mb-0.5">Project / Subsystem</p>
+          <p class="font-mono">{d.project} / {d.subsystem}</p>
+        </div>
+        <div>
+          <p class="text-xs text-zinc-500 mb-0.5">Date</p>
+          <p class="font-mono">{d.date.toISOString().slice(0, 10)}</p>
+        </div>
+        <div>
+          <p class="text-xs text-zinc-500 mb-0.5">Author</p>
+          <p>{d.author ?? '—'}</p>
+        </div>
+        <div>
+          <p class="text-xs text-zinc-500 mb-0.5">Commit</p>
+          <p class="font-mono text-xs break-all">{d.commit_hash ?? '—'}</p>
+        </div>
+        <div>
+          <p class="text-xs text-zinc-500 mb-0.5">Source</p>
+          <p>{d.source_type}</p>
+        </div>
+        <div class="flex gap-4">
+          <div>
+            <p class="text-xs text-zinc-500 mb-0.5">Impact</p>
+            <p class={`text-xl font-bold ${(d.impact_score ?? 0) >= 8 ? 'text-amber-400' : ''}`}>
+              {d.impact_score ?? '—'}<span class="text-xs text-zinc-500">/10</span>
+            </p>
+          </div>
+          <div>
+            <p class="text-xs text-zinc-500 mb-0.5">Perf win</p>
+            <p class={d.performance_win ? 'text-emerald-400' : 'text-zinc-600'}>{d.performance_win ? 'Yes' : 'No'}</p>
+          </div>
+          <div>
+            <p class="text-xs text-zinc-500 mb-0.5">Breaking</p>
+            <p class={d.breaking_change ? 'text-red-400 font-semibold' : 'text-zinc-600'}>{d.breaking_change ? 'Yes' : 'No'}</p>
+          </div>
+        </div>
+        {d.url && (
+          <div>
+            <a href={d.url} target="_blank" rel="noopener noreferrer"
+               class="text-xs text-amber-400 hover:text-amber-300 break-all">
+              View on GitHub →
+            </a>
+          </div>
+        )}
+      </div>
+    </div>
+
+    <div class="lg:col-span-2">
+      <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-6 prose prose-invert prose-sm max-w-none">
+        <Content />
+      </div>
+    </div>
+  </div>
+</AdminLayout>

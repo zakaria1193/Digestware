@@ -1,0 +1,105 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { getCollection } from 'astro:content';
+
+const [discussions, landings, digests] = await Promise.all([
+  getCollection('discussions'),
+  getCollection('landings'),
+  getCollection('digests'),
+]);
+
+const projects = [...new Set([
+  ...landings.map(e => e.data.project),
+  ...discussions.map(e => e.data.project),
+])].sort();
+
+const recentLandings = [...landings]
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime())
+  .slice(0, 5);
+
+const recentDiscussions = [...discussions]
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime())
+  .slice(0, 5);
+
+const highImpactLandings = landings.filter(e => (e.data.impact_score ?? 0) >= 8).length;
+const breakingChanges = landings.filter(e => e.data.breaking_change).length;
+---
+
+<AdminLayout title="Dashboard" section="dashboard">
+  <div class="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-8">
+    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+      <p class="text-xs text-zinc-500 uppercase tracking-wide mb-1">Landings</p>
+      <p class="text-3xl font-bold tabular-nums">{landings.length}</p>
+    </div>
+    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+      <p class="text-xs text-zinc-500 uppercase tracking-wide mb-1">Discussions</p>
+      <p class="text-3xl font-bold tabular-nums">{discussions.length}</p>
+    </div>
+    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+      <p class="text-xs text-zinc-500 uppercase tracking-wide mb-1">High Impact ≥8</p>
+      <p class="text-3xl font-bold tabular-nums text-amber-400">{highImpactLandings}</p>
+    </div>
+    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+      <p class="text-xs text-zinc-500 uppercase tracking-wide mb-1">Breaking Changes</p>
+      <p class="text-3xl font-bold tabular-nums text-red-400">{breakingChanges}</p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 gap-6 lg:grid-cols-3 mb-8">
+    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+      <p class="text-xs text-zinc-500 uppercase tracking-wide mb-3">Projects</p>
+      <div class="space-y-1">
+        {projects.map(proj => {
+          const lCount = landings.filter(e => e.data.project === proj).length;
+          const dCount = discussions.filter(e => e.data.project === proj).length;
+          return (
+            <div class="flex items-center justify-between text-sm">
+              <span class="font-mono text-zinc-300">{proj}</span>
+              <span class="text-zinc-500">{lCount}L / {dCount}D</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+
+    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-xs text-zinc-500 uppercase tracking-wide">Recent Landings</p>
+        <a href="/admin/landings" class="text-xs text-amber-400 hover:text-amber-300">All →</a>
+      </div>
+      <ul class="space-y-2">
+        {recentLandings.map(e => (
+          <li>
+            <a href={`/admin/landings/${e.id}`} class="block hover:bg-zinc-800 rounded px-2 py-1 -mx-2 transition-colors">
+              <p class="text-sm text-zinc-200 truncate">{e.data.commit_hash?.slice(0, 8) ?? '—'} <span class="text-zinc-500">{e.data.project}</span></p>
+              <p class="text-xs text-zinc-500">{e.data.date.toISOString().slice(0, 10)} · impact {e.data.impact_score ?? '?'}</p>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+
+    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-xs text-zinc-500 uppercase tracking-wide">Recent Discussions</p>
+        <a href="/admin/discussions" class="text-xs text-amber-400 hover:text-amber-300">All →</a>
+      </div>
+      <ul class="space-y-2">
+        {recentDiscussions.map(e => (
+          <li>
+            <a href={`/admin/discussions/${e.id}`} class="block hover:bg-zinc-800 rounded px-2 py-1 -mx-2 transition-colors">
+              <p class="text-sm text-zinc-200 truncate">{e.data.title}</p>
+              <p class="text-xs text-zinc-500">{e.data.date.toISOString().slice(0, 10)} · {e.data.consensus ?? '—'}</p>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </div>
+
+  {digests.length === 0 && (
+    <div class="bg-zinc-900/50 border border-dashed border-zinc-700 rounded-lg p-6 text-center">
+      <p class="text-zinc-500 text-sm">No digests yet — run the agent to generate the first bento.</p>
+    </div>
+  )}
+</AdminLayout>
