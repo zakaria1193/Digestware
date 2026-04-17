@@ -1,0 +1,80 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getCollection } from 'astro:content';
+
+const landings = (await getCollection('landings'))
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+
+const projects = [...new Set(landings.map(e => e.data.project))].sort();
+---
+
+<AdminLayout title="Landings" section="landings">
+  <div class="mb-4 flex items-center justify-between">
+    <p class="text-sm text-zinc-400">{landings.length} commits indexed</p>
+  </div>
+
+  <div class="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-zinc-800 text-xs text-zinc-500 uppercase tracking-wide">
+          <th class="px-4 py-3 text-left font-medium">Date</th>
+          <th class="px-4 py-3 text-left font-medium">Project</th>
+          <th class="px-4 py-3 text-left font-medium">Subsystem</th>
+          <th class="px-4 py-3 text-left font-medium">Commit</th>
+          <th class="px-4 py-3 text-left font-medium">Author</th>
+          <th class="px-4 py-3 text-center font-medium">Impact</th>
+          <th class="px-4 py-3 text-center font-medium">Perf</th>
+          <th class="px-4 py-3 text-center font-medium">Breaking</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-zinc-800">
+        {landings.map(e => (
+          <tr class="hover:bg-zinc-800/40 transition-colors">
+            <td class="px-4 py-2.5 font-mono text-xs text-zinc-500 whitespace-nowrap">
+              {e.data.date.toISOString().slice(0, 10)}
+            </td>
+            <td class="px-4 py-2.5">
+              <span class="font-mono text-xs bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded">
+                {e.data.project}
+              </span>
+            </td>
+            <td class="px-4 py-2.5 text-zinc-400 text-xs">{e.data.subsystem}</td>
+            <td class="px-4 py-2.5">
+              <a
+                href={`/admin/landings/${e.id}`}
+                class="font-mono text-xs text-amber-400 hover:text-amber-300"
+              >
+                {e.data.commit_hash?.slice(0, 8) ?? e.id.slice(0, 8)}
+              </a>
+            </td>
+            <td class="px-4 py-2.5 text-xs text-zinc-400 max-w-[10rem] truncate">
+              {e.data.author ?? '—'}
+            </td>
+            <td class="px-4 py-2.5 text-center">
+              <span class={`text-xs font-bold tabular-nums ${
+                (e.data.impact_score ?? 0) >= 8 ? 'text-amber-400' :
+                (e.data.impact_score ?? 0) >= 5 ? 'text-zinc-300' : 'text-zinc-500'
+              }`}>
+                {e.data.impact_score ?? '—'}
+              </span>
+            </td>
+            <td class="px-4 py-2.5 text-center">
+              {e.data.performance_win ? (
+                <span class="text-emerald-400 text-xs">yes</span>
+              ) : (
+                <span class="text-zinc-600 text-xs">—</span>
+              )}
+            </td>
+            <td class="px-4 py-2.5 text-center">
+              {e.data.breaking_change ? (
+                <span class="text-red-400 text-xs font-semibold">yes</span>
+              ) : (
+                <span class="text-zinc-600 text-xs">—</span>
+              )}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</AdminLayout>
