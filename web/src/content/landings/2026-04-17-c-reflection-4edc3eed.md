@@ -3,20 +3,18 @@ project: gcc
 subsystem: c++/reflection
 patch_id: null
 tags:
-- c++
+- C++
 - reflection
 - bugfix
 commit_hash: 4edc3eedf0d2e91865272c1e693264ae6bbb3c6d
 source_type: github
 author: Marek Polacek
 headline: 'c++/reflection: splicing null reflection'
-tldr: The compiler now detects splicing a null reflection and avoids printing an error
-  message.
-why_it_matters: This commit improves the usability of the C++ reflection feature by
-  preventing confusing error messages when dealing with null reflections.
+tldr: The compiler now detects and handles splicing of null reflections in C++ reflection.
+why_it_matters: Improves the robustness of C++ reflection by correctly handling null
+  reflection cases.
 impact_score: 4
-impact_rationale: A quality-of-life improvement relating to C++ reflection, preventing
-  spurious warnings. Limited user impact.
+impact_rationale: Addresses a specific issue in C++ reflection, improving its robustness.
 performance_win: false
 breaking_change: false
 outcome: committed
@@ -28,4 +26,4 @@ url: https://github.com/gcc-mirror/gcc/commit/4edc3eedf0d2e91865272c1e693264ae6b
 date: '2026-04-17'
 ---
 
-The compiler was representing a null reflection with `unknown_type_node`, leading to an error message when splicing. This commit now detects splicing of a null reflection, preventing the error message from being printed. A new test case has also been added.
+When splicing a null reflection, the compiler was printing a note indicating that the `lang_type` was not supported. This patch detects the splicing of a null reflection, which is represented by `unknown_type_node`, and handles it appropriately. A new test case has been added to verify the fix.
