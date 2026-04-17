@@ -27,6 +27,7 @@ import os
 import re
 from urllib.parse import urlparse
 
+from pydantic import TypeAdapter
 from pydantic_ai import Agent
 
 from agents._openrouter import build_model
@@ -109,6 +110,18 @@ The ``commit_hash`` field MUST be echoed verbatim from the input.
 Return a JSON array — raw JSON only, no markdown fences.
 """
 
+_ADAPTER: TypeAdapter[list[LandingDigest]] = TypeAdapter(list[LandingDigest])
+
+
+def _parse_landing_batch(text: str) -> list[LandingDigest]:
+    """Parse raw JSON text (with optional markdown fences) into LandingDigest list."""
+    text = text.strip()
+    if text.startswith("```"):
+        text = text[text.index("\n") + 1:] if "\n" in text else text[3:]
+    if text.endswith("```"):
+        text = text[:text.rindex("```")].rstrip()
+    return _ADAPTER.validate_python(json.loads(text))
+
 
 def _extract_trailers(message: str) -> dict[str, str]:
     """Extract cross-reference trailers from a commit message."""
@@ -180,11 +193,11 @@ def _render_batch(batch: list[RawCommit]) -> str:
     return "\n".join(lines)
 
 
-def _make_agent(model_name: str) -> Agent[None, list[LandingDigest]]:
+def _make_agent(model_name: str) -> Agent[None, str]:
     model = build_model(model_name)
     return Agent(
         model=model,
-        output_type=list[LandingDigest],
+        output_type=str,
         system_prompt=_SYSTEM_PROMPT,
         tools=[
             extract_patch_id,  # type: ignore[arg-type]
@@ -320,7 +333,7 @@ def _apply_series_and_subsystem(
 
 
 def _run_batch(
-    agent: Agent[None, list[LandingDigest]],
+    agent: Agent[None, str],
     model_name: str,
     batch: list[RawCommit],
     batch_idx: int,
@@ -340,11 +353,18 @@ def _run_batch(
         + _render_batch(batch)
     )
 
+    def _call():
+        r = agent.run_sync(prompt)
+        items = _parse_landing_batch(r.output)
+        if not items and batch:
+            raise ValueError(f"Model returned 0 items for {len(batch)} input item(s)")
+        return r, items
+
     global batches_total, batches_stubbed
     batches_total += 1
     try:
-        result = retry_with_backoff(
-            lambda: agent.run_sync(prompt),
+        result, data = retry_with_backoff(
+            _call,
             label=f"landing_agent batch {batch_idx}",
         )
     except Exception as exc:
@@ -355,7 +375,7 @@ def _run_batch(
         return _stub_digests(batch)
 
     append_usage("landing_agent", model_name, result.usage())
-    data: list[LandingDigest] = list(result.output)
+    data = list(data)
     logger.info(
         "Batch %d: %d digest(s), usage=%s",
         batch_idx, len(data), result.usage(),
@@ -481,13 +501,17 @@ def _rerun_premium(
 
     refined_by_sha: dict[str, LandingDigest] = {}
     try:
-        result = retry_with_backoff(
-            lambda: premium_agent.run_sync(prompt),
+        def _premium_call():
+            r = premium_agent.run_sync(prompt)
+            return r, _parse_landing_batch(r.output)
+
+        result, refined_digests = retry_with_backoff(
+            _premium_call,
             label="landing_agent premium rerun",
         )
         append_usage("landing_agent_premium", premium_model_name, result.usage())
         input_shas = {c.sha for c in original_commits}
-        for refined in result.output:
+        for refined in refined_digests:
             if refined.commit_hash not in input_shas:
                 logger.warning(
                     "Premium model returned unknown commit_hash=%s — dropping",
