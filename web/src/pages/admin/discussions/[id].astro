@@ -10,6 +10,34 @@ export async function getStaticPaths() {
 const { entry } = Astro.props;
 const { Content } = await entry.render();
 const d = entry.data;
+
+const isUrl = (v: unknown): v is string =>
+  typeof v === 'string' && /^https?:\/\//.test(v);
+
+const attributes: Array<[string, unknown]> = [
+  ['project', d.project],
+  ['subsystem', d.subsystem],
+  ['patch_id', d.patch_id],
+  ['discussion_id', d.discussion_id],
+  ['source_type', d.source_type],
+  ['title', d.title],
+  ['headline', d.headline],
+  ['tldr', d.tldr],
+  ['stakes', d.stakes],
+  ['proposer', d.proposer],
+  ['consensus', d.consensus],
+  ['outcome', d.outcome],
+  ['sentiment_score', d.sentiment_score],
+  ['sentiment_rationale', d.sentiment_rationale],
+  ['technical_tradeoffs', d.technical_tradeoffs],
+  ['series_id', d.series_id],
+  ['series_role', d.series_role],
+  ['series_parts', d.series_parts],
+  ['tags', d.tags],
+  ['url', d.url],
+  ['bugzilla_url', d.bugzilla_url],
+  ['date', d.date],
+];
 ---
 
 <AdminLayout title={d.title} section="discussions">
@@ -81,6 +109,48 @@ const d = entry.data;
             </a>
           </div>
         )}
+      </div>
+
+      <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 text-sm">
+        <p class="text-xs text-zinc-500 mb-2 uppercase tracking-wide">All attributes</p>
+        <dl class="space-y-2">
+          {attributes.map(([key, value]) => (
+            <div>
+              <dt class="text-[11px] text-zinc-500 font-mono">{key}</dt>
+              <dd class="text-xs text-zinc-200 break-words">
+                {value === null || value === undefined || value === '' ? (
+                  <span class="text-zinc-600">—</span>
+                ) : value instanceof Date ? (
+                  <span class="font-mono">{value.toISOString()}</span>
+                ) : typeof value === 'boolean' ? (
+                  <span class={value ? 'text-emerald-400' : 'text-zinc-500'}>{String(value)}</span>
+                ) : Array.isArray(value) ? (
+                  value.length === 0 ? (
+                    <span class="text-zinc-600">[]</span>
+                  ) : (
+                    <ul class="space-y-1 mt-0.5">
+                      {value.map(item => (
+                        <li class="flex gap-1.5">
+                          <span class="text-zinc-600 shrink-0">•</span>
+                          {typeof item === 'object' && item !== null ? (
+                            <span class="font-mono text-[11px] break-all">{JSON.stringify(item)}</span>
+                          ) : (
+                            <span class="break-words">{String(item)}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                ) : isUrl(value) ? (
+                  <a href={value} target="_blank" rel="noopener noreferrer"
+                     class="text-amber-400 hover:text-amber-300 break-all">{value}</a>
+                ) : (
+                  <span class="break-words">{String(value)}</span>
+                )}
+              </dd>
+            </div>
+          ))}
+        </dl>
       </div>
     </div>
 
