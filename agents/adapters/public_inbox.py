@@ -67,6 +67,78 @@ def _thread_root(msg: email.message.Message) -> str | None:
     return None
 
 
+def _merge_by_thread(msgs: list[RawDiscussion]) -> list[RawDiscussion]:
+    """Collapse email-thread replies into a single ``RawDiscussion`` per thread.
+
+    Grouping key is ``metadata["thread_root"]`` (the root Message-ID parsed
+    from ``References``/``In-Reply-To``) falling back to the message's own id
+    when it is itself a thread starter. Patch-series parts (detected via
+    ``metadata["patch_series_id"]``) are kept as singletons — they represent
+    separate commits and are collapsed later by ``split_canonical``.
+
+    For a group of size > 1 the earliest-by-date message becomes the head;
+    its ``title``, ``body``, ``author``, ``date``, ``url`` and ``diff_text``
+    carry over. The remaining messages are attached under ``replies`` as
+    dicts with ``message_id``, ``author``, ``date``, ``body``, ``url`` keys.
+
+    The merged ``id`` is always the thread-root Message-ID so the same thread
+    produces the same digest id across runs, even when different replies fall
+    within successive ``since_hours`` windows.
+    """
+    if not msgs:
+        return []
+
+    groups: dict[str, list[RawDiscussion]] = {}
+    order: list[str] = []
+    for idx, d in enumerate(msgs):
+        if d.metadata.get("patch_series_id"):
+            # Singleton — keep patch-series parts separate.
+            key = f"\x00patch\x00{idx}"
+        else:
+            key = d.metadata.get("thread_root") or d.id
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append(d)
+
+    merged: list[RawDiscussion] = []
+    for key in order:
+        group = groups[key]
+        if len(group) == 1:
+            merged.append(group[0])
+            continue
+        group.sort(key=lambda d: d.date)
+        head = group[0]
+        tail = group[1:]
+        replies = [
+            {
+                "message_id": r.id,
+                "author": r.author,
+                "date": r.date.isoformat(),
+                "body": r.body,
+                "url": r.url,
+            }
+            for r in tail
+        ]
+        merged_id = head.metadata.get("thread_root") or head.id
+        merged.append(
+            RawDiscussion(
+                id=merged_id,
+                title=head.title,
+                body=head.body,
+                author=head.author,
+                date=head.date,
+                url=head.url,
+                replies=replies,
+                diff_text=head.diff_text,
+                source_type=head.source_type,
+                project=head.project,
+                metadata={**head.metadata, "reply_count": len(replies)},
+            )
+        )
+    return merged
+
+
 def _validate_list_name(name: str) -> None:
     """Raise ValueError if *name* could cause git-option injection."""
     if not _LIST_NAME_RE.match(name):
@@ -178,7 +250,7 @@ class PublicInboxAdapter:
                 if d.id not in seen_ids:
                     seen_ids.add(d.id)
                     discussions.append(d)
-        return discussions
+        return _merge_by_thread(discussions)
 
     def _parse_epoch_discussions(
         self, mirror: Path, list_name: str, since_dt: str
@@ -204,8 +276,14 @@ class PublicInboxAdapter:
             self._cache_mbox(message_id, raw)
             msg_date = self._parse_date(msg.get("Date", ""))
             subject = str(msg.get("Subject", "(no subject)"))
-            # Patch series takes priority; fall back to thread root
-            series_id = _series_id_from_subject(subject) or _thread_root(msg)
+            # Patch series and email threading are distinct grouping signals:
+            # patch series parts must stay as separate digests (collapsed later
+            # by split_canonical), while email-thread replies must be merged
+            # into a single digest here. Store both separately so _merge_by_thread
+            # can tell them apart; keep ``series_id`` populated for back-compat.
+            patch_series_id = _series_id_from_subject(subject)
+            thread_root = _thread_root(msg)
+            series_id = patch_series_id or thread_root
             results.append(
                 RawDiscussion(
                     id=message_id,
@@ -218,7 +296,13 @@ class PublicInboxAdapter:
                     diff_text=self._extract_diff(msg),
                     source_type="public_inbox",
                     project=self._list_projects.get(list_name, self.project),
-                    metadata={"list": list_name, "sha": sha, "series_id": series_id},
+                    metadata={
+                        "list": list_name,
+                        "sha": sha,
+                        "series_id": series_id,
+                        "patch_series_id": patch_series_id,
+                        "thread_root": thread_root,
+                    },
                 )
             )
         return results

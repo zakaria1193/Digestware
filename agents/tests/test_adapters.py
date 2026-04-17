@@ -434,6 +434,97 @@ class TestPublicInboxAdapter:
         assert len(discussions) == 1
         assert discussions[0].metadata.get("series_id") == "root@gcc.gnu.org"
 
+    def test_thread_replies_merged_into_single_discussion(self, tmp_path: Path):
+        """Root + two replies sharing the same thread must collapse into one digest."""
+        root = (
+            b"From: Alice <alice@example.com>\r\n"
+            b"Message-ID: <root@gcc.gnu.org>\r\n"
+            b"Date: Mon, 14 Apr 2026 10:00:00 +0000\r\n"
+            b"Subject: Policy on use of LLM tools\r\n"
+            b"\r\n"
+            b"I propose the following policy ...\r\n"
+        )
+        reply1 = (
+            b"From: Bob <bob@example.com>\r\n"
+            b"Message-ID: <r1@gcc.gnu.org>\r\n"
+            b"In-Reply-To: <root@gcc.gnu.org>\r\n"
+            b"References: <root@gcc.gnu.org>\r\n"
+            b"Date: Mon, 14 Apr 2026 11:00:00 +0000\r\n"
+            b"Subject: Re: Policy on use of LLM tools\r\n"
+            b"\r\n"
+            b"I agree, but disclosure should be required.\r\n"
+        )
+        reply2 = (
+            b"From: Carol <carol@example.com>\r\n"
+            b"Message-ID: <r2@gcc.gnu.org>\r\n"
+            b"In-Reply-To: <r1@gcc.gnu.org>\r\n"
+            b"References: <root@gcc.gnu.org> <r1@gcc.gnu.org>\r\n"
+            b"Date: Mon, 14 Apr 2026 12:00:00 +0000\r\n"
+            b"Subject: Re: Policy on use of LLM tools\r\n"
+            b"\r\n"
+            b"The OpenJDK precedent is worth considering.\r\n"
+        )
+        adapter, mirror, fake_run = self._adapter_with_mboxes(
+            tmp_path, [root, reply1, reply2]
+        )
+
+        with (
+            patch("agents.adapters.public_inbox._mirror_list", return_value=[mirror]),
+            patch("agents.adapters.public_inbox.subprocess.run", side_effect=fake_run),
+        ):
+            discussions = adapter.fetch_discussions(since_hours=999)
+
+        assert len(discussions) == 1
+        d = discussions[0]
+        assert d.id == "root@gcc.gnu.org"
+        assert len(d.replies) == 2
+        reply_ids = {r["message_id"] for r in d.replies}
+        assert reply_ids == {"r1@gcc.gnu.org", "r2@gcc.gnu.org"}
+        # Head is the earliest message (the root), not a reply.
+        assert "Re:" not in d.title
+        assert d.metadata.get("reply_count") == 2
+
+    def test_thread_replies_merged_when_root_missing(self, tmp_path: Path):
+        """Replies whose root is outside the window still collapse to one digest."""
+        reply1 = (
+            b"From: Bob <bob@example.com>\r\n"
+            b"Message-ID: <r1@gcc.gnu.org>\r\n"
+            b"In-Reply-To: <root@gcc.gnu.org>\r\n"
+            b"References: <root@gcc.gnu.org>\r\n"
+            b"Date: Mon, 14 Apr 2026 11:00:00 +0000\r\n"
+            b"Subject: Re: Policy on use of LLM tools\r\n"
+            b"\r\n"
+            b"I agree, but disclosure should be required.\r\n"
+        )
+        reply2 = (
+            b"From: Carol <carol@example.com>\r\n"
+            b"Message-ID: <r2@gcc.gnu.org>\r\n"
+            b"In-Reply-To: <r1@gcc.gnu.org>\r\n"
+            b"References: <root@gcc.gnu.org> <r1@gcc.gnu.org>\r\n"
+            b"Date: Mon, 14 Apr 2026 12:00:00 +0000\r\n"
+            b"Subject: Re: Policy on use of LLM tools\r\n"
+            b"\r\n"
+            b"The OpenJDK precedent is worth considering.\r\n"
+        )
+        adapter, mirror, fake_run = self._adapter_with_mboxes(
+            tmp_path, [reply1, reply2]
+        )
+
+        with (
+            patch("agents.adapters.public_inbox._mirror_list", return_value=[mirror]),
+            patch("agents.adapters.public_inbox.subprocess.run", side_effect=fake_run),
+        ):
+            discussions = adapter.fetch_discussions(since_hours=999)
+
+        assert len(discussions) == 1
+        d = discussions[0]
+        # Stable id = external root Message-ID, even though the root itself
+        # is not in the window. This keeps successive runs converging on the
+        # same digest.
+        assert d.id == "root@gcc.gnu.org"
+        assert len(d.replies) == 1
+        assert d.replies[0]["message_id"] == "r2@gcc.gnu.org"
+
     def test_standalone_email_has_no_series_id(self, tmp_path: Path):
         """A plain email with no patch tag or In-Reply-To must have series_id=None."""
         mbox = (
