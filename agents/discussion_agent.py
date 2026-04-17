@@ -31,6 +31,11 @@ logger = logging.getLogger(__name__)
 _BATCH_SIZE = 10
 _DEFAULT_MODEL = "google/gemini-2.0-flash-001"
 
+# Module-level counters so main() can detect silent degradation (every LLM
+# batch falling through to stubs). Reset by main() at the start of each run.
+batches_total: int = 0
+batches_stubbed: int = 0
+
 _SYSTEM_PROMPT = """\
 You are the editor of a WSJ-style daily for working systems developers. You
 read in-flight proposals (PRs, mailing-list RFCs, patch series) and produce a
@@ -260,6 +265,8 @@ def _run_batch(
         + _render_batch(batch)
     )
 
+    global batches_total, batches_stubbed
+    batches_total += 1
     try:
         result = retry_with_backoff(
             lambda: agent.run_sync(prompt),
@@ -269,6 +276,7 @@ def _run_batch(
         logger.error(
             "discussion_agent batch %d failed after retries: %s", batch_idx, exc
         )
+        batches_stubbed += 1
         return _stub_digests(batch)
 
     append_usage("discussion_agent", model_name, result.usage())

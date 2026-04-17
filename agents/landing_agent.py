@@ -48,6 +48,11 @@ _BATCH_SIZE = 15
 _DEFAULT_MODEL = "google/gemini-2.0-flash-001"
 _PREMIUM_MODEL = "anthropic/claude-sonnet-4-5"
 
+# Module-level counters so main() can detect silent degradation (every LLM
+# batch falling through to stubs). Reset by main() at the start of each run.
+batches_total: int = 0
+batches_stubbed: int = 0
+
 _TRAILER_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("closes",      re.compile(r"Closes\s+#(\d+)", re.IGNORECASE)),
     ("message_id",  re.compile(r"Message-Id:\s*<([^>]+)>", re.IGNORECASE)),
@@ -335,6 +340,8 @@ def _run_batch(
         + _render_batch(batch)
     )
 
+    global batches_total, batches_stubbed
+    batches_total += 1
     try:
         result = retry_with_backoff(
             lambda: agent.run_sync(prompt),
@@ -344,6 +351,7 @@ def _run_batch(
         logger.error(
             "landing_agent batch %d failed after retries: %s", batch_idx, exc
         )
+        batches_stubbed += 1
         return _stub_digests(batch)
 
     append_usage("landing_agent", model_name, result.usage())
