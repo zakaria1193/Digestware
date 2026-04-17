@@ -1,0 +1,33 @@
+name: Purge Generated Content
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "yes" to confirm deletion of all generated digests'
+        required: true
+        default: 'no'
+
+jobs:
+  purge:
+    name: Purge Digests
+    if: github.event.inputs.confirm == 'yes'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Remove digest files
+        run: |
+          find web/src/content/digests/ -type f ! -name '.gitkeep' -delete
+          find agents/output/ -type f ! -name '.gitkeep' -delete 2>/dev/null || true
+
+      - name: Commit purge
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add web/src/content/digests/ agents/output/ 2>/dev/null || git add web/src/content/digests/
+          git diff --cached --quiet && echo "Nothing to purge." || \
+            git commit -m "chore(dev): purge all generated content" && git push
