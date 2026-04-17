@@ -638,7 +638,7 @@ class TestEngineDeduplication:
             date=datetime(2026, 4, 14, tzinfo=timezone.utc),
             url=f"https://example.com/{id_}",
             replies=[],
-            diff_text=None,
+            diff_text="--- a/x\n+++ b/x\n@@ -1 +1 @@\n-old\n+new\n",
             source_type="github_pr",
         )
 
