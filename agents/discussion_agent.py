@@ -234,6 +234,10 @@ def run_discussion_agent(
             search_context,    # type: ignore[arg-type]
         ],
     )
+    logger.debug(
+        "\033[1;35m── discussion_agent: model=%s │ system prompt ──\n%s\033[0m",
+        model_name, _SYSTEM_PROMPT,
+    )
 
     results: list[DiscussionDigest] = []
     batches = series_aware_batches(
@@ -333,7 +337,17 @@ def _run_batch(
     )
 
     def _call():
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                "\033[1;33m── discussion_agent batch %d ▶ SENDING TO %s ──\n%s\033[0m",
+                batch_idx, model_name, prompt,
+            )
         r = agent.run_sync(prompt)
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                "\033[1;32m── discussion_agent batch %d ◀ RESPONSE FROM %s ──\n%s\033[0m",
+                batch_idx, model_name, r.output,
+            )
         items = _parse_discussion_batch(r.output, batch=batch)
         if not items and batch:
             raise ValueError(f"Model returned 0 items for {len(batch)} input item(s)")

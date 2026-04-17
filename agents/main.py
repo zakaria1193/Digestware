@@ -36,12 +36,25 @@ from agents.landing_agent import run_landing_agent
 from agents.tools.noise_filter import filter_noise
 from agents.writer import write_discussion, write_landing
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)-8s %(name)s — %(message)s",
-    datefmt="%H:%M:%S",
-)
 logger = logging.getLogger("agents.main")
+
+_ANSI_RESET = "\033[0m"
+_STEP_COLORS = {
+    "cyan":    "\033[1;36m",
+    "magenta": "\033[1;35m",
+    "blue":    "\033[1;34m",
+    "green":   "\033[1;32m",
+    "yellow":  "\033[1;33m",
+}
+
+
+def _step_banner(title: str, color: str = "cyan") -> str:
+    """Return a multi-line colored ASCII banner for pipeline step headers."""
+    code = _STEP_COLORS.get(color, _STEP_COLORS["cyan"])
+    inner = 60
+    bar = "═" * inner
+    padded = title.upper().center(inner)
+    return f"\n{code}╔{bar}╗\n║{padded}║\n╚{bar}╝{_ANSI_RESET}"
 
 _SOURCES_YML = Path(__file__).parent / "sources.yml"
 _CACHE_DIR = Path(__file__).parent / "cache"
@@ -111,6 +124,11 @@ def main() -> int:
 
     parser = argparse.ArgumentParser(description="OS Pulse digest engine")
     parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable DEBUG-level logging (shows prompts, API payloads, raw LLM responses)",
+    )
+    parser.add_argument(
         "--since-hours",
         type=int,
         default=24,
@@ -153,6 +171,12 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    logging.basicConfig(
+        level=logging.DEBUG if args.debug else logging.INFO,
+        format="%(asctime)s %(levelname)-8s %(name)s — %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
     # Refuse to run the LLM pipeline without a key — otherwise every batch
     # silently falls back to stub digests and we commit them as if they were
     # real output. --dry-run is still supported for pipeline-wiring tests.
@@ -186,6 +210,7 @@ def main() -> int:
     )
 
     # Ingest
+    logger.info(_step_banner("STEP 1 — INGESTION", "cyan"))
     engine = IngestionEngine(discussion_sources, commit_sources)
     raw = engine.run(since_hours=args.since_hours)
     raw_discussions = raw["discussions"]
@@ -193,6 +218,17 @@ def main() -> int:
     logger.info(
         "Ingested %d discussions, %d commits", len(raw_discussions), len(raw_commits)
     )
+    if logger.isEnabledFor(logging.DEBUG):
+        for d in raw_discussions:
+            logger.debug(
+                "  [discussion] id=%-40s project=%-12s title=%.80s",
+                d.id, d.project, d.title,
+            )
+        for c in raw_commits:
+            logger.debug(
+                "  [commit]     sha=%-12s project=%-12s msg=%.80s",
+                c.sha[:12], c.project, (c.message or "").splitlines()[0],
+            )
 
     if not raw_discussions and not raw_commits:
         logger.info("Nothing to process — exiting")
@@ -263,12 +299,16 @@ def main() -> int:
         return 0
 
     # Run agents
+    logger.info(_step_banner("STEP 2 — DISCUSSION AGENT", "magenta"))
     discussions = run_discussion_agent(
         raw_discussions, dry_run=args.dry_run
     )
+
+    logger.info(_step_banner("STEP 3 — LANDING AGENT", "blue"))
     landings = run_landing_agent(raw_commits, dry_run=args.dry_run)
 
     # Write output
+    logger.info(_step_banner("STEP 4 — WRITER", "green"))
     written_discussions = 0
     for d in discussions:
         try:
