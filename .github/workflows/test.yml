@@ -19,7 +19,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv venv
+          uv venv --clear
           uv pip install -r agents/requirements.txt pytest ruff pyright
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
