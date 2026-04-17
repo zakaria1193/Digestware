@@ -7,9 +7,11 @@ Token usage is appended as a JSON line to agents/output/usage.log.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 
+from pydantic import TypeAdapter
 from pydantic_ai import Agent
 
 from agents._openrouter import build_model
@@ -83,6 +85,17 @@ The ``discussion_id`` field MUST be echoed verbatim from the input.
 Return a JSON array — raw JSON only, no markdown fences.
 """
 
+_ADAPTER: TypeAdapter[list[DiscussionDigest]] = TypeAdapter(list[DiscussionDigest])
+
+
+def _parse_discussion_batch(text: str) -> list[DiscussionDigest]:
+    """Parse raw JSON text (with optional markdown fences) into DiscussionDigest list."""
+    text = text.strip()
+    if text.startswith("```"):
+        text = text[text.index("\n") + 1:] if "\n" in text else text[3:]
+    if text.endswith("```"):
+        text = text[:text.rindex("```")].rstrip()
+    return _ADAPTER.validate_python(json.loads(text))
 
 
 def _render_batch(batch: list[RawDiscussion]) -> str:
@@ -158,9 +171,9 @@ def run_discussion_agent(
 
     model_name = os.environ.get("SUMMARISER_MODEL", _DEFAULT_MODEL)
     model = build_model(model_name)
-    agent: Agent[None, list[DiscussionDigest]] = Agent(
+    agent: Agent[None, str] = Agent(
         model=model,
-        output_type=list[DiscussionDigest],
+        output_type=str,
         system_prompt=_SYSTEM_PROMPT,
         tools=[
             extract_patch_id,  # type: ignore[arg-type]
@@ -245,7 +258,7 @@ def _apply_series_and_subsystem(
 
 
 def _run_batch(
-    agent: Agent[None, list[DiscussionDigest]],
+    agent: Agent[None, str],
     model_name: str,
     batch: list[RawDiscussion],
     batch_idx: int,
@@ -265,11 +278,18 @@ def _run_batch(
         + _render_batch(batch)
     )
 
+    def _call():
+        r = agent.run_sync(prompt)
+        items = _parse_discussion_batch(r.output)
+        if not items and batch:
+            raise ValueError(f"Model returned 0 items for {len(batch)} input item(s)")
+        return r, items
+
     global batches_total, batches_stubbed
     batches_total += 1
     try:
-        result = retry_with_backoff(
-            lambda: agent.run_sync(prompt),
+        result, data = retry_with_backoff(
+            _call,
             label=f"discussion_agent batch {batch_idx}",
         )
     except Exception as exc:
@@ -280,7 +300,7 @@ def _run_batch(
         return _stub_digests(batch)
 
     append_usage("discussion_agent", model_name, result.usage())
-    data: list[DiscussionDigest] = list(result.output)
+    data = list(data)
     logger.info(
         "Batch %d: %d item(s) digested, usage=%s",
         batch_idx, len(data), result.usage(),
