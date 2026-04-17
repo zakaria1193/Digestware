@@ -39,9 +39,14 @@ def retry_with_backoff(
             if attempt >= attempts:
                 break
             delay = base_delay * (2 ** (attempt - 1))
+            # openai.APIStatusError and similar expose the upstream response
+            # body on exc.response.text; str(exc) often drops it. Surface it
+            # so "401 Invalid API key" doesn't hide behind a generic repr.
+            body = getattr(getattr(exc, "response", None), "text", None)
+            body_hint = f" | body={body[:300]}" if body else ""
             logger.warning(
-                "%s failed (attempt %d/%d: %s) — retrying in %.1fs",
-                label, attempt, attempts, exc, delay,
+                "%s failed (attempt %d/%d: %s%s) — retrying in %.1fs",
+                label, attempt, attempts, exc, body_hint, delay,
             )
             time.sleep(delay)
     assert last_exc is not None  # loop entered at least once

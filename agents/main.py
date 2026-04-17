@@ -17,12 +17,15 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 from pathlib import Path
 
 import yaml
 from dotenv import load_dotenv
 
+from agents import discussion_agent as discussion_agent_module
+from agents import landing_agent as landing_agent_module
 from agents.adapters.github import GitHubAdapter
 from agents.adapters.plain_git import PlainGitAdapter
 from agents.adapters.public_inbox import PublicInboxAdapter
@@ -131,6 +134,23 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    # Refuse to run the LLM pipeline without a key — otherwise every batch
+    # silently falls back to stub digests and we commit them as if they were
+    # real output. --dry-run is still supported for pipeline-wiring tests.
+    if not args.dry_run and not os.environ.get("OPENROUTER_API_KEY"):
+        logger.error(
+            "OPENROUTER_API_KEY is not set. Refusing to run the LLM pipeline "
+            "— use --dry-run if you intend to emit stub digests."
+        )
+        return 2
+
+    # Reset fall-through counters so multiple main() calls in one process
+    # (tests, notebooks) don't accumulate.
+    discussion_agent_module.batches_stubbed = 0
+    discussion_agent_module.batches_total = 0
+    landing_agent_module.batches_stubbed = 0
+    landing_agent_module.batches_total = 0
+
     # Load sources config
     try:
         with _SOURCES_YML.open() as fh:
@@ -224,6 +244,12 @@ def main() -> int:
 
     # Summary
     bento_worthy = sum(1 for landing in landings if landing.impact_score >= 7)
+    d_stubbed = discussion_agent_module.batches_stubbed
+    d_total = discussion_agent_module.batches_total
+    l_stubbed = landing_agent_module.batches_stubbed
+    l_total = landing_agent_module.batches_total
+    total_batches = d_total + l_total
+    total_stubbed = d_stubbed + l_stubbed
     print(
         f"\n{'─'*60}\n"
         f"  Discussions written : {written_discussions}\n"
@@ -231,8 +257,22 @@ def main() -> int:
         f"  Skipped (dedup)     : {skipped_discussions} discussions, "
         f"{skipped_commits} commits\n"
         f"  Bento-worthy (≥7)   : {bento_worthy}\n"
+        f"  LLM fallbacks       : {total_stubbed} / {total_batches} batches\n"
         f"{'─'*60}"
     )
+
+    # If every LLM batch fell back, treat the run as a failure rather than
+    # committing stub content as if it were real digest output. dry-run and
+    # no-batch runs (total_batches == 0) are exempt.
+    if not args.dry_run and total_batches > 0 and total_stubbed == total_batches:
+        logger.error(
+            "Every LLM batch (%d) fell back to stub digests — refusing to "
+            "report success. Check agent logs for the underlying error "
+            "(likely auth/rate-limit/network).",
+            total_batches,
+        )
+        return 3
+
     return 0
 
 
