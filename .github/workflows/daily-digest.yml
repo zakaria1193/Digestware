@@ -18,6 +18,7 @@ jobs:
     name: Run Digest Pipeline
     needs: test
     runs-on: ubuntu-latest
+    environment: alpha
     permissions:
       contents: write
 
