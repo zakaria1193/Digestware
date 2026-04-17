@@ -7,42 +7,16 @@ on:
   schedule:
     - cron: '0 2 * * *'   # 02:00 UTC every day
   workflow_dispatch:
-  push:
-    branches: [master]
-  pull_request:
-    branches: [master]
 
 jobs:
-  # ── 1. Quality gate ──────────────────────────────────────────────────────────
+  # ── 1. Quality gate (reused from test.yml) ───────────────────────────────────
   test:
-    name: Tests & Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: pip
-          cache-dependency-path: agents/requirements.txt
-
-      - name: Install dependencies
-        run: pip install -r agents/requirements.txt pytest ruff pyright
-
-      - name: Lint (ruff)
-        run: ruff check agents/
-
-      - name: Type check (pyright)
-        run: pyright agents/
-
-      - name: Unit tests
-        run: pytest agents/tests -q
+    uses: ./.github/workflows/test.yml
 
   # ── 2. Digest pipeline ───────────────────────────────────────────────────────
   digest:
     name: Run Digest Pipeline
     needs: test
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
