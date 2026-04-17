@@ -2,15 +2,21 @@
 project: gcc
 subsystem: libstdc++
 patch_id: null
-tags: []
+tags:
+- libstdc++
+- abi
+- compatibility
 commit_hash: 9bb30cff1a251f037f420e82ff23b8dcc16e1d72
 source_type: github
 author: Jakub Jelinek
-headline: 'libstdc++: Further baseline_symbols.txt updates'
-tldr: 'libstdc++: Further baseline_symbols.txt updates'
-why_it_matters: Summary unavailable — see source link.
-impact_score: 5
-impact_rationale: Stub digest; score not evaluated.
+headline: 'libstdc++: Further baseline symbols updates'
+tldr: The libstdc++ ABI baseline symbols are updated for several architectures by
+  applying informed guesses based on prior analysis.
+why_it_matters: Maintaining accurate ABI baselines ensures binary compatibility across
+  different compiler versions and distributions, avoiding unexpected runtime issues.
+impact_score: 7
+impact_rationale: Updates to ABI baseline symbols affect binary compatibility and
+  are important for library maintenance.
 performance_win: false
 breaking_change: false
 outcome: committed
@@ -22,4 +28,4 @@ url: https://github.com/gcc-mirror/gcc/commit/9bb30cff1a251f037f420e82ff23b8dcc1
 date: '2026-04-17'
 ---
 
-Summary unavailable — see source link.
+This commit updates the ``baseline_symbols.txt`` files for several architectures in libstdc++. The updates are based on change analysis from a previous patch and applying the aarch64-linux-gnu baseline symbols patch for targets using m size_t mangling and i486-linux-gnu baseline symbols patch for targets using j size_t mangling. Targets not updated in GCC 15 and hppa-linux-gnu were skipped.
