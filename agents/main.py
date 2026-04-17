@@ -30,6 +30,7 @@ from agents.dedup import build_seen_index, filter_raw
 from agents.discussion_agent import run_discussion_agent
 from agents.ingestion.engine import IngestionEngine
 from agents.landing_agent import run_landing_agent
+from agents.tools.noise_filter import filter_noise
 from agents.writer import write_discussion, write_landing
 
 logging.basicConfig(
@@ -158,13 +159,31 @@ def main() -> int:
         logger.info("Nothing to process — exiting")
         return 0
 
+    # Drop routine-maintenance noise ("Daily bump.", empty pings) BEFORE the
+    # LLM pays attention to it. Cheap deterministic rules only.
+    raw_discussions, raw_commits, dropped_d, dropped_c = filter_noise(
+        raw_discussions, raw_commits
+    )
+    if dropped_d or dropped_c:
+        logger.info(
+            "Noise filter dropped %d discussion(s), %d commit(s)",
+            dropped_d,
+            dropped_c,
+        )
+
     # Skip items already on disk (unless --force). This happens BEFORE the LLM
     # batches so re-runs of overlapping windows don't burn tokens.
     skipped_discussions = skipped_commits = 0
     if not args.force:
-        seen_ids, seen_shas = build_seen_index(args.content_root)
+        seen_ids, seen_shas, seen_series = build_seen_index(args.content_root)
         raw_discussions, raw_commits, skipped_discussions, skipped_commits = (
-            filter_raw(raw_discussions, raw_commits, seen_ids, seen_shas)
+            filter_raw(
+                raw_discussions,
+                raw_commits,
+                seen_ids,
+                seen_shas,
+                seen_series,
+            )
         )
         if skipped_discussions or skipped_commits:
             logger.info(

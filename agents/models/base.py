@@ -2,7 +2,7 @@
 
 from enum import Enum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ConsensusStatus(str, Enum):
@@ -14,7 +14,25 @@ class ConsensusStatus(str, Enum):
     COMMITTED = "Committed"
 
 
+class Outcome(str, Enum):
+    """Lifecycle state of a proposal or landed change.
+
+    Richer than ConsensusStatus (kept for backward-compat frontmatter) — this
+    is the field the UI uses to colour-code cards and filter the feed.
+    """
+
+    PROPOSED = "proposed"
+    UNDER_REVIEW = "under_review"
+    NEEDS_REVISION = "needs_revision"
+    NACKD = "nackd"
+    READY = "ready"
+    COMMITTED = "committed"
+    WITHDRAWN = "withdrawn"
+    STALLED = "stalled"
+
+
 class BimodalBase(BaseModel):
     project: str
     subsystem: str
     patch_id: str | None = None  # git patch-id --stable for cross-referencing
+    tags: list[str] = Field(default_factory=list, max_length=5)

@@ -21,6 +21,7 @@ from pathlib import Path
 import yaml
 
 from agents.models.raw import RawCommit, RawDiscussion
+from agents.tools.series import series_id_for
 
 logger = logging.getLogger(__name__)
 
@@ -48,28 +49,45 @@ def _read_frontmatter(path: Path) -> dict | None:
     return fm if isinstance(fm, dict) else None
 
 
-def build_seen_index(content_root: Path) -> tuple[set[str], set[str]]:
+def build_seen_index(
+    content_root: Path,
+) -> tuple[set[str], set[str], set[str]]:
     """Scan ``content_root`` for already-processed items.
 
-    Returns ``(seen_discussion_ids, seen_commit_hashes)``. Missing subdirs are
-    treated as empty — useful for first runs and for tests with clean dirs.
+    Returns ``(seen_discussion_ids, seen_commit_hashes, seen_series_ids)``.
+    Missing subdirs are treated as empty — useful for first runs and for
+    tests with clean dirs.
+
+    The ``seen_series_ids`` set captures ``series_id`` values already
+    represented by a canonical digest on disk; new incoming parts of the
+    same series are skipped (they collapse into the existing canonical
+    article rather than producing duplicates).
     """
     seen_ids: set[str] = set()
     seen_shas: set[str] = set()
+    seen_series: set[str] = set()
 
     discussions_dir = content_root / "discussions"
     for path in discussions_dir.glob("*.md"):
         fm = _read_frontmatter(path)
-        if fm and (did := fm.get("discussion_id")):
+        if not fm:
+            continue
+        if did := fm.get("discussion_id"):
             seen_ids.add(str(did))
+        if sid := fm.get("series_id"):
+            seen_series.add(str(sid))
 
     landings_dir = content_root / "landings"
     for path in landings_dir.glob("*.md"):
         fm = _read_frontmatter(path)
-        if fm and (sha := fm.get("commit_hash")):
+        if not fm:
+            continue
+        if sha := fm.get("commit_hash"):
             seen_shas.add(str(sha))
+        if sid := fm.get("series_id"):
+            seen_series.add(str(sid))
 
-    return seen_ids, seen_shas
+    return seen_ids, seen_shas, seen_series
 
 
 def filter_raw(
@@ -77,10 +95,28 @@ def filter_raw(
     raw_commits: list[RawCommit],
     seen_ids: set[str],
     seen_shas: set[str],
+    seen_series: set[str] | None = None,
 ) -> tuple[list[RawDiscussion], list[RawCommit], int, int]:
     """Drop raw items whose digest already exists. Returns filtered lists +
-    counts of skipped items."""
-    kept_discussions = [d for d in raw_discussions if d.id not in seen_ids]
+    counts of skipped items.
+
+    Skip rules:
+      - Discussions whose ``id`` is already on disk.
+      - Discussions whose ``series_id`` (derived from the subject) matches a
+        canonical digest on disk — a later part of a seen series.
+      - Commits whose ``sha`` is already on disk.
+    """
+    seen_series = seen_series or set()
+
+    def _skip_discussion(d: RawDiscussion) -> bool:
+        if d.id in seen_ids:
+            return True
+        sid = series_id_for(d.title, d.project)
+        if sid and sid in seen_series:
+            return True
+        return False
+
+    kept_discussions = [d for d in raw_discussions if not _skip_discussion(d)]
     kept_commits = [c for c in raw_commits if c.sha not in seen_shas]
     skipped_discussions = len(raw_discussions) - len(kept_discussions)
     skipped_commits = len(raw_commits) - len(kept_commits)

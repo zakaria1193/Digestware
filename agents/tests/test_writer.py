@@ -59,11 +59,17 @@ class TestWriteDiscussion:
                 discussion_id=discussion_id,
                 source_type="public_inbox",
                 title="[PATCH] same title",
+                headline="Same title",
+                tldr="Same title tldr.",
+                stakes="Stakes not yet evaluated.",
                 proposer="a@example.com",
                 consensus=ConsensusStatus.PROPOSED,
                 sentiment_score=5,
                 technical_tradeoffs=[],
-                summary="summary",
+                summary=(
+                    "Some enough text here that passes the writer body "
+                    "validator so the fallback message is not used instead."
+                ),
                 url=f"https://example.com/{discussion_id}",
                 date=datetime(2026, 4, 14, tzinfo=timezone.utc),
             )

@@ -10,11 +10,17 @@ the same day (C15 fix).
 
 Format: YAML frontmatter (all model fields) + blank line + summary prose body.
 Slug: lowercase, non-word chars collapsed to single hyphens, stripped, max 80 chars.
+
+Body validation: summary text is sanity-checked before being written. Obvious
+LLM failures (truncated mid-word, quoted email lines, too short / too long)
+are replaced with a visible fallback rather than shipped as-is — better a
+known gap than a broken-looking article.
 """
 
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,8 +30,14 @@ import yaml
 from agents.models.discussion import DiscussionDigest
 from agents.models.landing import LandingDigest
 
+logger = logging.getLogger(__name__)
+
 _DEFAULT_DISCUSSION_DIR = Path("web/src/content/discussions")
 _DEFAULT_LANDING_DIR = Path("web/src/content/landings")
+
+_FALLBACK_BODY = "Summary unavailable — see source link."
+_MIN_BODY_WORDS = 10
+_MAX_BODY_WORDS = 260
 
 
 # ---------------------------------------------------------------------------
@@ -51,6 +63,59 @@ def _format_date(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%d")
 
 
+def _sanitise_body(body: str | None, *, context: str) -> str:
+    """Validate and clean a summary body before writing it to disk.
+
+    Reasons a body is rejected (replaced with the fallback string):
+      - None / empty.
+      - Starts with ``Re:``, ``>`` or ``On … wrote:`` (quoted email leak).
+      - Ends mid-word / with dangling ``[`` or ``(`` (truncation).
+      - Fewer than _MIN_BODY_WORDS or more than _MAX_BODY_WORDS words.
+    """
+    if not body:
+        logger.info("writer: empty body in %s — using fallback", context)
+        return _FALLBACK_BODY
+
+    text = body.strip()
+    if not text:
+        logger.info("writer: whitespace-only body in %s — using fallback", context)
+        return _FALLBACK_BODY
+
+    first_line = text.splitlines()[0]
+    if re.match(r"^\s*(re\s*:|>|On .+ wrote:)", first_line, re.IGNORECASE):
+        logger.info("writer: quoted-email body in %s — using fallback", context)
+        return _FALLBACK_BODY
+
+    # Truncation detectors: trailing dangling bracket / open paren / comma /
+    # hyphen, or ending mid-word (no terminal punctuation at all).
+    tail = text[-3:]
+    ends_dangling = tail.endswith(("[", "(", ",", "-", ":"))
+    ends_mid_word = bool(re.search(r"\b[a-z]+$", tail.lower())) and not re.search(
+        r"[.!?\"'\)]$", text
+    )
+    if ends_dangling or ends_mid_word:
+        logger.info("writer: truncated body in %s — using fallback", context)
+        return _FALLBACK_BODY
+
+    word_count = len(re.findall(r"\S+", text))
+    if word_count < _MIN_BODY_WORDS:
+        logger.info(
+            "writer: body too short (%d words) in %s — using fallback",
+            word_count,
+            context,
+        )
+        return _FALLBACK_BODY
+    if word_count > _MAX_BODY_WORDS:
+        logger.info(
+            "writer: body too long (%d words) in %s — truncating to fallback",
+            word_count,
+            context,
+        )
+        return _FALLBACK_BODY
+
+    return text
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -66,7 +131,8 @@ def write_discussion(
     # Use the discussion's own date so re-runs stay idempotent and the filename
     # reflects when the discussion actually happened, not when the job ran.
     date_str = _format_date(d.date)
-    slug = _slugify(d.title)
+    # Prefer the cleaned headline over the raw subject for the slug.
+    slug = _slugify(d.headline or d.title)
     # Append a 6-char hash of discussion_id to guarantee uniqueness even when
     # two discussions share the same normalised title on the same day (C15).
     id_hash = hashlib.sha1(d.discussion_id.encode()).hexdigest()[:6]
@@ -76,19 +142,29 @@ def write_discussion(
         "project": d.project,
         "subsystem": d.subsystem,
         "patch_id": d.patch_id,
+        "tags": list(d.tags),
         "discussion_id": d.discussion_id,
         "source_type": d.source_type,
         "title": d.title,
+        "headline": d.headline,
+        "tldr": d.tldr,
+        "stakes": d.stakes,
         "proposer": d.proposer,
         "consensus": d.consensus.value,
+        "outcome": d.outcome.value,
         "sentiment_score": d.sentiment_score,
+        "sentiment_rationale": d.sentiment_rationale,
         "technical_tradeoffs": d.technical_tradeoffs,
+        "series_id": d.series_id,
+        "series_role": d.series_role,
+        "series_parts": d.series_parts,
         "url": d.url,
         "bugzilla_url": d.bugzilla_url,
         "date": date_str,
     }
 
-    path.write_text(_render(frontmatter, d.summary), encoding="utf-8")
+    body = _sanitise_body(d.summary, context=f"discussion {d.discussion_id}")
+    path.write_text(_render(frontmatter, body), encoding="utf-8")
     return path
 
 
@@ -110,19 +186,28 @@ def write_landing(
         "project": landing.project,
         "subsystem": landing.subsystem,
         "patch_id": landing.patch_id,
+        "tags": list(landing.tags),
         "commit_hash": landing.commit_hash,
         "source_type": landing.source_type,
         "author": landing.author,
+        "headline": landing.headline,
+        "tldr": landing.tldr,
+        "why_it_matters": landing.why_it_matters,
         "impact_score": landing.impact_score,
+        "impact_rationale": landing.impact_rationale,
         "performance_win": landing.performance_win,
         "breaking_change": landing.breaking_change,
+        "outcome": landing.outcome.value,
         "discussion_id_link": landing.discussion_id_link,
         "bugzilla_pr": landing.bugzilla_pr,
+        "series_id": landing.series_id,
+        "series_parts": landing.series_parts,
         "url": landing.url,
         "date": date_str,
     }
 
-    path.write_text(_render(frontmatter, landing.summary), encoding="utf-8")
+    body = _sanitise_body(landing.summary, context=f"landing {landing.commit_hash}")
+    path.write_text(_render(frontmatter, body), encoding="utf-8")
     return path
 
 

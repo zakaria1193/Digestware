@@ -21,15 +21,17 @@ def _content_root(base: Path) -> Path:
 class TestBuildSeenIndex:
     def test_empty_dirs(self, tmp_path):
         root = _content_root(tmp_path)
-        ids, shas = build_seen_index(root)
+        ids, shas, series = build_seen_index(root)
         assert ids == set()
         assert shas == set()
+        assert series == set()
 
     def test_missing_dirs(self, tmp_path):
         # Fresh deploys may not have the content subdirs yet.
-        ids, shas = build_seen_index(tmp_path / "does-not-exist")
+        ids, shas, series = build_seen_index(tmp_path / "does-not-exist")
         assert ids == set()
         assert shas == set()
+        assert series == set()
 
     def test_reads_frontmatter(
         self, tmp_path, sample_discussion_digest, sample_landing_digest,
@@ -38,7 +40,7 @@ class TestBuildSeenIndex:
         write_discussion(sample_discussion_digest, output_dir=root / "discussions")
         write_landing(sample_landing_digest, output_dir=root / "landings")
 
-        ids, shas = build_seen_index(root)
+        ids, shas, _series = build_seen_index(root)
         assert ids == {sample_discussion_digest.discussion_id}
         assert shas == {sample_landing_digest.commit_hash}
 
@@ -53,9 +55,10 @@ class TestBuildSeenIndex:
             "---\ntitle: hello\n---\n\nbody\n"
         )
 
-        ids, shas = build_seen_index(root)
+        ids, shas, series = build_seen_index(root)
         assert ids == set()
         assert shas == set()
+        assert series == set()
 
 
 class TestFilterRaw:
@@ -112,9 +115,9 @@ class TestFilterRaw:
         root = _content_root(tmp_path)
         write_discussion(sample_discussion_digest, output_dir=root / "discussions")
 
-        seen_ids, seen_shas = build_seen_index(root)
+        seen_ids, seen_shas, seen_series = build_seen_index(root)
         kept_d, _, skip_d, _ = filter_raw(
-            [sample_raw_discussion], [], seen_ids, seen_shas,
+            [sample_raw_discussion], [], seen_ids, seen_shas, seen_series,
         )
         assert kept_d == []
         assert skip_d == 1
