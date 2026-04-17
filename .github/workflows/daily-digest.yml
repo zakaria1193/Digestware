@@ -56,6 +56,15 @@ jobs:
       - name: Install dependencies
         run: pip install -r agents/requirements.txt
 
+      - name: Check required secrets
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          if [ -z "${OPENROUTER_API_KEY}" ]; then
+            echo "::error::OPENROUTER_API_KEY secret is not set in repo settings — the pipeline would silently emit stub digests."
+            exit 1
+          fi
+
       - name: Run digest pipeline
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
