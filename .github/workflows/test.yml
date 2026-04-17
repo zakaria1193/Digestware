@@ -1,0 +1,32 @@
+name: Tests & Lint
+
+on:
+  workflow_call:   # reusable — call from other workflows via `uses:`
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  test:
+    name: Tests & Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: agents/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r agents/requirements.txt pytest ruff pyright
+
+      - name: Lint (ruff)
+        run: ruff check agents/
+
+      - name: Type check (pyright)
+        run: pyright agents/
+
+      - name: Unit tests
+        run: pytest agents/tests -q
