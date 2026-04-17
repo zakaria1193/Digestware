@@ -143,7 +143,8 @@ def _parse_discussion_batch(
         for idx, item in enumerate(raw_list):
             if not isinstance(item, dict):
                 continue
-            raw = by_id.get(item.get("discussion_id"))
+            disc_id = item.get("discussion_id")
+            raw = by_id.get(disc_id) if isinstance(disc_id, str) else None
             if raw is None and idx < len(batch):
                 raw = batch[idx]
             if raw is not None:

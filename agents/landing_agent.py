@@ -165,7 +165,8 @@ def _parse_landing_batch(
         for idx, item in enumerate(raw_list):
             if not isinstance(item, dict):
                 continue
-            raw = by_sha.get(item.get("commit_hash"))
+            sha = item.get("commit_hash")
+            raw = by_sha.get(sha) if isinstance(sha, str) else None
             if raw is None and idx < len(batch):
                 raw = batch[idx]
             if raw is not None:
