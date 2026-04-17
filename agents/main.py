@@ -132,6 +132,25 @@ def main() -> int:
         default=_DEFAULT_CONTENT_ROOT,
         help=f"Output content root (default: {_DEFAULT_CONTENT_ROOT})",
     )
+    parser.add_argument(
+        "--project",
+        type=str,
+        default=None,
+        help="Only process items whose project matches (e.g. 'gcc'). "
+        "Applied after ingestion, before LLM batches.",
+    )
+    parser.add_argument(
+        "--max-discussions",
+        type=int,
+        default=None,
+        help="Cap the number of discussions kept after filtering (newest first).",
+    )
+    parser.add_argument(
+        "--max-landings",
+        type=int,
+        default=None,
+        help="Cap the number of commits kept after filtering (newest first).",
+    )
     args = parser.parse_args()
 
     # Refuse to run the LLM pipeline without a key — otherwise every batch
@@ -214,6 +233,34 @@ def main() -> int:
         if not raw_discussions and not raw_commits:
             logger.info("Nothing new to process — exiting")
             return 0
+
+    # Project filter + hard caps (limited mode, e.g. "gcc 5+5").
+    if args.project:
+        before_d, before_c = len(raw_discussions), len(raw_commits)
+        raw_discussions = [d for d in raw_discussions if d.project == args.project]
+        raw_commits = [c for c in raw_commits if c.project == args.project]
+        logger.info(
+            "Project filter %r: %d→%d discussions, %d→%d commits",
+            args.project,
+            before_d,
+            len(raw_discussions),
+            before_c,
+            len(raw_commits),
+        )
+
+    if args.max_discussions is not None and len(raw_discussions) > args.max_discussions:
+        raw_discussions.sort(key=lambda d: d.date, reverse=True)
+        raw_discussions = raw_discussions[: args.max_discussions]
+        logger.info("Capped discussions at %d (newest first)", args.max_discussions)
+
+    if args.max_landings is not None and len(raw_commits) > args.max_landings:
+        raw_commits.sort(key=lambda c: c.date, reverse=True)
+        raw_commits = raw_commits[: args.max_landings]
+        logger.info("Capped commits at %d (newest first)", args.max_landings)
+
+    if not raw_discussions and not raw_commits:
+        logger.info("Nothing left after project/cap filters — exiting")
+        return 0
 
     # Run agents
     discussions = run_discussion_agent(
