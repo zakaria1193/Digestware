@@ -12,9 +12,7 @@ class TestParsePatchTag:
 
     def test_no_version(self):
         tag = parse_patch_tag("[PATCH 1/5] thing")
-        assert tag["version"] == 1
-        assert tag["n"] == 1
-        assert tag["total"] == 5
+        assert tag == {"version": 1, "n": 1, "total": 5}
 
     def test_bare_patch(self):
         tag = parse_patch_tag("[PATCH] thing")
