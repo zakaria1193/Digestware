@@ -8,6 +8,7 @@ import logging
 
 from agents.adapters import CommitSource, DiscussionSource
 from agents.models.raw import RawCommit, RawDiscussion
+from agents.tools.noise_filter import filter_noise
 
 logger = logging.getLogger(__name__)
 
@@ -59,8 +60,17 @@ class IngestionEngine:
 
         discussions = self._dedup_discussions(raw_discussions)
         commits = self._dedup_commits(raw_commits)
+
+        discussions, commits, dropped_d, dropped_c = filter_noise(discussions, commits)
+        if dropped_d or dropped_c:
+            logger.info(
+                "Noise filter dropped %d discussions, %d commits",
+                dropped_d,
+                dropped_c,
+            )
+
         logger.info(
-            "Ingestion complete: %d discussions, %d commits (after dedup)",
+            "Ingestion complete: %d discussions, %d commits (after dedup + noise filter)",
             len(discussions),
             len(commits),
         )
