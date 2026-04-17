@@ -2,9 +2,10 @@ name: GCC Manual (limited)
 
 # Manual iteration workflow for the GCC pipeline:
 #   1. Purge existing GCC digests (landings + discussions).
-#   2. Re-ingest with a wide time window but cap output at N landings and N
-#      discussions. Wide window avoids the "nothing landed in the last 2 h"
-#      risk; the caps keep token spend bounded.
+#   2. Re-ingest the last 24 h of GCC activity, capped at N landings and N
+#      discussions. GCC is active enough that 24 h reliably yields enough
+#      items; caps keep token spend bounded. Fewer than N is fine — we take
+#      whatever's there.
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -21,9 +22,9 @@ on:
         required: true
         default: '5'
       since_hours:
-        description: 'Lookback window in hours (wide on purpose — caps bound the work)'
+        description: 'Lookback window in hours'
         required: true
-        default: '168'
+        default: '24'
 
 jobs:
   gcc-manual:
