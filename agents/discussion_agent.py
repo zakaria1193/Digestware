@@ -80,22 +80,75 @@ Each discussion arrives with pre-extracted ``subsystem_hint``,
 ``headline_hint``, ``outcome_hint``, and (if applicable) ``series_id_hint``.
 Use these as defaults; override only when the thread contradicts them.
 
-The ``discussion_id`` field MUST be echoed verbatim from the input.
+VERBATIM FIELDS (echo each one exactly as given in the input):
+``discussion_id``, ``project``, ``source_type``, ``title``, ``url``, ``date``,
+``proposer`` (= input ``author``). Also set ``consensus`` (one of Proposed,
+Under Review, Needs Revision, NACK'd, Ready to Land, Committed).
 
 Return a JSON array — raw JSON only, no markdown fences.
 """
 
 _ADAPTER: TypeAdapter[list[DiscussionDigest]] = TypeAdapter(list[DiscussionDigest])
 
+# Max length enforced by DiscussionDigest.tldr — mirror it here so we can clamp
+# overlong LLM output before validation instead of failing the whole batch.
+_TLDR_MAX = 160
 
-def _parse_discussion_batch(text: str) -> list[DiscussionDigest]:
-    """Parse raw JSON text (with optional markdown fences) into DiscussionDigest list."""
+
+def _fill_required_from_raw(item: dict, raw: RawDiscussion) -> None:
+    """Backfill required fields the LLM dropped from a parsed JSON item.
+
+    The model schema requires several fields that we expect the LLM to echo
+    verbatim from input (project, source_type, title, url, date, proposer,
+    discussion_id). In practice LLMs sometimes omit them — rather than fail
+    the whole batch, inject deterministic values from the originating
+    RawDiscussion before validation. LLM-provided values win when present.
+    """
+    defaults = {
+        "discussion_id": raw.id,
+        "project": raw.project,
+        "source_type": raw.source_type,
+        "title": raw.title,
+        "url": raw.url,
+        "date": raw.date.isoformat(),
+        "proposer": raw.author,
+        "consensus": "Proposed",
+    }
+    for key, value in defaults.items():
+        if item.get(key) in (None, ""):
+            item[key] = value
+    tldr = item.get("tldr")
+    if isinstance(tldr, str) and len(tldr) > _TLDR_MAX:
+        item["tldr"] = tldr[: _TLDR_MAX - 1].rstrip() + "…"
+
+
+def _parse_discussion_batch(
+    text: str,
+    batch: list[RawDiscussion] | None = None,
+) -> list[DiscussionDigest]:
+    """Parse raw JSON text (with optional markdown fences) into DiscussionDigest list.
+
+    When ``batch`` is provided, each parsed item is matched back to its raw
+    input (by ``discussion_id``, else by position) and missing required fields
+    are backfilled from the raw data.
+    """
     text = text.strip()
     if text.startswith("```"):
         text = text[text.index("\n") + 1:] if "\n" in text else text[3:]
     if text.endswith("```"):
         text = text[:text.rindex("```")].rstrip()
-    return _ADAPTER.validate_python(json.loads(text))
+    raw_list = json.loads(text)
+    if batch and isinstance(raw_list, list):
+        by_id = {d.id: d for d in batch}
+        for idx, item in enumerate(raw_list):
+            if not isinstance(item, dict):
+                continue
+            raw = by_id.get(item.get("discussion_id"))
+            if raw is None and idx < len(batch):
+                raw = batch[idx]
+            if raw is not None:
+                _fill_required_from_raw(item, raw)
+    return _ADAPTER.validate_python(raw_list)
 
 
 def _render_batch(batch: list[RawDiscussion]) -> str:
@@ -280,7 +333,7 @@ def _run_batch(
 
     def _call():
         r = agent.run_sync(prompt)
-        items = _parse_discussion_batch(r.output)
+        items = _parse_discussion_batch(r.output, batch=batch)
         if not items and batch:
             raise ValueError(f"Model returned 0 items for {len(batch)} input item(s)")
         return r, items
