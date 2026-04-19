@@ -1,1 +1,17 @@
 @import "tailwindcss";
+
+@theme {
+  --color-gold: #b8860b;
+  --color-body: #111111;
+  --color-secondary: #555555;
+  --color-border: #dddddd;
+  --font-serif: Georgia, 'Times New Roman', serif;
+  --font-sans: system-ui, -apple-system, 'Inter', sans-serif;
+}
+
+body {
+  font-family: var(--font-serif);
+  background: #ffffff;
+  color: var(--color-body);
+  line-height: 1.65;
+}
