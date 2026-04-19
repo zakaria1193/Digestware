@@ -1,11 +1,15 @@
 ---
 import '../styles/global.css';
+import { PROJECTS, projectUrl, type ProjectDef } from '../config/projects';
 
 interface Props {
+  project: ProjectDef;
   title?: string;
   description?: string;
 }
-const { title = 'The OS Pulse', description = 'Daily digest of open-source OS-level changes' } = Astro.props;
+const { project, title, description } = Astro.props;
+const pageTitle = title ? `${title} — ${project.name}` : project.name;
+const pageDesc = description ?? project.description;
 
 const now = new Date();
 const weekday = now.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
@@ -18,9 +22,9 @@ const volume = `VOL. ${now.getFullYear() - 2025} · NO. ${Math.floor((now.getTim
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{title === 'The OS Pulse' ? title : `${title} — The OS Pulse`}</title>
-    <meta name="description" content={description} />
-    <link rel="alternate" type="application/rss+xml" title="OS Pulse Feed" href="/rss.xml" />
+    <title>{pageTitle}</title>
+    <meta name="description" content={pageDesc} />
+    <link rel="alternate" type="application/rss+xml" title={`${project.name} Feed`} href={`/${project.slug}/rss.xml`} />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Source+Serif+4:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet" />
@@ -33,16 +37,14 @@ const volume = `VOL. ${now.getFullYear() - 2025} · NO. ${Math.floor((now.getTim
   </head>
   <body>
     <div class="paper">
-      <!-- Top strip: weather/date strip like WSJ -->
       <div class="topstrip">
         <div class="topstrip-inner">
           <span class="topstrip-left">{weekday}, {longDate}</span>
-          <span class="topstrip-center">THE OS PULSE · OPEN-SOURCE SYSTEMS DAILY</span>
+          <span class="topstrip-center">{project.name.toUpperCase()} · OPEN-SOURCE SYSTEMS DAILY</span>
           <span class="topstrip-right">{volume}</span>
         </div>
       </div>
 
-      <!-- Masthead -->
       <header class="masthead">
         <div class="masthead-rule-top"></div>
         <div class="masthead-meta">
@@ -52,22 +54,35 @@ const volume = `VOL. ${now.getFullYear() - 2025} · NO. ${Math.floor((now.getTim
           <span class="divider">·</span>
           <span>{volume}</span>
         </div>
-        <a href="/" class="wordmark-link">
+        <a href={`/${project.slug}/`} class="wordmark-link">
           <div class="wordmark">
             <span class="the">The</span>
-            <span class="pulse">OS&nbsp;Pulse</span>
+            <span class="pulse">{project.name}</span>
           </div>
         </a>
-        <div class="tagline">&mdash;&nbsp;&nbsp;A Daily Record of Compilers, Kernels &amp; Open Systems&nbsp;&nbsp;&mdash;</div>
+        <div class="tagline">{project.tagline}</div>
         <div class="masthead-rule-bottom"></div>
       </header>
 
-      <!-- Navigation bar -->
+      <!-- Tab line: one tab per project. Current project is highlighted;
+           others redirect to their own hostname (prod) or subpath (dev). -->
+      <nav class="projtabs" aria-label="Projects">
+        {PROJECTS.map(p => (
+          <a
+            href={projectUrl(p)}
+            class:list={['projtab', p.slug === project.slug && 'projtab-active']}
+            aria-current={p.slug === project.slug ? 'page' : undefined}
+          >
+            {p.short}
+          </a>
+        ))}
+      </nav>
+
       <nav class="subnav">
         <div class="subnav-left">
-          <a href="/">Front Page</a>
-          <a href="/#stream">The Wire</a>
-          <a href="/rss.xml">RSS</a>
+          <a href={`/${project.slug}/`}>Front Page</a>
+          <a href={`/${project.slug}/#stream`}>The Wire</a>
+          <a href={`/${project.slug}/rss.xml`}>RSS</a>
         </div>
         <div class="subnav-right">
           <span class="subnav-price">NO&nbsp;SUBSCRIPTION &middot; OPEN SOURCE</span>
@@ -82,15 +97,15 @@ const volume = `VOL. ${now.getFullYear() - 2025} · NO. ${Math.floor((now.getTim
         <div class="footer-rule"></div>
         <div class="footer-inner">
           <div class="footer-left">
-            <div class="footer-brand">THE OS PULSE</div>
-            <div class="footer-sub">Compiled daily &middot; GCC &middot; binutils &middot; glibc &middot; kernel</div>
+            <div class="footer-brand">{project.name.toUpperCase()}</div>
+            <div class="footer-sub">{project.footerBlurb}</div>
           </div>
           <div class="footer-right">
-            <a href="/rss.xml">RSS</a>
+            <a href={`/${project.slug}/rss.xml`}>RSS</a>
             <a href="/admin">Newsroom</a>
           </div>
         </div>
-        <div class="footer-copy">&copy; {now.getFullYear()} The OS Pulse. All commits remain the property of their authors.</div>
+        <div class="footer-copy">&copy; {now.getFullYear()} {project.name}. All commits remain the property of their authors.</div>
       </footer>
     </div>
 
@@ -102,7 +117,6 @@ const volume = `VOL. ${now.getFullYear() - 2025} · NO. ${Math.floor((now.getTim
         padding: 0 1.25rem;
       }
 
-      /* -------- Top strip -------- */
       .topstrip {
         border-bottom: 1px solid var(--color-rule);
         padding: 0.35rem 0;
@@ -126,7 +140,6 @@ const volume = `VOL. ${now.getFullYear() - 2025} · NO. ${Math.floor((now.getTim
         .topstrip-right { text-align: center; }
       }
 
-      /* -------- Masthead -------- */
       .masthead {
         text-align: center;
         padding: 1.1rem 0 0.75rem;
@@ -171,7 +184,7 @@ const volume = `VOL. ${now.getFullYear() - 2025} · NO. ${Math.floor((now.getTim
       }
       .wordmark .pulse {
         display: block;
-        font-size: clamp(2.75rem, 8vw, 5.5rem);
+        font-size: clamp(2.25rem, 7vw, 4.75rem);
       }
       .tagline {
         margin-top: 0.35rem;
@@ -182,7 +195,34 @@ const volume = `VOL. ${now.getFullYear() - 2025} · NO. ${Math.floor((now.getTim
         letter-spacing: 0.02em;
       }
 
-      /* -------- Subnav -------- */
+      /* -------- Project tabs -------- */
+      .projtabs {
+        display: flex;
+        gap: 0;
+        justify-content: center;
+        border-bottom: 1px solid var(--color-rule-strong);
+        padding: 0.35rem 0 0;
+        flex-wrap: wrap;
+      }
+      .projtab {
+        font-family: var(--font-sans);
+        font-size: 0.72rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        font-weight: 700;
+        color: var(--color-muted);
+        text-decoration: none;
+        padding: 0.55rem 1.1rem 0.45rem;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        transition: color 0.12s;
+      }
+      .projtab:hover { color: var(--color-ink); }
+      .projtab-active {
+        color: var(--color-ink);
+        border-bottom-color: var(--color-accent);
+      }
+
       .subnav {
         display: flex;
         align-items: center;
@@ -208,12 +248,11 @@ const volume = `VOL. ${now.getFullYear() - 2025} · NO. ${Math.floor((now.getTim
       @media (max-width: 640px) {
         .subnav { flex-direction: column; gap: 0.35rem; align-items: flex-start; }
         .subnav-left { gap: 1rem; flex-wrap: wrap; }
+        .projtab { padding: 0.5rem 0.7rem 0.4rem; font-size: 0.68rem; letter-spacing: 0.12em; }
       }
 
-      /* -------- Main -------- */
       .paper-main { padding: 1.5rem 0 3rem; }
 
-      /* -------- Footer -------- */
       .paper-footer { padding: 2rem 0 1.5rem; }
       .footer-rule {
         border-top: 1px solid var(--color-rule-strong);

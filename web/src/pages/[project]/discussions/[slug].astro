@@ -1,20 +1,29 @@
 ---
-import PublicLayout from '../../layouts/PublicLayout.astro';
+import PublicLayout from '../../../layouts/PublicLayout.astro';
 import { getCollection } from 'astro:content';
+import { PROJECTS, getProject } from '../../../config/projects';
 
 export async function getStaticPaths() {
-  const entries = await getCollection('discussions');
-  return entries.map(entry => ({
-    params: { slug: entry.id },
-    props: { entry },
-  }));
+  const paths = [];
+  for (const p of PROJECTS) {
+    const entries = await getCollection('discussions', ({ data }) => data.project === p.slug);
+    for (const entry of entries) {
+      paths.push({
+        params: { project: p.slug, slug: entry.id },
+        props: { entry, projectSlug: p.slug },
+      });
+    }
+  }
+  return paths;
 }
 
-const { entry } = Astro.props;
+const { entry, projectSlug } = Astro.props as { entry: any; projectSlug: string };
+const project = getProject(projectSlug)!;
 const d = entry.data;
 const { Content } = await entry.render();
 
-const all = (await getCollection('discussions'))
+// Prev/next stays within the same project — no cross-project merging.
+const all = (await getCollection('discussions', ({ data }) => data.project === projectSlug))
   .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
 const idx = all.findIndex(e => e.id === entry.id);
 const prev = idx > 0 ? all[idx - 1] : null;
@@ -35,10 +44,10 @@ const dateStr = d.date.toLocaleDateString('en-US', { year: 'numeric', month: 'lo
 const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase();
 ---
 
-<PublicLayout title={d.headline} description={d.tldr}>
+<PublicLayout project={project} title={d.headline} description={d.tldr}>
   <article class="article">
     <nav class="crumb">
-      <a href="/">Front Page</a>
+      <a href={`/${project.slug}/`}>Front Page</a>
       <span class="sep">&rsaquo;</span>
       <span class="sub">{d.subsystem}</span>
     </nav>
@@ -109,13 +118,13 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
 
     <nav class="prevnext">
       {next && (
-        <a href={`/discussions/${next.id}`} class="nav-prev">
+        <a href={`/${project.slug}/discussions/${next.id}`} class="nav-prev">
           <span class="nav-label">&larr; Earlier</span>
           <span class="nav-title">{next.data.headline}</span>
         </a>
       )}
       {prev && (
-        <a href={`/discussions/${prev.id}`} class="nav-next">
+        <a href={`/${project.slug}/discussions/${prev.id}`} class="nav-next">
           <span class="nav-label">Next &rarr;</span>
           <span class="nav-title">{prev.data.headline}</span>
         </a>
@@ -245,9 +254,6 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
     padding-top: 0.5rem;
   }
   .body :global(p) { margin: 0 0 1.05em; }
-  .body :global(p:first-of-type) {
-    /* drop cap inherited from wsj-dropcap on container */
-  }
   .body :global(a) {
     color: var(--color-accent);
     text-decoration: none;

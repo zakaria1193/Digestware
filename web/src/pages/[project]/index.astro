@@ -1,0 +1,327 @@
+---
+import PublicLayout from '../../layouts/PublicLayout.astro';
+import BentoCard from '../../components/BentoCard.astro';
+import CommitRow from '../../components/CommitRow.astro';
+import { getCollection } from 'astro:content';
+import { PROJECTS, getProject } from '../../config/projects';
+
+export async function getStaticPaths() {
+  return PROJECTS.map(p => ({ params: { project: p.slug }, props: { projectSlug: p.slug } }));
+}
+
+const { projectSlug } = Astro.props as { projectSlug: string };
+const project = getProject(projectSlug)!;
+
+// HARD rule: never merge content across projects — filter by `project` field.
+const allDiscussions = (await getCollection('discussions', ({ data }) => data.project === projectSlug))
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+
+const bentoDiscussions = allDiscussions.filter(d => {
+  const score = d.data.impact_score ?? d.data.sentiment_score ?? 0;
+  const outcome = d.data.outcome ?? '';
+  return score >= 7 || outcome === 'committed' || outcome === 'ready';
+});
+
+const bySubsystem = new Map<string, typeof bentoDiscussions>();
+for (const d of bentoDiscussions) {
+  const sub = d.data.subsystem;
+  if (!bySubsystem.has(sub)) bySubsystem.set(sub, []);
+  bySubsystem.get(sub)!.push(d);
+}
+
+function clusterGroup(entries: typeof bentoDiscussions): Map<string, { count: number; show: boolean }> {
+  const result = new Map<string, { count: number; show: boolean }>();
+  const sevenDays = 7 * 24 * 60 * 60 * 1000;
+  const visited = new Set<string>();
+
+  for (const entry of entries) {
+    if (visited.has(entry.id)) continue;
+    const cluster = [entry];
+    visited.add(entry.id);
+
+    for (const other of entries) {
+      if (visited.has(other.id)) continue;
+      const dateDiff = Math.abs(entry.data.date.getTime() - other.data.date.getTime());
+      const sharedTag = (entry.data.tags ?? []).some(t => (other.data.tags ?? []).includes(t));
+      if (sharedTag && dateDiff <= sevenDays) {
+        cluster.push(other);
+        visited.add(other.id);
+      }
+    }
+
+    cluster.sort((a, b) => {
+      const sa = a.data.impact_score ?? a.data.sentiment_score ?? 0;
+      const sb = b.data.impact_score ?? b.data.sentiment_score ?? 0;
+      return sb - sa;
+    });
+    result.set(cluster[0].id, { count: cluster.length, show: true });
+    for (let i = 1; i < cluster.length; i++) {
+      result.set(cluster[i].id, { count: 1, show: false });
+    }
+  }
+  return result;
+}
+
+const landings = (await getCollection('landings', ({ data }) => data.project === projectSlug))
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+
+const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
+  const latestA = bySubsystem.get(a)![0]?.data.date.getTime() ?? 0;
+  const latestB = bySubsystem.get(b)![0]?.data.date.getTime() ?? 0;
+  return latestB - latestA;
+});
+
+const leadEntry = bentoDiscussions[0] ?? null;
+const leadDate = leadEntry
+  ? leadEntry.data.date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  : '';
+---
+
+<PublicLayout project={project}>
+  {leadEntry && (
+    <section class="lead">
+      <div class="lead-kicker">
+        <span class="wsj-kicker">{leadEntry.data.subsystem}</span>
+        <span class="kicker-sep">&mdash;</span>
+        <span class="wsj-kicker-ink">Leading the Digest</span>
+      </div>
+      <a href={`/${project.slug}/discussions/${leadEntry.id}`} class="lead-link">
+        <h1 class="lead-headline">{leadEntry.data.headline}</h1>
+      </a>
+      <p class="lead-deck">{leadEntry.data.tldr}</p>
+      <div class="lead-byline">
+        {leadEntry.data.proposer && <span>By <em>{leadEntry.data.proposer}</em></span>}
+        {leadEntry.data.proposer && <span class="bullet">&middot;</span>}
+        <span>{leadDate}</span>
+        {leadEntry.data.sentiment_score != null && <span class="bullet">&middot;</span>}
+        {leadEntry.data.sentiment_score != null && (
+          <span>Sentiment&nbsp;{leadEntry.data.sentiment_score}/10</span>
+        )}
+      </div>
+      {leadEntry.data.stakes && (
+        <p class="lead-stakes">
+          <span class="stakes-label">What&#39;s at Stake &mdash;</span> {leadEntry.data.stakes}
+        </p>
+      )}
+    </section>
+  )}
+
+  <div class="page-grid">
+    <!-- Left: Bento Grid -->
+    <div class="main-col">
+      <div class="wsj-section-head">
+        <h2>Today&rsquo;s Digest</h2>
+        <span class="wsj-section-rule"></span>
+        <span class="wsj-meta">{bentoDiscussions.length} notable items</span>
+      </div>
+
+      {subsystemKeys.length === 0 && (
+        <p class="empty">No high-impact items in the last digest window.</p>
+      )}
+
+      {subsystemKeys.map(sub => {
+        const entries = bySubsystem.get(sub)!;
+        const clusterMap = clusterGroup(entries);
+        const visibleEntries = entries.filter(e => clusterMap.get(e.id)?.show !== false);
+        if (visibleEntries.length === 0) return null;
+        return (
+          <section class="subsystem-block">
+            <div class="subsystem-head">
+              <span class="wsj-section-label">{sub}</span>
+              <span class="wsj-section-rule"></span>
+            </div>
+            <div class="bento-grid">
+              {visibleEntries.map(entry => (
+                <BentoCard entry={entry} projectSlug={project.slug} clusterCount={clusterMap.get(entry.id)?.count ?? 1} />
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+
+    <!-- Right: Commit Stream (sidebar) -->
+    <aside class="commit-stream" id="stream">
+      <div class="stream-head">
+        <div class="stream-brand">The&nbsp;Wire</div>
+        <div class="stream-sub">Fresh commits, on the hour</div>
+      </div>
+      <div class="stream-rule"></div>
+      <div class="stream-rule-thin"></div>
+
+      <div class="stream-list">
+        {landings.length === 0 && (
+          <p class="empty-wire">No landed commits in the current window.</p>
+        )}
+        {landings.map(entry => <CommitRow entry={entry} projectSlug={project.slug} />)}
+      </div>
+    </aside>
+  </div>
+
+</PublicLayout>
+
+<style>
+  .lead {
+    padding: 1.25rem 0 1.5rem;
+    border-bottom: 3px double var(--color-rule-strong);
+    margin-bottom: 1.5rem;
+    text-align: center;
+  }
+  .lead-kicker {
+    display: inline-flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.9rem;
+  }
+  .kicker-sep {
+    color: var(--color-rule-strong);
+    font-family: var(--font-serif);
+  }
+  .lead-link { text-decoration: none; color: inherit; }
+  .lead-headline {
+    font-family: var(--font-serif-display);
+    font-weight: 900;
+    font-size: clamp(2rem, 5.5vw, 3.4rem);
+    line-height: 1.05;
+    letter-spacing: -0.015em;
+    margin: 0 auto 0.9rem;
+    max-width: 900px;
+    color: var(--color-ink);
+  }
+  .lead-link:hover .lead-headline { color: var(--color-accent); }
+  .lead-deck {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: clamp(1rem, 1.5vw, 1.2rem);
+    line-height: 1.45;
+    color: var(--color-muted);
+    margin: 0 auto 0.85rem;
+    max-width: 720px;
+  }
+  .lead-byline {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.82rem;
+    color: var(--color-muted);
+    display: inline-flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.45rem;
+  }
+  .lead-byline em { font-weight: 600; color: var(--color-ink); font-style: italic; }
+  .bullet { color: var(--color-rule); }
+
+  .lead-stakes {
+    margin: 1rem auto 0;
+    max-width: 760px;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--color-rule);
+    border-bottom: 1px solid var(--color-rule);
+    font-family: var(--font-serif);
+    font-size: 0.95rem;
+    line-height: 1.55;
+    color: var(--color-ink);
+    text-align: left;
+  }
+  .stakes-label {
+    font-family: var(--font-sans);
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--color-accent);
+    margin-right: 0.25rem;
+  }
+
+  .page-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .main-col { min-width: 0; }
+
+  .empty, .empty-wire {
+    font-family: var(--font-serif);
+    font-style: italic;
+    color: var(--color-muted);
+    padding: 1rem 0;
+  }
+  .empty-wire { font-size: 0.85rem; }
+
+  .subsystem-block { margin-bottom: 2rem; }
+  .subsystem-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.9rem;
+  }
+
+  .bento-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .commit-stream {
+    font-family: var(--font-serif);
+    padding-top: 0.25rem;
+  }
+
+  .stream-head { text-align: center; padding-bottom: 0.15rem; }
+  .stream-brand {
+    font-family: var(--font-serif-display);
+    font-weight: 900;
+    font-size: 1.9rem;
+    letter-spacing: -0.01em;
+    line-height: 1;
+  }
+  .stream-sub {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.78rem;
+    color: var(--color-muted);
+    margin-top: 0.15rem;
+  }
+  .stream-rule {
+    border-top: 3px double var(--color-rule-strong);
+    margin-top: 0.5rem;
+  }
+  .stream-rule-thin {
+    border-top: 1px solid var(--color-rule-strong);
+    margin-top: 2px;
+    margin-bottom: 0.5rem;
+  }
+
+  .stream-list { display: flex; flex-direction: column; }
+
+  @media (min-width: 900px) {
+    .page-grid {
+      grid-template-columns: minmax(0, 3fr) minmax(240px, 1fr);
+      gap: 2rem;
+    }
+    .bento-grid {
+      grid-template-columns: 1fr 1fr;
+      column-gap: 1.75rem;
+      row-gap: 0;
+    }
+    .commit-stream {
+      border-left: 1px solid var(--color-rule-strong);
+      padding-left: 1.5rem;
+      position: sticky;
+      top: 0.75rem;
+      max-height: calc(100vh - 1.5rem);
+      overflow-y: auto;
+      align-self: start;
+    }
+    .commit-stream::-webkit-scrollbar { width: 6px; }
+    .commit-stream::-webkit-scrollbar-thumb { background: var(--color-rule); }
+  }
+
+  @media (min-width: 1200px) {
+    .bento-grid {
+      grid-template-columns: 1fr 1fr 1fr;
+      column-gap: 1.5rem;
+    }
+  }
+</style>

@@ -3,10 +3,11 @@ import type { CollectionEntry } from 'astro:content';
 
 interface Props {
   entry: CollectionEntry<'discussions'>;
+  projectSlug: string;
   clusterCount?: number;
 }
 
-const { entry, clusterCount = 1 } = Astro.props;
+const { entry, projectSlug, clusterCount = 1 } = Astro.props;
 const d = entry.data;
 
 const score = d.impact_score ?? d.sentiment_score ?? 0;
@@ -49,7 +50,7 @@ const dateStr = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numer
     </span>
   </header>
 
-  <a href={`/discussions/${entry.id}`} class="story-link">
+  <a href={`/${projectSlug}/discussions/${entry.id}`} class="story-link">
     <h3 class="story-headline">{d.headline}</h3>
   </a>
 

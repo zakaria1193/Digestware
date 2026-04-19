@@ -1,24 +1,32 @@
 import rss from '@astrojs/rss';
 import { getCollection } from 'astro:content';
 import type { APIContext } from 'astro';
+import { PROJECTS, getProject } from '../../config/projects';
+
+export async function getStaticPaths() {
+  return PROJECTS.map(p => ({ params: { project: p.slug }, props: { projectSlug: p.slug } }));
+}
 
 export async function GET(context: APIContext) {
+  const { projectSlug } = context.props as { projectSlug: string };
+  const project = getProject(projectSlug)!;
+
   const [discussions, landings] = await Promise.all([
-    getCollection('discussions'),
-    getCollection('landings'),
+    getCollection('discussions', ({ data }) => data.project === projectSlug),
+    getCollection('landings', ({ data }) => data.project === projectSlug),
   ]);
 
   const discussionItems = discussions.map(e => ({
     title: e.data.headline,
     description: e.data.tldr,
-    link: `/discussions/${e.id}`,
+    link: `/${projectSlug}/discussions/${e.id}`,
     pubDate: e.data.date,
   }));
 
   const landingItems = landings.map(e => ({
     title: e.data.headline,
     description: e.data.tldr,
-    link: `/landings/${e.id}`,
+    link: `/${projectSlug}/landings/${e.id}`,
     pubDate: e.data.date,
   }));
 
@@ -27,9 +35,9 @@ export async function GET(context: APIContext) {
   );
 
   return rss({
-    title: 'OS Pulse',
-    description: 'Daily digest of open-source OS-level changes — GCC, binutils, glibc, kernel',
-    site: context.site ?? 'https://os-pulse.dev',
+    title: project.name,
+    description: project.description,
+    site: context.site ?? `https://${project.hostname}`,
     items,
     customData: '<language>en-us</language>',
   });
