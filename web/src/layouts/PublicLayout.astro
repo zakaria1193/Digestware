@@ -1,0 +1,39 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+const { title = 'OS Pulse', description = 'Daily digest of open-source OS-level changes' } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title === 'OS Pulse' ? title : `${title} — OS Pulse`}</title>
+    <meta name="description" content={description} />
+    <link rel="alternate" type="application/rss+xml" title="OS Pulse Feed" href="/rss.xml" />
+  </head>
+  <body>
+    <header style="border-bottom: 1px solid var(--color-border); padding: 1rem 2rem; display: flex; align-items: center; justify-content: space-between; font-family: var(--font-sans);">
+      <a href="/" style="text-decoration: none; display: flex; flex-direction: column; gap: 0.1rem;">
+        <span style="font-family: var(--font-serif); font-size: 1.5rem; font-weight: 700; color: var(--color-body); letter-spacing: -0.02em;">OS Pulse</span>
+        <span style="font-size: 0.7rem; color: var(--color-secondary); letter-spacing: 0.08em; text-transform: uppercase;">Open-source systems digest</span>
+      </a>
+      <nav style="display: flex; gap: 1.5rem; align-items: center; font-size: 0.85rem;">
+        <a href="/" style="color: var(--color-secondary); text-decoration: none; transition: color 0.15s;" onmouseover="this.style.color='var(--color-body)'" onmouseout="this.style.color='var(--color-secondary)'">Home</a>
+        <a href="/rss.xml" style="color: var(--color-gold); text-decoration: none; font-family: var(--font-sans); font-size: 0.75rem; border: 1px solid var(--color-gold); padding: 0.2rem 0.5rem; border-radius: 2px;">RSS</a>
+      </nav>
+    </header>
+
+    <slot />
+
+    <footer style="border-top: 1px solid var(--color-border); padding: 1.5rem 2rem; font-family: var(--font-sans); font-size: 0.8rem; color: var(--color-secondary); display: flex; justify-content: space-between; align-items: center; margin-top: 3rem;">
+      <span>GCC · binutils · glibc · kernel — daily digest</span>
+      <a href="/admin" style="color: var(--color-secondary); text-decoration: none; opacity: 0.5;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.5'">Admin</a>
+    </footer>
+  </body>
+</html>

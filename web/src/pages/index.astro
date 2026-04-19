@@ -1,0 +1,234 @@
+---
+import PublicLayout from '../layouts/PublicLayout.astro';
+import BentoCard from '../components/BentoCard.astro';
+import CommitRow from '../components/CommitRow.astro';
+import { getCollection } from 'astro:content';
+
+const allDiscussions = (await getCollection('discussions'))
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+
+const bentoDiscussions = allDiscussions.filter(d => {
+  const score = d.data.impact_score ?? d.data.sentiment_score ?? 0;
+  const outcome = d.data.outcome ?? '';
+  return score >= 7 || outcome === 'committed' || outcome === 'ready';
+});
+
+// Group by subsystem, sorted by most-recent item
+const bySubsystem = new Map<string, typeof bentoDiscussions>();
+for (const d of bentoDiscussions) {
+  const sub = d.data.subsystem;
+  if (!bySubsystem.has(sub)) bySubsystem.set(sub, []);
+  bySubsystem.get(sub)!.push(d);
+}
+
+function clusterGroup(entries: typeof bentoDiscussions): Map<string, { count: number; show: boolean }> {
+  const result = new Map<string, { count: number; show: boolean }>();
+  const sevenDays = 7 * 24 * 60 * 60 * 1000;
+  const visited = new Set<string>();
+
+  for (const entry of entries) {
+    if (visited.has(entry.id)) continue;
+    const cluster = [entry];
+    visited.add(entry.id);
+
+    for (const other of entries) {
+      if (visited.has(other.id)) continue;
+      const dateDiff = Math.abs(entry.data.date.getTime() - other.data.date.getTime());
+      const sharedTag = (entry.data.tags ?? []).some(t => (other.data.tags ?? []).includes(t));
+      if (sharedTag && dateDiff <= sevenDays) {
+        cluster.push(other);
+        visited.add(other.id);
+      }
+    }
+
+    cluster.sort((a, b) => {
+      const sa = a.data.impact_score ?? a.data.sentiment_score ?? 0;
+      const sb = b.data.impact_score ?? b.data.sentiment_score ?? 0;
+      return sb - sa;
+    });
+    result.set(cluster[0].id, { count: cluster.length, show: true });
+    for (let i = 1; i < cluster.length; i++) {
+      result.set(cluster[i].id, { count: 1, show: false });
+    }
+  }
+  return result;
+}
+
+const landings = (await getCollection('landings'))
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+
+const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
+  const latestA = bySubsystem.get(a)![0]?.data.date.getTime() ?? 0;
+  const latestB = bySubsystem.get(b)![0]?.data.date.getTime() ?? 0;
+  return latestB - latestA;
+});
+---
+
+<PublicLayout>
+  <div class="page-grid">
+    <!-- Left: Bento Grid -->
+    <main>
+      <div class="bento-header">
+        <h1>Today's Bento</h1>
+        <span class="count">{bentoDiscussions.length} notable items</span>
+      </div>
+
+      {subsystemKeys.length === 0 && (
+        <p class="empty">No high-impact items in the last digest window.</p>
+      )}
+
+      {subsystemKeys.map(sub => {
+        const entries = bySubsystem.get(sub)!;
+        const clusterMap = clusterGroup(entries);
+        const visibleEntries = entries.filter(e => clusterMap.get(e.id)?.show !== false);
+        if (visibleEntries.length === 0) return null;
+        return (
+          <div class="subsystem-block">
+            <div class="subsystem-header">
+              <span class="sub-label">{sub}</span>
+              <span class="sub-rule"></span>
+            </div>
+            <div class="bento-grid">
+              {visibleEntries.map(entry => (
+                <BentoCard entry={entry} clusterCount={clusterMap.get(entry.id)?.count ?? 1} />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </main>
+
+    <!-- Right: Commit Stream (hidden on mobile) -->
+    <aside class="commit-stream">
+      <div class="stream-header">
+        <h2>Commit Stream</h2>
+        <span class="count">{landings.length} landed</span>
+      </div>
+      {landings.map(entry => <CommitRow entry={entry} />)}
+    </aside>
+  </div>
+</PublicLayout>
+
+<style>
+  .page-grid {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 1.5rem 2rem;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
+  .bento-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #111111;
+  }
+
+  .bento-header h1 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0;
+  }
+
+  .count {
+    font-family: system-ui, sans-serif;
+    font-size: 0.75rem;
+    color: #555555;
+  }
+
+  .empty {
+    color: #555555;
+    font-family: system-ui, sans-serif;
+    font-size: 0.9rem;
+  }
+
+  .subsystem-block {
+    margin-bottom: 2rem;
+  }
+
+  .subsystem-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .sub-label {
+    font-family: system-ui, sans-serif;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #b8860b;
+    white-space: nowrap;
+  }
+
+  .sub-rule {
+    flex: 1;
+    height: 1px;
+    background: #dddddd;
+    display: block;
+  }
+
+  .bento-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+  }
+
+  /* Commit stream hidden on mobile */
+  .commit-stream {
+    display: none;
+  }
+
+  .stream-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding-bottom: 0.75rem;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid #dddddd;
+  }
+
+  .stream-header h2 {
+    font-family: system-ui, sans-serif;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #111111;
+    margin: 0;
+  }
+
+  @media (min-width: 768px) {
+    .page-grid {
+      grid-template-columns: 3fr 1fr;
+    }
+
+    .commit-stream {
+      display: block;
+      position: sticky;
+      top: 1rem;
+      max-height: calc(100vh - 2rem);
+      overflow-y: auto;
+      padding-left: 1.5rem;
+      border-left: 1px solid #dddddd;
+      align-self: start;
+    }
+
+    .bento-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  @media (max-width: 767px) {
+    .bento-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
