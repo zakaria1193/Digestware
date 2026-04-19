@@ -41,52 +41,84 @@ const attributes: Array<[string, unknown]> = [
 ---
 
 <AdminLayout title={d.title} section="discussions">
+  <style>
+    .admin-card {
+      background: var(--color-card);
+      border: 1px solid var(--color-rule);
+      border-radius: 0.5rem;
+      padding: 1rem;
+    }
+    .admin-card p {
+      color: var(--color-ink);
+    }
+    .admin-card .label {
+      font-size: 0.75rem;
+      color: var(--color-muted);
+      margin-bottom: 0.125rem;
+    }
+    .content-prose {
+      background: var(--color-card);
+      border: 1px solid var(--color-rule);
+      border-radius: 0.5rem;
+      padding: 1.5rem;
+    }
+    .content-prose :global(h1), .content-prose :global(h2), .content-prose :global(h3) {
+      color: var(--color-ink);
+    }
+    .content-prose :global(p), .content-prose :global(li) {
+      color: var(--color-ink);
+    }
+    .content-prose :global(a) {
+      color: var(--color-accent);
+    }
+  </style>
+
   <div class="mb-4">
-    <a href="/admin/discussions" class="text-xs text-zinc-500 hover:text-zinc-300">← All discussions</a>
+    <a href="/admin/discussions" class="text-xs transition-colors" style="color: var(--color-muted);">← All discussions</a>
   </div>
 
   <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
     <div class="lg:col-span-1 space-y-4">
-      <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-3 text-sm">
+      <div class="admin-card space-y-3 text-sm">
         <div>
-          <p class="text-xs text-zinc-500 mb-0.5">Project / Subsystem</p>
-          <p class="font-mono">{d.project} / {d.subsystem}</p>
+          <p class="label">Project / Subsystem</p>
+          <p class="font-mono text-sm">{d.project} / {d.subsystem}</p>
         </div>
         <div>
-          <p class="text-xs text-zinc-500 mb-0.5">Date</p>
-          <p class="font-mono">{d.date.toISOString().slice(0, 10)}</p>
+          <p class="label">Date</p>
+          <p class="font-mono text-sm">{d.date.toISOString().slice(0, 10)}</p>
         </div>
         <div>
-          <p class="text-xs text-zinc-500 mb-0.5">Proposer</p>
+          <p class="label">Proposer</p>
           <p class="text-xs break-words">{d.proposer ?? '—'}</p>
         </div>
         <div>
-          <p class="text-xs text-zinc-500 mb-0.5">Source type</p>
+          <p class="label">Source type</p>
           <p>{d.source_type}</p>
         </div>
         <div class="flex gap-6">
           <div>
-            <p class="text-xs text-zinc-500 mb-0.5">Consensus</p>
-            <p class={`font-semibold ${
-              d.consensus === 'Accepted' ? 'text-emerald-400' :
-              d.consensus === 'Rejected' ? 'text-red-400' : 'text-zinc-400'
+            <p class="label">Consensus</p>
+            <p class="font-semibold" style={`color: ${
+              d.consensus === 'Accepted' ? '#2ecc71' :
+              d.consensus === 'Rejected' ? '#e74c3c' : 'var(--color-muted)'
             }`}>{d.consensus ?? '—'}</p>
           </div>
           <div>
-            <p class="text-xs text-zinc-500 mb-0.5">Sentiment</p>
-            <p class={`text-xl font-bold ${
-              (d.sentiment_score ?? 5) >= 7 ? 'text-emerald-400' :
-              (d.sentiment_score ?? 5) <= 3 ? 'text-red-400' : 'text-zinc-400'
-            }`}>{d.sentiment_score ?? '—'}<span class="text-xs text-zinc-500">/10</span></p>
+            <p class="label">Sentiment</p>
+            <p class="text-xl font-bold" style={`color: ${
+              (d.sentiment_score ?? 5) >= 7 ? '#2ecc71' :
+              (d.sentiment_score ?? 5) <= 3 ? '#e74c3c' : 'var(--color-muted)'
+            }`}>{d.sentiment_score ?? '—'}<span class="text-xs" style="color: var(--color-muted);">/10</span></p>
           </div>
         </div>
         {d.technical_tradeoffs && d.technical_tradeoffs.length > 0 && (
           <div>
-            <p class="text-xs text-zinc-500 mb-1">Technical tradeoffs</p>
+            <p class="label">Technical tradeoffs</p>
             <ul class="space-y-1">
               {d.technical_tradeoffs.map(t => (
-                <li class="text-xs text-zinc-300 flex gap-2">
-                  <span class="text-zinc-600 shrink-0">•</span>
+                <li class="text-xs flex gap-2" style="color: var(--color-ink);">
+                  <span class="shrink-0" style="color: var(--color-muted);">•</span>
                   <span>{t}</span>
                 </li>
               ))}
@@ -96,7 +128,8 @@ const attributes: Array<[string, unknown]> = [
         {d.url && (
           <div>
             <a href={d.url} target="_blank" rel="noopener noreferrer"
-               class="text-xs text-amber-400 hover:text-amber-300 break-all">
+               class="text-xs transition-colors break-all"
+               style="color: var(--color-accent);">
               View thread →
             </a>
           </div>
@@ -104,34 +137,35 @@ const attributes: Array<[string, unknown]> = [
         {d.bugzilla_url && (
           <div>
             <a href={d.bugzilla_url} target="_blank" rel="noopener noreferrer"
-               class="text-xs text-blue-400 hover:text-blue-300 break-all">
+               class="text-xs transition-colors break-all"
+               style="color: var(--color-accent);">
               Bugzilla →
             </a>
           </div>
         )}
       </div>
 
-      <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 text-sm">
-        <p class="text-xs text-zinc-500 mb-2 uppercase tracking-wide">All attributes</p>
+      <div class="admin-card text-sm">
+        <p class="text-xs uppercase tracking-wide mb-2" style="color: var(--color-muted);">All attributes</p>
         <dl class="space-y-2">
           {attributes.map(([key, value]) => (
             <div>
-              <dt class="text-[11px] text-zinc-500 font-mono">{key}</dt>
-              <dd class="text-xs text-zinc-200 break-words">
+              <dt class="text-[11px] font-mono" style="color: var(--color-muted);">{key}</dt>
+              <dd class="text-xs break-words" style="color: var(--color-ink);">
                 {value === null || value === undefined || value === '' ? (
-                  <span class="text-zinc-600">—</span>
+                  <span style="color: var(--color-muted);">—</span>
                 ) : value instanceof Date ? (
                   <span class="font-mono">{value.toISOString()}</span>
                 ) : typeof value === 'boolean' ? (
-                  <span class={value ? 'text-emerald-400' : 'text-zinc-500'}>{String(value)}</span>
+                  <span style={value ? 'color: #2ecc71;' : 'color: var(--color-muted);'}>{String(value)}</span>
                 ) : Array.isArray(value) ? (
                   value.length === 0 ? (
-                    <span class="text-zinc-600">[]</span>
+                    <span style="color: var(--color-muted);">[]</span>
                   ) : (
                     <ul class="space-y-1 mt-0.5">
                       {value.map(item => (
                         <li class="flex gap-1.5">
-                          <span class="text-zinc-600 shrink-0">•</span>
+                          <span class="shrink-0" style="color: var(--color-muted);">•</span>
                           {typeof item === 'object' && item !== null ? (
                             <span class="font-mono text-[11px] break-all">{JSON.stringify(item)}</span>
                           ) : (
@@ -143,7 +177,8 @@ const attributes: Array<[string, unknown]> = [
                   )
                 ) : isUrl(value) ? (
                   <a href={value} target="_blank" rel="noopener noreferrer"
-                     class="text-amber-400 hover:text-amber-300 break-all">{value}</a>
+                     class="transition-colors break-all"
+                     style="color: var(--color-accent);">{value}</a>
                 ) : (
                   <span class="break-words">{String(value)}</span>
                 )}
@@ -155,8 +190,8 @@ const attributes: Array<[string, unknown]> = [
     </div>
 
     <div class="lg:col-span-2">
-      <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-6 prose prose-invert prose-sm max-w-none">
-        <h1 class="text-base font-semibold text-zinc-100 not-prose mb-4">{d.title}</h1>
+      <div class="content-prose prose prose-sm max-w-none">
+        <h1 class="text-base font-semibold not-prose mb-4" style="color: var(--color-ink);">{d.title}</h1>
         <Content />
       </div>
     </div>

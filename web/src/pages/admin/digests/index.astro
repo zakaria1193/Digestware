@@ -7,16 +7,38 @@ const digests = (await getCollection('digests'))
 ---
 
 <AdminLayout title="Digests" section="digests">
+  <style>
+    .digest-card {
+      background: var(--color-card);
+      border: 1px solid var(--color-rule);
+      border-radius: 0.5rem;
+      padding: 1rem;
+      transition: border-color 0.2s;
+      cursor: pointer;
+    }
+    .digest-card:hover {
+      border-color: var(--color-accent);
+    }
+    .bento-badge {
+      font-size: 0.75rem;
+      background: rgba(160, 23, 34, 0.1);
+      color: var(--color-accent);
+      border: 1px solid rgba(160, 23, 34, 0.3);
+      padding: 0.375rem 0.375rem;
+      border-radius: 0.25rem;
+    }
+  </style>
+
   {digests.length === 0 ? (
-    <div class="bg-zinc-900/50 border border-dashed border-zinc-700 rounded-lg p-12 text-center">
-      <p class="text-zinc-400 font-medium mb-1">No digests yet</p>
-      <p class="text-zinc-600 text-sm">Run the agent to generate the first bento digest.</p>
-      <pre class="mt-4 text-xs text-zinc-500 bg-zinc-900 border border-zinc-800 rounded px-4 py-3 inline-block text-left">cd agents && python -m agents.main</pre>
+    <div class="border border-dashed rounded-lg p-12 text-center" style="border-color: var(--color-rule); background: rgba(26, 26, 26, 0.02);">
+      <p class="font-medium mb-1" style="color: var(--color-muted);">No digests yet</p>
+      <p class="text-sm" style="color: var(--color-muted);">Run the agent to generate the first bento digest.</p>
+      <pre class="mt-4 text-xs inline-block text-left rounded px-4 py-3" style="color: var(--color-muted); background: var(--color-card); border: 1px solid var(--color-rule);">cd agents && python -m agents.main</pre>
     </div>
   ) : (
     <div>
       <div class="mb-4">
-        <p class="text-sm text-zinc-400">{digests.length} digests generated</p>
+        <p class="text-sm" style="color: var(--color-muted);">{digests.length} digests generated</p>
       </div>
       <div class="grid gap-4">
         {digests.map(e => {
@@ -24,25 +46,25 @@ const digests = (await getCollection('digests'))
           return (
             <a
               href={`/admin/digests/${e.id}`}
-              class="block bg-zinc-900 border border-zinc-800 rounded-lg p-4 hover:border-zinc-600 transition-colors"
+              class="block digest-card"
             >
               <div class="flex items-start justify-between gap-4">
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2 mb-1">
                     {d.is_bento_worthy && (
-                      <span class="text-xs bg-amber-900/50 text-amber-400 border border-amber-800 px-1.5 py-0.5 rounded">Bento</span>
+                      <span class="bento-badge">Bento</span>
                     )}
-                    <span class="font-mono text-xs text-zinc-500">{d.subsystem}</span>
+                    <span class="font-mono text-xs" style="color: var(--color-muted);">{d.subsystem}</span>
                   </div>
-                  <p class="font-semibold text-zinc-100">{d.title}</p>
-                  <p class="text-sm text-zinc-400 mt-1 line-clamp-2">{d.summary}</p>
+                  <p class="font-semibold" style="color: var(--color-ink);">{d.title}</p>
+                  <p class="text-sm mt-1 line-clamp-2" style="color: var(--color-muted);">{d.summary}</p>
                 </div>
                 <div class="shrink-0 text-right">
-                  <p class={`text-2xl font-bold tabular-nums ${d.impact_score >= 8 ? 'text-amber-400' : 'text-zinc-400'}`}>
+                  <p class="text-2xl font-bold tabular-nums" style={`color: ${d.impact_score >= 8 ? 'var(--color-accent)' : 'var(--color-muted)'}`}>
                     {d.impact_score}
                   </p>
-                  <p class="text-xs text-zinc-600">impact</p>
-                  <p class="text-xs text-zinc-500 mt-2">{d.date.toISOString().slice(0, 10)}</p>
+                  <p class="text-xs" style="color: var(--color-muted);">impact</p>
+                  <p class="text-xs mt-2" style="color: var(--color-muted);">{d.date.toISOString().slice(0, 10)}</p>
                 </div>
               </div>
             </a>
