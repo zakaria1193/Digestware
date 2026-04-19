@@ -63,6 +63,25 @@ class BentoDigest(BaseModel):
 Agent writes Markdown files to `web/src/content/digests/YYYY-MM-DD-<slug>.md`
 with full frontmatter matching `BentoDigest` fields.
 
+## Article Writing Conventions
+When writing articles from mailing-list exchanges, commit messages, or other
+technical source material:
+
+- **Stay technically precise.** Preserve exact filenames, function names, macro
+  names, struct/field names, flag names (e.g. `-fipa-sra`, `CONFIG_SLUB`),
+  commit SHAs, symbol names, and ABI/ISA terminology verbatim. Do not
+  paraphrase identifiers. Quote the relevant snippet when it clarifies intent.
+- **Link the code.** Reference paths in the original repo (e.g.
+  `gcc/ipa-sra.cc`, `mm/slub.c`) so experts can jump straight to the source.
+- **Mandatory section — "What is this even about?"** Every technical article
+  MUST include a section with that exact heading, aimed at a competent software
+  engineer who lacks this specific subsystem's context. It should briefly
+  explain the subsystem, the problem space, and any jargon the rest of the
+  article assumes (3–6 sentences; no hand-waving, no dumbing down — just
+  context).
+- Place the "What is this even about?" section near the top, after the lede
+  and before the deep-dive.
+
 ## What Claude Should NOT Do
 - Do not add features beyond the current phase.
 - Do not change the storage format (stay Markdown).
