@@ -16,20 +16,14 @@ const project = getProject(projectSlug)!;
 const allDiscussions = (await getCollection('discussions', ({ data }) => data.project === projectSlug))
   .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
 
-const bentoDiscussions = allDiscussions.filter(d => {
-  const score = d.data.impact_score ?? d.data.sentiment_score ?? 0;
-  const outcome = d.data.outcome ?? '';
-  return score >= 7 || outcome === 'committed' || outcome === 'ready';
-});
-
-const bySubsystem = new Map<string, typeof bentoDiscussions>();
-for (const d of bentoDiscussions) {
+const bySubsystem = new Map<string, typeof allDiscussions>();
+for (const d of allDiscussions) {
   const sub = d.data.subsystem;
   if (!bySubsystem.has(sub)) bySubsystem.set(sub, []);
   bySubsystem.get(sub)!.push(d);
 }
 
-function clusterGroup(entries: typeof bentoDiscussions): Map<string, { count: number; show: boolean }> {
+function clusterGroup(entries: typeof allDiscussions): Map<string, { count: number; show: boolean }> {
   const result = new Map<string, { count: number; show: boolean }>();
   const sevenDays = 7 * 24 * 60 * 60 * 1000;
   const visited = new Set<string>();
@@ -71,7 +65,7 @@ const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
   return latestB - latestA;
 });
 
-const leadEntry = bentoDiscussions[0] ?? null;
+const leadEntry = allDiscussions[0] ?? null;
 const leadDate = leadEntry
   ? leadEntry.data.date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
   : '';
@@ -112,11 +106,11 @@ const leadDate = leadEntry
       <div class="wsj-section-head">
         <h2>Today&rsquo;s Digest</h2>
         <span class="wsj-section-rule"></span>
-        <span class="wsj-meta">{bentoDiscussions.length} notable items</span>
+        <span class="wsj-meta">{allDiscussions.length} discussions</span>
       </div>
 
       {subsystemKeys.length === 0 && (
-        <p class="empty">No high-impact items in the last digest window.</p>
+        <p class="empty">No discussions in the current digest window.</p>
       )}
 
       {subsystemKeys.map(sub => {

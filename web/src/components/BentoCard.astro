@@ -11,7 +11,7 @@ const { entry, projectSlug, clusterCount = 1 } = Astro.props;
 const d = entry.data;
 
 const score = d.impact_score ?? d.sentiment_score ?? 0;
-const isHigh = score >= 9;
+const isHigh = score >= 7;
 
 const outcomeLabels: Record<string, string> = {
   committed: 'Committed',
@@ -86,6 +86,7 @@ const dateStr = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numer
   .story-featured {
     padding: 1.1rem 0 1.25rem;
     border-bottom: 1px solid var(--color-rule-strong);
+    grid-column: span 2;
   }
 
   .story-head {
