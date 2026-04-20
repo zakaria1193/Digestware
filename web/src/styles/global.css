@@ -1,19 +1,48 @@
 @import "tailwindcss";
 
+/* ============================================================
+   WSJ-accurate palette & typography
+   ------------------------------------------------------------
+   Colors (exact WSJ hex):
+     - Newsprint background: #ffffff (pure white)
+     - Alt surface strip:    #f4f4f4 (WSJ section bands)
+     - Headline black:       #000000
+     - Accent navy:          #0a2b4e  (WSJ brand navy / borders)
+     - Market green:         #008a3c
+     - Market red:           #d0021b
+     - Rule hair:            #d4d4d4
+     - Rule strong:          #000000
+     - Muted ink:             #333333
+     - Dim ink:              #666666
+
+   Typography (Google-Font substitutes for WSJ proprietary faces):
+     - Display serif (Escrow Display → Domine): headlines
+     - Body serif (Exchange → Lora): long-form reading
+     - Condensed sans (Retina → Public Sans): nav, labels, meta
+     - Mono (for code): ui-monospace stack (GitHub-style)
+   ============================================================ */
+
 @theme {
-  --color-ink: #0a0a0a;
-  --color-paper: #f7f3e9;
+  --color-ink: #000000;
+  --color-paper: #ffffff;
+  --color-paper-alt: #f4f4f4;
   --color-card: #ffffff;
-  --color-muted: #4a4a4a;
-  --color-dim: #6b6b6b;
-  --color-rule: #cfc9b8;
-  --color-rule-strong: #1a1a1a;
-  --color-accent: #a01722;
-  --color-accent-dim: #c8102e;
-  --font-serif: 'Escrow', 'Georgia', 'Times New Roman', 'Times', serif;
-  --font-serif-display: 'Escrow Display', 'Playfair Display', 'Georgia', 'Times New Roman', serif;
-  --font-sans: 'Retina', 'Helvetica Neue', 'Arial', system-ui, sans-serif;
-  --font-mono: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  --color-muted: #333333;
+  --color-dim: #666666;
+  --color-rule: #d4d4d4;
+  --color-rule-strong: #000000;
+
+  /* WSJ signature colors */
+  --color-navy: #0a2b4e;
+  --color-accent: #0a2b4e;          /* navy is the primary accent */
+  --color-accent-dim: #14447a;
+  --color-market-green: #008a3c;
+  --color-market-red: #d0021b;
+
+  --font-serif: 'Lora', 'Exchange', 'Georgia', 'Times New Roman', 'Times', serif;
+  --font-serif-display: 'Domine', 'Escrow Display', 'Playfair Display', 'Georgia', 'Times New Roman', serif;
+  --font-sans: 'Public Sans', 'Retina', 'Helvetica Neue', 'Arial', system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
 }
 
 html, body {
@@ -96,7 +125,7 @@ a { color: inherit; }
 .wsj-section-head h2,
 .wsj-section-head h1 {
   font-family: var(--font-serif-display);
-  font-weight: 900;
+  font-weight: 700;
   font-size: 1.35rem;
   letter-spacing: -0.01em;
   margin: 0;
@@ -106,7 +135,7 @@ a { color: inherit; }
 .wsj-section-label {
   font-family: var(--font-sans);
   font-size: 0.66rem;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--color-accent);
@@ -121,10 +150,48 @@ a { color: inherit; }
 
 .wsj-dropcap::first-letter {
   font-family: var(--font-serif-display);
-  font-weight: 900;
+  font-weight: 700;
   float: left;
   font-size: 4.3em;
   line-height: 0.82;
   padding: 0.1em 0.1em 0 0;
   color: var(--color-ink);
+}
+
+/* ============================================================
+   GitHub-flavored inline code (for function/macro names)
+   Applied globally so `foo()` / `CONFIG_SLUB` render the same
+   whether they appear in articles, decks, or bento cards.
+   ============================================================ */
+
+:is(p, li, h1, h2, h3, h4, h5, h6, td, th, dd, dt, blockquote, figcaption, .wsj-inline-md) > code,
+.wsj-inline-md code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: rgba(175, 184, 193, 0.2);
+  padding: 0.2em 0.4em;
+  border-radius: 6px;
+  border: 0;
+  color: var(--color-ink);
+  white-space: break-spaces;
+}
+
+/* Preformatted code blocks — GitHub-style slab, no sepia */
+pre {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: #f6f8fa;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  padding: 0.85em 1em;
+  overflow-x: auto;
+  margin: 1.2em 0;
+  line-height: 1.45;
+}
+pre code {
+  background: transparent !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  border: 0 !important;
+  font-size: 1em !important;
 }

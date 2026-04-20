@@ -280,23 +280,7 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
     font-style: italic;
     color: var(--color-muted);
   }
-  .body :global(code) {
-    font-family: var(--font-mono);
-    font-size: 0.88em;
-    background: #eee6d3;
-    padding: 0.05em 0.35em;
-    border-radius: 2px;
-  }
-  .body :global(pre) {
-    font-family: var(--font-mono);
-    font-size: 0.85em;
-    background: #f1eadb;
-    border-left: 3px solid var(--color-rule-strong);
-    padding: 0.75em 1em;
-    overflow-x: auto;
-    margin: 1.2em 0;
-  }
-  .body :global(pre code) { background: none; padding: 0; }
+  /* Inline code + pre blocks inherit GitHub-style rules from global.css */
 
   .extra {
     margin: 2rem 0 1.5rem;

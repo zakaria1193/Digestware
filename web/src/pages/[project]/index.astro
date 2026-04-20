@@ -106,57 +106,53 @@ const leadDate = leadEntry
     </section>
   )}
 
-  <div class="page-grid">
-    <!-- Left: Bento Grid -->
-    <div class="main-col">
-      <div class="wsj-section-head">
-        <h2>Today&rsquo;s Digest</h2>
-        <span class="wsj-section-rule"></span>
-        <span class="wsj-meta">{bentoDiscussions.length} notable items</span>
-      </div>
-
-      {subsystemKeys.length === 0 && (
-        <p class="empty">No high-impact items in the last digest window.</p>
-      )}
-
-      {subsystemKeys.map(sub => {
-        const entries = bySubsystem.get(sub)!;
-        const clusterMap = clusterGroup(entries);
-        const visibleEntries = entries.filter(e => clusterMap.get(e.id)?.show !== false);
-        if (visibleEntries.length === 0) return null;
-        return (
-          <section class="subsystem-block">
-            <div class="subsystem-head">
-              <span class="wsj-section-label">{sub}</span>
-              <span class="wsj-section-rule"></span>
-            </div>
-            <div class="bento-grid">
-              {visibleEntries.map(entry => (
-                <BentoCard entry={entry} projectSlug={project.slug} clusterCount={clusterMap.get(entry.id)?.count ?? 1} />
-              ))}
-            </div>
-          </section>
-        );
-      })}
+  <section class="bento-section">
+    <div class="wsj-section-head">
+      <h2>Today&rsquo;s Digest</h2>
+      <span class="wsj-section-rule"></span>
+      <span class="wsj-meta">{bentoDiscussions.length} notable items</span>
     </div>
 
-    <!-- Right: Commit Stream (sidebar) -->
-    <aside class="commit-stream" id="stream">
-      <div class="stream-head">
-        <div class="stream-brand">The&nbsp;Wire</div>
-        <div class="stream-sub">Fresh commits, on the hour</div>
-      </div>
-      <div class="stream-rule"></div>
-      <div class="stream-rule-thin"></div>
+    {subsystemKeys.length === 0 && (
+      <p class="empty">No high-impact items in the last digest window.</p>
+    )}
 
-      <div class="stream-list">
-        {landings.length === 0 && (
-          <p class="empty-wire">No landed commits in the current window.</p>
-        )}
-        {landings.map(entry => <CommitRow entry={entry} projectSlug={project.slug} />)}
-      </div>
-    </aside>
-  </div>
+    {subsystemKeys.map(sub => {
+      const entries = bySubsystem.get(sub)!;
+      const clusterMap = clusterGroup(entries);
+      const visibleEntries = entries.filter(e => clusterMap.get(e.id)?.show !== false);
+      if (visibleEntries.length === 0) return null;
+      return (
+        <section class="subsystem-block">
+          <div class="subsystem-head">
+            <span class="wsj-section-label">{sub}</span>
+            <span class="wsj-section-rule"></span>
+          </div>
+          <div class="bento-grid">
+            {visibleEntries.map(entry => (
+              <BentoCard entry={entry} projectSlug={project.slug} clusterCount={clusterMap.get(entry.id)?.count ?? 1} />
+            ))}
+          </div>
+        </section>
+      );
+    })}
+  </section>
+
+  <!-- Commit Stream: full-width horizontal band below the bentos -->
+  <section class="commit-stream" id="stream">
+    <div class="stream-head">
+      <span class="wsj-section-label">The Wire</span>
+      <span class="wsj-section-rule"></span>
+      <span class="wsj-meta">Fresh commits, on the hour</span>
+    </div>
+
+    <div class="stream-list">
+      {landings.length === 0 && (
+        <p class="empty-wire">No landed commits in the current window.</p>
+      )}
+      {landings.map(entry => <CommitRow entry={entry} projectSlug={project.slug} />)}
+    </div>
+  </section>
 
 </PublicLayout>
 
@@ -233,13 +229,9 @@ const leadDate = leadEntry
     margin-right: 0.25rem;
   }
 
-  .page-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
+  .bento-section {
+    width: 100%;
   }
-
-  .main-col { min-width: 0; }
 
   .empty, .empty-wire {
     font-family: var(--font-serif);
@@ -249,7 +241,7 @@ const leadDate = leadEntry
   }
   .empty-wire { font-size: 0.85rem; }
 
-  .subsystem-block { margin-bottom: 2rem; }
+  .subsystem-block { margin-bottom: 2.25rem; }
   .subsystem-head {
     display: flex;
     align-items: center;
@@ -257,71 +249,42 @@ const leadDate = leadEntry
     margin-bottom: 0.9rem;
   }
 
+  /* Bento grid — full page width, responsive columns */
   .bento-grid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 0;
+    column-gap: 1.75rem;
+    row-gap: 0;
   }
 
+  @media (min-width: 700px)  { .bento-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (min-width: 1024px) { .bento-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (min-width: 1280px) { .bento-grid { grid-template-columns: repeat(4, 1fr); } }
+
+  /* The Wire — full-width horizontal band below the bentos */
   .commit-stream {
-    font-family: var(--font-serif);
-    padding-top: 0.25rem;
-  }
-
-  .stream-head { text-align: center; padding-bottom: 0.15rem; }
-  .stream-brand {
-    font-family: var(--font-serif-display);
-    font-weight: 900;
-    font-size: 1.9rem;
-    letter-spacing: -0.01em;
-    line-height: 1;
-  }
-  .stream-sub {
-    font-family: var(--font-serif);
-    font-style: italic;
-    font-size: 0.78rem;
-    color: var(--color-muted);
-    margin-top: 0.15rem;
-  }
-  .stream-rule {
+    margin-top: 3rem;
+    padding-top: 1rem;
     border-top: 3px double var(--color-rule-strong);
-    margin-top: 0.5rem;
-  }
-  .stream-rule-thin {
-    border-top: 1px solid var(--color-rule-strong);
-    margin-top: 2px;
-    margin-bottom: 0.5rem;
+    font-family: var(--font-serif);
   }
 
-  .stream-list { display: flex; flex-direction: column; }
-
-  @media (min-width: 900px) {
-    .page-grid {
-      grid-template-columns: minmax(0, 3fr) minmax(240px, 1fr);
-      gap: 2rem;
-    }
-    .bento-grid {
-      grid-template-columns: 1fr 1fr;
-      column-gap: 1.75rem;
-      row-gap: 0;
-    }
-    .commit-stream {
-      border-left: 1px solid var(--color-rule-strong);
-      padding-left: 1.5rem;
-      position: sticky;
-      top: 0.75rem;
-      max-height: calc(100vh - 1.5rem);
-      overflow-y: auto;
-      align-self: start;
-    }
-    .commit-stream::-webkit-scrollbar { width: 6px; }
-    .commit-stream::-webkit-scrollbar-thumb { background: var(--color-rule); }
+  .stream-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.9rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 2px solid var(--color-rule-strong);
   }
 
-  @media (min-width: 1200px) {
-    .bento-grid {
-      grid-template-columns: 1fr 1fr 1fr;
-      column-gap: 1.5rem;
-    }
+  .stream-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    column-gap: 1.75rem;
+    row-gap: 0;
   }
+  @media (min-width: 700px)  { .stream-list { grid-template-columns: repeat(2, 1fr); } }
+  @media (min-width: 1024px) { .stream-list { grid-template-columns: repeat(3, 1fr); } }
+  @media (min-width: 1280px) { .stream-list { grid-template-columns: repeat(4, 1fr); } }
 </style>
