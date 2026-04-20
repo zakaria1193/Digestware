@@ -3,26 +3,28 @@ project: glibc
 subsystem: misc
 patch_id: null
 tags:
-- build
-- makefile
+- glibc
+- Makefile
 - lint
+- build system
 discussion_id: aeXhrdc8BxCy0vsH@arm.com
 source_type: public_inbox
 title: 'Re: [PATCH 1/2] misc: fix lint-makefiles failures'
-headline: 'Misc: Fix lint-makefiles failures'
-tldr: This patch addresses lint-makefile failures in the glibc build process.
-stakes: Ensuring clean builds and consistent Makefiles is important for maintainability
-  and avoiding unexpected build failures.
+headline: 'misc: fix lint-makefiles failures'
+tldr: Discussion about Makefile changes to fix lint-makefiles failures in glibc, including
+  concerns about using '+=' vs '='.
+stakes: Ensures that the glibc Makefiles pass the lint-makefiles checks, maintaining
+  build system integrity and consistency.
 proposer: Yury Khrustalev <yury.khrustalev@arm.com>
 consensus: Proposed
 outcome: proposed
-sentiment_score: 8
-sentiment_rationale: The discussion is focused on resolving a specific issue with
-  clear feedback.
-technical_tradeoffs:
-- Potential for subtle build regressions if Makefile changes are not carefully reviewed.
-- Balancing code style improvements with the need to maintain compatibility and avoid
-  unexpected behavior.
+sentiment_score: 7
+sentiment_rationale: The discussion is focused on Makefile syntax and style, with
+  a proactive approach to ensuring consistency.
+technical_tradeoffs: []
+primer: Glibc is the GNU C Library. Makefiles are used to automate the build process.
+  lint-makefiles is a tool that checks Makefiles for common errors and stylistic issues.
+  This patch is about changes to the Makefiles.
 series_id: 'glibc:misc: fix lint-makefiles failures'
 series_role: reply
 series_parts: []
@@ -31,4 +33,4 @@ bugzilla_url: null
 date: '2026-04-20'
 ---
 
-This patch fixes issues reported by lint-makefiles in the glibc build system. A developer questioned a change from '=' to '+=' in a Makefile assignment, and the author plans to double-check and possibly revert it to avoid introducing unintended side effects. The author will address other minor issues as well.
+This thread discusses changes to the glibc Makefiles to address lint-makefiles failures. The discussion focuses on whether to use `+=` or `=` when defining the `sysdep_malloc_debug_routines` macro, and on splitting lines for readability. The proposer plans to double-check the `+=` change.

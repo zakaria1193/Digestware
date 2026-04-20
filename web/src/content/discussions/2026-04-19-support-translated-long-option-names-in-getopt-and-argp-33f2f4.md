@@ -3,31 +3,37 @@ project: glibc
 subsystem: glibc
 patch_id: null
 tags:
+- glibc
+- i18n
 - getopt
 - argp
-- i18n
 - internationalization
-- translation
 discussion_id: 037cb6edf4422216d8666ccf4229a42abee73ce6.camel@planete-kraus.eu
 source_type: public_inbox
 title: 'Re: [PATCH v21 0/9] Support translated long option names in getopt and argp'
 headline: Support translated long option names in getopt and argp
-tldr: This patch series adds support for translated long option names in getopt and
-  argp, with minor conflicts in the NEWS file.
-stakes: This feature enhances internationalization, allowing programs to present command-line
-  options in the user's native language.  It could introduce complications in option
-  parsing and collision detection.
+tldr: This patch series allows `getopt` and `argp` to support translated long option
+  names, enhancing internationalization.
+stakes: This feature can improve the usability of programs in different languages
+  by allowing option names to be displayed in the user's native language. Impacts
+  internationalization efforts in glibc.
 proposer: Vivien Kraus <vivien@planete-kraus.eu>
 consensus: Proposed
 outcome: proposed
 sentiment_score: 7
-sentiment_rationale: The author indicates that the patches still apply and tests pass,
-  suggesting a positive outlook, despite minor conflicts.
+sentiment_rationale: The patch series has been iterated on over multiple versions,
+  with the author addressing concerns and incorporating feedback.
 technical_tradeoffs:
-- Adds complexity to option parsing logic.
-- Requires careful handling of option name collisions, especially with translated
-  names.
-- Introduces new APIs for setting the translation context and textdomain.
+- Adds complexity to `getopt` and `argp`.
+- Potential for collisions in option names when translations are enabled.
+- Performance impact of checking for collisions and performing translations (though
+  this is likely small).
+primer: The GNU C Library (`glibc`) provides the system call wrappers and other low-level
+  facilities necessary for application programs. `getopt` and `argp` are functions
+  used for parsing command-line options. Internationalization (i18n) is the process
+  of designing software so that it can be adapted to various languages and regions
+  without engineering changes. This often involves translating user-visible strings.
+  The proposal aims to integrate i18n more deeply into command-line option parsing.
 series_id: glibc:support translated long option names in getopt and argp
 series_role: cover
 series_parts: []
@@ -36,4 +42,4 @@ bugzilla_url: null
 date: '2026-04-19'
 ---
 
-This patch series introduces support for translated long option names in `getopt` and `argp`. The author notes minor conflicts in the NEWS file due to recent glibc updates.  The core functionality remains applicable and the tests pass. The series allows translating option names, setting a translation context, and choosing a textdomain. It also includes collision checks and a validation script.
+This patch series enables `getopt_long` to match translated option names, allowing the caller to set the translation context and choose the text domain for translation. It also updates the documentation for `argp` to reflect the translated names in `--help` and `--usage`. The series addresses potential collisions in `getopt_long` and excludes secure programs from using option name translations.
