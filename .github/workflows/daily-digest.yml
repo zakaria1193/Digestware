@@ -7,6 +7,11 @@ on:
   schedule:
     - cron: '0 2 * * *'   # 02:00 UTC every day
   workflow_dispatch:
+    inputs:
+      debug:
+        description: 'Run the digest pipeline with DEBUG-level logging'
+        type: boolean
+        default: false
 
 jobs:
   # ── 1. Quality gate (reused from test.yml) ───────────────────────────────────
@@ -59,6 +64,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MIN_ENTRIES: '5'
+          DEBUG_FLAG: ${{ inputs.debug && '--debug' || '' }}
         run: |
           set -euo pipefail
           count() { find "$1" -type f -name '*.md' 2>/dev/null | wc -l; }
@@ -68,7 +74,7 @@ jobs:
           # items older than what we already wrote.
           for hours in 48 168 720 2160; do
             echo "::group::digest run (--since-hours ${hours})"
-            python -m agents.main --since-hours "${hours}"
+            python -m agents.main --since-hours "${hours}" ${DEBUG_FLAG}
             echo "::endgroup::"
 
             d=$(count web/src/content/discussions)
