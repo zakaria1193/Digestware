@@ -116,10 +116,21 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
       <a href={d.url} target="_blank" rel="noopener">View Original Thread &rarr;</a>
     </div>
 
-    {d.primer && (
+    {(d.primer_expert || d.primer_general) && (
       <aside class="primer">
         <div class="primer-head">What is this even about?</div>
-        <p>{d.primer}</p>
+        {d.primer_expert && (
+          <div class="primer-variant">
+            <div class="primer-audience">For toolchain folks</div>
+            <p>{d.primer_expert}</p>
+          </div>
+        )}
+        {d.primer_general && (
+          <div class="primer-variant">
+            <div class="primer-audience">For everyone else</div>
+            <p>{d.primer_general}</p>
+          </div>
+        )}
       </aside>
     )}
 
@@ -361,7 +372,21 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
     letter-spacing: 0.24em;
     text-transform: uppercase;
     color: var(--color-muted);
-    margin-bottom: 0.4rem;
+    margin-bottom: 0.6rem;
+  }
+  .primer-variant + .primer-variant {
+    margin-top: 0.9rem;
+    padding-top: 0.8rem;
+    border-top: 1px dotted var(--color-rule);
+  }
+  .primer-audience {
+    font-family: var(--font-sans);
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    margin-bottom: 0.25rem;
   }
   .primer p {
     font-family: var(--font-serif);

@@ -73,14 +73,34 @@ technical source material:
   paraphrase identifiers. Quote the relevant snippet when it clarifies intent.
 - **Link the code.** Reference paths in the original repo (e.g.
   `gcc/ipa-sra.cc`, `mm/slub.c`) so experts can jump straight to the source.
-- **Mandatory section — "What is this even about?"** Every technical article
-  MUST include a section with that exact heading, aimed at a competent software
-  engineer who lacks this specific subsystem's context. It should briefly
-  explain the subsystem, the problem space, and any jargon the rest of the
-  article assumes (3–6 sentences; no hand-waving, no dumbing down — just
-  context).
-- Place the "What is this even about?" section near the top, after the lede
-  and before the deep-dive.
+- **Mandatory section — "What is this even about?" (two registers).**
+  Every technical article MUST carry the "What is this even about?" heading
+  and MUST provide TWO variants of it, because our readers split sharply
+  between toolchain insiders and general software engineers. Skipping
+  either variant is a bug, not a stylistic choice. No hand-waving and no
+  dumbing down in either one — just context pitched for the reader.
+    - **For toolchain folks (`primer_expert`).** 2–4 sentences, ≤ 500
+      chars. Assume the reader already knows compiler passes, ELF/DWARF,
+      relocations, PIC/PIE, ABI conventions, libc internals. Do NOT
+      define those. Instead, place THIS specific subsystem inside that
+      map: name the concrete file / pass / invariant / data structure
+      (e.g. `gcc/ipa-sra.cc` + `IPA_PARAM_DESCRIPTOR`, or
+      `malloc/tcache.c` + per-thread `tcache_entry`), note why a
+      toolchain dev outside this subsystem still wouldn't instantly
+      recognise it, and flag non-obvious interactions with neighbouring
+      subsystems.
+    - **For everyone else (`primer_general`).** 4–6 sentences, ≤ 800
+      chars. Written for a competent software engineer who has never
+      opened a compiler / linker / libc source tree. Explain the
+      subsystem from first principles: what problem it exists to solve,
+      where it sits in the pipeline (source → IR → object → binary →
+      runtime), and every piece of jargon the expert variant takes for
+      granted.
+- Neither variant may restate the lede, TL;DR, or the commit's actual
+  effect — they are background, not summary.
+- Place the "What is this even about?" section near the top of the
+  rendered article (after the lede, before the deep-dive) so a reader can
+  pick the register that matches them before committing to the details.
 
 ## What Claude Should NOT Do
 - Do not add features beyond the current phase.

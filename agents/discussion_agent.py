@@ -64,14 +64,27 @@ FIELDS (all required unless noted):
   security, ergonomics, policy).
 - ``summary`` — 2–4 sentences covering what's proposed and where the thread
   sits.
-- ``primer`` — a "What is this even about?" section for a competent engineer
-  who does NOT know this subsystem. 3–5 sentences, ≤ 600 chars. Explain the
-  subsystem, the problem space, and any jargon the rest of the article
-  assumes. No hand-waving, no dumbing down — just context. Call the
-  ``search_context`` tool with the subsystem + key terms (e.g. "glibc
-  malloc tcache concurrency") to ground the primer in real external facts
-  before writing it. Do NOT restate the proposal or the TL;DR here; focus
-  on background the reader needs to follow along.
+- ``primer_expert`` — the "What is this even about?" context written FOR
+  toolchain insiders. 2–4 sentences, ≤ 500 chars. Assume the reader already
+  knows compiler passes, ELF/DWARF, relocations, PIC/PIE, ABI conventions,
+  libc internals, and the wider project vocabulary — don't waste words
+  defining those. Instead, place THIS specific subsystem inside that map:
+  name the concrete file / pass / invariant / data structure in play (e.g.
+  ``malloc/tcache.c`` and the per-thread ``tcache_entry`` list for glibc
+  malloc), note why a toolchain dev outside this subsystem still wouldn't
+  instantly know it, and flag any non-obvious interaction with neighbours.
+- ``primer_general`` — the same section written FOR a competent software
+  engineer who does NOT work on toolchains. 4–6 sentences, ≤ 800 chars.
+  Explain the subsystem from first principles: what problem it exists to
+  solve, where it sits in the pipeline (source → IR → object → binary →
+  runtime), and every piece of jargon the expert version assumes. No
+  hand-waving, no dumbing down — just enough context that a working dev
+  who has never opened a compiler or libc source tree can follow the rest
+  of the article.
+- For BOTH primers: call the ``search_context`` tool with the subsystem +
+  key terms (e.g. "glibc malloc tcache concurrency") once and reuse the
+  grounding for both versions. Do NOT restate the proposal or the TL;DR
+  in either primer; focus on background.
 - ``tags`` — up to 5 topic tags.
 - ``technical_tradeoffs`` — bullet list; never empty for a non-trivial RFC.
 - ``sentiment_score`` 1–10 (1=hostile/NACK storm, 5=neutral debate, 10=wide
