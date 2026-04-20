@@ -155,6 +155,7 @@ def write_discussion(
         "sentiment_score": d.sentiment_score,
         "sentiment_rationale": d.sentiment_rationale,
         "technical_tradeoffs": d.technical_tradeoffs,
+        "exchanges": [e.model_dump() for e in d.exchanges],
         "primer_expert": d.primer_expert,
         "primer_general": d.primer_general,
         "series_id": d.series_id,

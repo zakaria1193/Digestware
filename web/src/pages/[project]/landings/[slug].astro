@@ -28,6 +28,28 @@ const idx = all.findIndex(e => e.id === entry.id);
 const prev = idx > 0 ? all[idx - 1] : null;
 const next = idx < all.length - 1 ? all[idx + 1] : null;
 
+// Cross-link this landing back to the discussion that birthed the patch.
+// Match by patch_id first (git's stable cross-platform key), then fall back
+// to the explicit discussion_id_link trailer. Stay within-project so we
+// never merge content across projects.
+const sameProjectDiscussions = await getCollection(
+  'discussions',
+  ({ data }) => data.project === projectSlug,
+);
+const landingPatchId = d.patch_id ?? null;
+const discussionIdLink = d.discussion_id_link ?? null;
+let linkedDiscussion: any = null;
+if (landingPatchId) {
+  linkedDiscussion = sameProjectDiscussions.find(
+    e => e.data.patch_id && e.data.patch_id === landingPatchId,
+  ) ?? null;
+}
+if (!linkedDiscussion && discussionIdLink) {
+  linkedDiscussion = sameProjectDiscussions.find(
+    e => e.data.discussion_id === discussionIdLink,
+  ) ?? null;
+}
+
 const dateStr = d.date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase();
 ---
@@ -78,6 +100,30 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
       <aside class="rationale">
         <div class="rationale-head">Impact Rationale</div>
         <p>{d.impact_rationale}</p>
+      </aside>
+    )}
+
+    {linkedDiscussion && (
+      <aside class="thread-link">
+        <div class="thread-link-head">From the Thread</div>
+        <a class="thread-link-body" href={`/${project.slug}/discussions/${linkedDiscussion.id}`}>
+          <span class="thread-link-headline">{linkedDiscussion.data.headline}</span>
+          <span class="thread-link-arrow">&rarr;</span>
+        </a>
+        {linkedDiscussion.data.proposer && (
+          <div class="thread-link-meta">
+            Proposed by <em>{linkedDiscussion.data.proposer}</em>
+            {linkedDiscussion.data.exchanges && linkedDiscussion.data.exchanges.length > 0 && (
+              <>
+                <span class="bullet">&middot;</span>
+                <span>
+                  {linkedDiscussion.data.exchanges.length}{' '}
+                  {linkedDiscussion.data.exchanges.length === 1 ? 'voice' : 'voices'} on file
+                </span>
+              </>
+            )}
+          </div>
+        )}
       </aside>
     )}
 
@@ -253,6 +299,58 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
     padding: 0.9rem 0;
     margin: 0 0 1rem;
   }
+
+  .thread-link {
+    margin: 0.5rem 0 1.25rem;
+    padding: 0.9rem 1rem;
+    border-left: 3px solid var(--color-accent);
+    background: var(--color-paper);
+  }
+  .thread-link-head {
+    font-family: var(--font-sans);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    margin-bottom: 0.35rem;
+  }
+  .thread-link-body {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    text-decoration: none;
+    color: var(--color-ink);
+  }
+  .thread-link-headline {
+    font-family: var(--font-serif-display);
+    font-weight: 700;
+    font-size: 1.05rem;
+    line-height: 1.3;
+    letter-spacing: -0.005em;
+    border-bottom: 1px solid transparent;
+  }
+  .thread-link-body:hover .thread-link-headline {
+    color: var(--color-accent);
+    border-bottom-color: var(--color-accent);
+  }
+  .thread-link-arrow {
+    color: var(--color-accent);
+    font-weight: 700;
+  }
+  .thread-link-meta {
+    margin-top: 0.35rem;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.82rem;
+    color: var(--color-muted);
+    display: inline-flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    align-items: baseline;
+  }
+  .thread-link-meta em { font-weight: 600; color: var(--color-ink); font-style: italic; }
+  .thread-link .bullet { color: var(--color-rule); }
   .rationale { border-color: var(--color-rule); }
   .stakes-head, .rationale-head {
     font-family: var(--font-sans);
