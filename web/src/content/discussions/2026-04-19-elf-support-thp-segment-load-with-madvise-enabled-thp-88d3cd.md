@@ -3,34 +3,36 @@ project: glibc
 subsystem: elf
 patch_id: null
 tags:
-- THP
-- madvise
-- ELF
+- glibc
+- elf
+- thp
 - memory management
+- performance
 discussion_id: CAMe9rOqKfFXMDY07GRuppudP3V9fsCDXoyxDesPMNQLDrRhzvg@mail.gmail.com
 source_type: public_inbox
 title: '[PATCH v4] elf: Support THP segment load with madvise enabled THP'
-headline: 'elf: Support THP segment load with madvise enabled THP'
-tldr: This patch enables Transparent Huge Page (THP) support for segments loaded with
-  madvise in glibc, fixing issues with both dynamic and static executables.
-stakes: Enables THP for a wider range of configurations, potentially improving performance
-  for applications using large memory regions.  Fixes bugs for both dynamic and static
-  executables.
+headline: 'Elf: Support THP segment load with madvise enabled THP'
+tldr: Enable glibc to load program segments using Transparent Huge Pages (THP) when
+  THP is enabled with madvise, improving memory utilization.
+stakes: This patch enables THP for program segments when THP is configured with madvise,
+  which can reduce memory fragmentation and improve performance for applications using
+  large memory regions.
 proposer: H.J. Lu <hjl.tools@gmail.com>
 consensus: Proposed
 outcome: proposed
-sentiment_score: 7
-sentiment_rationale: The patch addresses a known bug and has undergone several revisions,
-  suggesting a positive reception.
+sentiment_score: null
+sentiment_rationale: ''
 technical_tradeoffs:
-- Adds complexity to the ELF loader.
-- Requires coordination with the kernel's THP settings.
-primer: THP is a kernel feature that makes the system use larger memory pages (typically
-  2MB) instead of the standard 4KB pages. This can reduce TLB pressure and improve
-  performance for applications that work with large memory regions.  The ELF loader
-  is responsible for mapping program segments into memory.  `madvise` is a system
-  call that allows a program to advise the kernel about how it intends to use a region
-  of memory, which can influence virtual memory management.
+- Requires kernel support for THP with madvise.
+- Adds complexity to glibc's ELF loading process.
+- May increase memory usage if THP is not used efficiently.
+primer: Transparent Huge Pages (THP) is a Linux kernel memory management feature that
+  reduces TLB (Translation Lookaside Buffer) pressure by using larger page sizes (typically
+  2MB) than the default 4KB.  glibc's dynamic linker (`ld-linux.so`) is responsible
+  for loading shared libraries and executables into memory.  The ELF format describes
+  how a program is structured in memory.  madvise is a system call that allows a program
+  to advise the kernel about how it intends to use a region of memory. This patch
+  modifies glibc's ELF loading routines to take advantage of THP when available.
 series_id: null
 series_role: standalone
 series_parts: []
@@ -39,4 +41,4 @@ bugzilla_url: null
 date: '2026-04-19'
 ---
 
-This patch updates glibc to support THP segment loading when THP is enabled with madvise. It involves changes to segment alignment during object loading and calls to `madvise` with `MADV_HUGEPAGE` on THP-eligible segments.  The patch includes tests to verify correct mapping address alignment. This is version 4 of the patch with some updates based on the previous versions.
+This patch series enables THP support for program segments in glibc when the kernel uses madvise for THP. It aligns PT_LOAD segments to THP page sizes and calls `madvise` with `MADV_HUGEPAGE` on THP-eligible segments. The patch updates the `_dl_map_segment_align` function and adds calls to `_dl_executable_postprocess` and `_dl_postprocess_loadcmd_extra` to handle dynamic and static executables, as well as shared objects. The series includes tests to verify alignment.

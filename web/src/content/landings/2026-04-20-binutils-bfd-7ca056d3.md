@@ -4,24 +4,22 @@ subsystem: binutils/bfd
 patch_id: null
 tags:
 - bfd
-- build
 - versioning
+- gdb
 commit_hash: 7ca056d320ab53fccac73dba9dac9e2bc07ce4fa
 source_type: public_inbox
 author: GDB Administrator <gdbadmin@sourceware.org>
-headline: 'bfd: Update version.in Date Automatically.'
-tldr: The build system now updates the BFD version date automatically.
-why_it_matters: This commit automates a repetitive task, reducing the risk of human
-  error when updating version information.
-impact_score: 2
-impact_rationale: Automated date update.
+headline: BFD version date automatically updated on gdb-17-branch.
+tldr: Updates the BFD version date in `version.h` to the current date on the gdb-17-branch.
+why_it_matters: Keeps the version information up to date for the gdb-17-branch.
+impact_score: 1
+impact_rationale: Cosmetic update of the version date.
 performance_win: false
 breaking_change: false
 outcome: committed
-primer: The Binary File Descriptor (BFD) library provides a generic interface for
-  manipulating object files in various formats.  The `version.h` file contains version
-  information, including a date.  Automating version updates helps maintain consistency
-  and accuracy.
+primer: BFD (Binary File Descriptor) is a library for working with different object
+  file formats in a uniform way. The version date is a build-time constant for the
+  library.
 discussion_id_link: null
 bugzilla_pr: null
 series_id: null
@@ -30,4 +28,4 @@ url: https://inbox.sourceware.org/binutils-cvs/20260420000024.BBC5D4BA9000@sourc
 date: '2026-04-20'
 ---
 
-The `version.in` file in the BFD library is now automatically updated with the current date. This change eliminates manual updates, ensuring the date is always current.
+This commit automatically updates the `BFD_VERSION_DATE` macro in `bfd/version.h` to the current date on the gdb-17-branch.  This macro is used to track the build date of the BFD library.

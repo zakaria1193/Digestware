@@ -3,32 +3,33 @@ project: glibc
 subsystem: malloc
 patch_id: null
 tags:
-- glibc
 - malloc
 - ifunc
+- glibc
 - performance
+- ABI
 discussion_id: aeXpUaZLnmRN1wbk@arm.com
 source_type: public_inbox
 title: 'Re: [PATCH 2/2] malloc: introduce ifuncs for malloc functions'
 headline: 'malloc: introduce ifuncs for malloc functions'
-tldr: Discussion about introducing ifuncs for malloc functions in glibc, including
-  naming conventions and compatibility concerns.
-stakes: Discusses the implementation of ifuncs in glibc's malloc, which can improve
-  performance by allowing the selection of optimized malloc implementations at runtime.
+tldr: Prepare malloc functions for ifunc-based dynamic resolution, renaming the core
+  implementations with a `_core` suffix.
+stakes: This change could impact performance and ABI stability of malloc, a core component
+  of glibc.
 proposer: Yury Khrustalev <yury.khrustalev@arm.com>
 consensus: Proposed
 outcome: proposed
-sentiment_score: 6
-sentiment_rationale: The discussion is mostly technical, with some questions raised
-  about naming and compatibility.
+sentiment_score: null
+sentiment_rationale: ''
 technical_tradeoffs:
-- Increased code complexity with the introduction of ifuncs.
-- Potential overhead from the ifunc resolution process at runtime.
-primer: Glibc is the GNU C Library, providing standard functions for C programs. Malloc
-  is the memory allocation function in C. Ifuncs (indirect functions) are a mechanism
-  in glibc that allows resolving a function call to different implementations at runtime,
-  depending on the CPU or other system capabilities. This patch is about using ifuncs
-  in the malloc implementation.
+- Renaming core functions may break backwards compatibility if external code relies
+  on the old names.
+- Introducing ifuncs can improve performance by allowing for runtime optimization.
+- Increased complexity in the code base.
+primer: Malloc is the memory allocator in the C standard library. ifuncs provide a
+  mechanism for resolving function calls at runtime, allowing for optimized versions
+  of functions to be selected based on CPU features or other factors. This can improve
+  performance but may also introduce ABI compatibility issues if not handled carefully.
 series_id: 'glibc:malloc: introduce ifuncs for malloc functions'
 series_role: reply
 series_parts: []
@@ -37,4 +38,4 @@ bugzilla_url: null
 date: '2026-04-20'
 ---
 
-This thread discusses the introduction of ifuncs (indirect functions) for malloc functions in glibc. The discussion covers naming conventions for the core implementations (using `_core` vs `_generic` suffix) and ensuring that the published symbol list remains the same before and after the change. The proposer responds to feedback and plans to send a v2 with fixes.
+This patch introduces ifuncs (indirect functions) for malloc functions in glibc. To achieve this, the core implementations are renamed by adding the `_core` suffix. The author is planning to send a v2 with fixes based on the feedback received.

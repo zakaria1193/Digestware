@@ -11,24 +11,23 @@ tags:
 commit_hash: be28dff7f92890b859cf365c4f2c7dd687da6c04
 source_type: public_inbox
 author: Alan Modra <amodra@sourceware.org>
-headline: 'm32r: Add Offset Sanity Checks for Hi/Lo Relocations.'
-tldr: The m32r backend now validates relocation offsets to prevent out-of-bounds memory
-  accesses during relocation, improving security.
-why_it_matters: This change hardens the toolchain against malicious inputs by preventing
-  potential buffer overflows during relocation processing, a common avenue for security
-  exploits.
+headline: M32R hi/lo reloc offset sanity checks improve security.
+tldr: The bfd library gains sanity checks for M32R relocations to prevent out-of-bounds
+  memory access, mitigating potential fuzzer attacks.
+why_it_matters: These checks prevent the toolchain from crashing or, worse, from miscompiling
+  code when faced with malformed object files, improving overall toolchain robustness.
 impact_score: 7
-impact_rationale: Fixes a security vulnerability found by fuzzing.
+impact_rationale: Improves security by preventing potential out-of-bounds memory access
+  during relocation.
 performance_win: false
 breaking_change: false
 outcome: committed
-primer: The Binary File Descriptor (BFD) library provides a generic interface for
-  manipulating object files in various formats. Relocations adjust addresses within
-  object code to account for the actual load address in memory. The m32r is a specific
-  target architecture, and its BFD backend handles relocations specific to that architecture.
-  Without proper offset validation, a crafted object file could cause BFD to read
-  or write to arbitrary memory locations, potentially leading to crashes or security
-  vulnerabilities.
+primer: BFD (Binary File Descriptor) is a library for working with different object
+  file formats in a uniform way. Relocations are adjustments made to addresses in
+  object code when linking to create an executable. The M32R is a 32-bit RISC architecture.
+  ELF (Executable and Linkable Format) is a common object file format. Fuzzing is
+  a testing technique that involves feeding a program with invalid or random data
+  to find vulnerabilities.
 discussion_id_link: null
 bugzilla_pr: null
 series_id: null
@@ -37,4 +36,4 @@ url: https://inbox.sourceware.org/binutils-cvs/20260420061649.2C9A44BAD14A@sourc
 date: '2026-04-20'
 ---
 
-The m32r backend was vulnerable to fuzzer attacks due to missing offset validation during HI16 and LO16 relocations. This commit adds sanity checks for relocation offsets before accessing section contents, preventing out-of-bounds memory accesses. It also simplifies sign extension and adjusts function calls.
+This commit adds sanity checks for relocation offsets in the M32R ELF backend of the bfd library. It checks that the relocation offset is within the bounds of the input section before accessing the section's contents. This prevents out-of-bounds memory access and fixes a potential security vulnerability exposed by fuzzing. The code for sign extension is also simplified.
