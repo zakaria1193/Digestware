@@ -64,6 +64,14 @@ FIELDS (all required unless noted):
   security, ergonomics, policy).
 - ``summary`` — 2–4 sentences covering what's proposed and where the thread
   sits.
+- ``primer`` — a "What is this even about?" section for a competent engineer
+  who does NOT know this subsystem. 3–5 sentences, ≤ 600 chars. Explain the
+  subsystem, the problem space, and any jargon the rest of the article
+  assumes. No hand-waving, no dumbing down — just context. Call the
+  ``search_context`` tool with the subsystem + key terms (e.g. "glibc
+  malloc tcache concurrency") to ground the primer in real external facts
+  before writing it. Do NOT restate the proposal or the TL;DR here; focus
+  on background the reader needs to follow along.
 - ``tags`` — up to 5 topic tags.
 - ``technical_tradeoffs`` — bullet list; never empty for a non-trivial RFC.
 - ``sentiment_score`` 1–10 (1=hostile/NACK storm, 5=neutral debate, 10=wide

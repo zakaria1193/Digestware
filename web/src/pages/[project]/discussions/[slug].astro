@@ -116,6 +116,13 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
       <a href={d.url} target="_blank" rel="noopener">View Original Thread &rarr;</a>
     </div>
 
+    {d.primer && (
+      <aside class="primer">
+        <div class="primer-head">What is this even about?</div>
+        <p>{d.primer}</p>
+      </aside>
+    )}
+
     <nav class="prevnext">
       {next && (
         <a href={`/${project.slug}/discussions/${next.id}`} class="nav-prev">
@@ -339,6 +346,30 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
     color: var(--color-accent);
     text-decoration: none;
     font-weight: 700;
+  }
+
+  .primer {
+    margin: 0 0 2rem;
+    padding: 1rem 0 0;
+    border-top: 1px dashed var(--color-rule);
+    opacity: 0.55;
+  }
+  .primer-head {
+    font-family: var(--font-sans);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    margin-bottom: 0.4rem;
+  }
+  .primer p {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: var(--color-muted);
+    margin: 0;
   }
 
   .prevnext {
