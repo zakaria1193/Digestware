@@ -36,3 +36,8 @@ class BimodalBase(BaseModel):
     subsystem: str
     patch_id: str | None = None  # git patch-id --stable for cross-referencing
     tags: list[str] = Field(default_factory=list, max_length=5)
+    # "What is this even about?" primer for devs outside the subsystem.
+    # Populated via Gemini grounded search so it carries real background, not
+    # a rehash of the commit message. Rendered at the end of each article in a
+    # faded typographic register — context, not headline.
+    primer: str | None = Field(default=None, max_length=800)
