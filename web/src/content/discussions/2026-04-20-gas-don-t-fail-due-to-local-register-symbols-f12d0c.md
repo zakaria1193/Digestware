@@ -6,38 +6,35 @@ tags:
 - binutils
 - gas
 - assembler
-- register symbols
-- equates
+- symbols
+- registers
 discussion_id: a4ce5bf4-c44b-4e28-9411-c625e19d9010@suse.com
 source_type: public_inbox
 title: 'Re: [PATCH 4/8] gas: don''t fail due to local register symbols'
 headline: 'gas: don''t fail due to local register symbols'
-tldr: A patch to prevent the assembler from failing due to local register symbols,
-  with considerations for Intel syntax parsing.
-stakes: Fixes a bug where the assembler incorrectly errors on local register symbols,
-  and considers impacts from deeper x86 Intel syntax parsing issues.
+tldr: The assembler (gas) is incorrectly treating local register symbols as global
+  symbols, causing errors. This patch fixes that.
+stakes: Fixes a bug in the assembler that could prevent successful assembly of code
+  using local register symbols.  This ensures that valid assembly code is assembled
+  correctly.
 proposer: Jan Beulich <jbeulich@suse.com>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
 sentiment_rationale: ''
 technical_tradeoffs:
-- The patch needs to consider the interaction with x86 Intel syntax parsing.
-- The check for local register symbols needs to be in the correct location to avoid
-  false positives.
-primer_expert: This patch addresses an issue in the GNU assembler (gas) related to
-  local register symbols and their interaction with equates, specifically in the x86
-  Intel syntax parsing. The core problem is that the assembler was incorrectly erroring
-  on local register symbols. The fix involves adjusting the logic within `resolve_symbol_value()`
-  to properly handle these symbols. The author mentions a deeper issue with Intel
-  syntax parsing that exacerbates the problem.
-primer_general: The GNU assembler (gas) translates assembly language into machine
-  code. Assembly language uses symbolic names to represent registers and memory locations.  An
-  'equate' is a way to assign a name to a value or expression.  'Local' symbols have
-  a limited scope within a program.  This patch fixes a bug in the assembler that
-  caused it to incorrectly report errors when dealing with local symbols that represent
-  registers, and which come from equates. This ensures that the assembler correctly
-  handles these symbols during the assembly process.
+- The fix avoids false errors but may mask other underlying issues.
+- The solution may need to be revisited when the Intel syntax parsing issue is resolved.
+- There may be broader implications for how equates are handled.
+primer_expert: The GNU assembler (`gas`) incorrectly diagnosed local register symbols
+  as global, causing errors in `resolve_symbol_value`. This patch adds a check using
+  `S_IS_LOCAL()` to avoid this. The issue is related to how the assembler handles
+  equates and register symbols in the presence of Intel syntax parsing.
+primer_general: The GNU assembler (`gas`) translates assembly language code into machine
+  code. Assembly language uses symbols to represent memory locations, registers, and
+  other program elements. This patch fixes a bug where the assembler was misinterpreting
+  the scope of register symbols (symbols that refer to CPU registers), causing assembly
+  to fail when it shouldn't.
 series_id: 'binutils:gas: don''t fail due to local register symbols'
 series_role: reply
 series_parts: []
@@ -46,4 +43,4 @@ bugzilla_url: null
 date: '2026-04-20'
 ---
 
-Jan Beulich discusses a patch that prevents the GNU assembler (gas) from failing when encountering local register symbols. The patch adds a check for local symbols in the register section. The author notes a deeper issue in x86 Intel syntax parsing that relates to how equates are handled, and how fixing that would expose the need for this patch.
+This patch addresses an issue in the GNU assembler (`gas`) where local register symbols were being incorrectly treated as global symbols, leading to errors during assembly. The patch adds a check to ensure that local symbols in the register section are not flagged as errors. The submitter also improved test cases by removing redundant code.

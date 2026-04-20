@@ -1,13 +1,13 @@
 ---
 project: gcc
-subsystem: gcc
+subsystem: c++/reflection
 patch_id: null
 tags: []
-commit_hash: 9e3e6ceb3b18c0dd57f49ef7eb28c9462575a282
+commit_hash: a2dab8f1d8ba2934e780f57c88bb6a513313e93f
 source_type: github
-author: Gopi Kumar Bulusu
-headline: Fix incorrect length for __builtin_bswap16
-tldr: Fix incorrect length for __builtin_bswap16
+author: Marek Polacek
+headline: 'c++/reflection: support splices with CTAD [PR124706]'
+tldr: 'c++/reflection: support splices with CTAD [PR124706]'
 why_it_matters: Summary unavailable — see source link.
 impact_score: 5
 impact_rationale: Stub digest; score not evaluated.
@@ -20,8 +20,8 @@ discussion_id_link: null
 bugzilla_pr: null
 series_id: null
 series_parts: []
-url: https://github.com/gcc-mirror/gcc/commit/9e3e6ceb3b18c0dd57f49ef7eb28c9462575a282
-date: '2026-04-02'
+url: https://github.com/gcc-mirror/gcc/commit/a2dab8f1d8ba2934e780f57c88bb6a513313e93f
+date: '2026-04-17'
 ---
 
 Summary unavailable — see source link.
