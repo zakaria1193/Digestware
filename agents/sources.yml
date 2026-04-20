@@ -5,8 +5,8 @@ sources:
     repo: gcc
 
   - type: public_inbox
-    discussion_lists: [gcc, libc-alpha]
-    cvs_lists: [gcc-cvs, glibc-cvs]
+    discussion_lists: [gcc, libc-alpha, binutils]
+    cvs_lists: [gcc-cvs, glibc-cvs, binutils-cvs]
     use_nntp: true
     # Per-list project override — each mailing list belongs to a different project
     list_projects:
@@ -14,6 +14,8 @@ sources:
       gcc-cvs: gcc
       libc-alpha: glibc
       glibc-cvs: glibc
+      binutils: binutils
+      binutils-cvs: binutils
 
   - type: plain_git
     project: linux
