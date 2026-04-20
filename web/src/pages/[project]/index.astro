@@ -65,41 +65,9 @@ const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
   return latestB - latestA;
 });
 
-const leadEntry = allDiscussions[0] ?? null;
-const leadDate = leadEntry
-  ? leadEntry.data.date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-  : '';
 ---
 
 <PublicLayout project={project}>
-  {leadEntry && (
-    <section class="lead">
-      <div class="lead-kicker">
-        <span class="wsj-kicker">{leadEntry.data.subsystem}</span>
-        <span class="kicker-sep">&mdash;</span>
-        <span class="wsj-kicker-ink">Leading the Digest</span>
-      </div>
-      <a href={`/${project.slug}/discussions/${leadEntry.id}`} class="lead-link">
-        <h1 class="lead-headline">{leadEntry.data.headline}</h1>
-      </a>
-      <p class="lead-deck">{leadEntry.data.tldr}</p>
-      <div class="lead-byline">
-        {leadEntry.data.proposer && <span>By <em>{leadEntry.data.proposer}</em></span>}
-        {leadEntry.data.proposer && <span class="bullet">&middot;</span>}
-        <span>{leadDate}</span>
-        {leadEntry.data.sentiment_score != null && <span class="bullet">&middot;</span>}
-        {leadEntry.data.sentiment_score != null && (
-          <span>Sentiment&nbsp;{leadEntry.data.sentiment_score}/10</span>
-        )}
-      </div>
-      {leadEntry.data.stakes && (
-        <p class="lead-stakes">
-          <span class="stakes-label">What&#39;s at Stake &mdash;</span> {leadEntry.data.stakes}
-        </p>
-      )}
-    </section>
-  )}
-
   <div class="page-grid">
     <!-- Left: Bento Grid -->
     <div class="main-col">
@@ -155,78 +123,6 @@ const leadDate = leadEntry
 </PublicLayout>
 
 <style>
-  .lead {
-    padding: 1.25rem 0 1.5rem;
-    border-bottom: 3px double var(--color-rule-strong);
-    margin-bottom: 1.5rem;
-    text-align: center;
-  }
-  .lead-kicker {
-    display: inline-flex;
-    gap: 0.5rem;
-    align-items: center;
-    margin-bottom: 0.9rem;
-  }
-  .kicker-sep {
-    color: var(--color-rule-strong);
-    font-family: var(--font-serif);
-  }
-  .lead-link { text-decoration: none; color: inherit; }
-  .lead-headline {
-    font-family: var(--font-serif-display);
-    font-weight: 900;
-    font-size: clamp(2rem, 5.5vw, 3.4rem);
-    line-height: 1.05;
-    letter-spacing: -0.015em;
-    margin: 0 auto 0.9rem;
-    max-width: 900px;
-    color: var(--color-ink);
-  }
-  .lead-link:hover .lead-headline { color: var(--color-accent); }
-  .lead-deck {
-    font-family: var(--font-serif);
-    font-style: italic;
-    font-size: clamp(1rem, 1.5vw, 1.2rem);
-    line-height: 1.45;
-    color: var(--color-muted);
-    margin: 0 auto 0.85rem;
-    max-width: 720px;
-  }
-  .lead-byline {
-    font-family: var(--font-serif);
-    font-style: italic;
-    font-size: 0.82rem;
-    color: var(--color-muted);
-    display: inline-flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 0.45rem;
-  }
-  .lead-byline em { font-weight: 600; color: var(--color-ink); font-style: italic; }
-  .bullet { color: var(--color-rule); }
-
-  .lead-stakes {
-    margin: 1rem auto 0;
-    max-width: 760px;
-    padding: 0.75rem 1rem;
-    border-top: 1px solid var(--color-rule);
-    border-bottom: 1px solid var(--color-rule);
-    font-family: var(--font-serif);
-    font-size: 0.95rem;
-    line-height: 1.55;
-    color: var(--color-ink);
-    text-align: left;
-  }
-  .stakes-label {
-    font-family: var(--font-sans);
-    font-size: 0.7rem;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    font-weight: 700;
-    color: var(--color-accent);
-    margin-right: 0.25rem;
-  }
-
   .page-grid {
     display: grid;
     grid-template-columns: 1fr;
