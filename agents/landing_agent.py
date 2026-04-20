@@ -89,14 +89,27 @@ FIELDS (all required unless noted):
 - ``tldr`` — one short sentence, ≤ 140 chars.
 - ``why_it_matters`` — 1–2 sentences framing the stakes for a general dev.
 - ``summary`` — 2–4 sentences of prose covering what + how.
-- ``primer`` — a "What is this even about?" section for a competent engineer
-  who does NOT know this subsystem. 3–5 sentences, ≤ 600 chars. Explain the
-  subsystem, the problem space, and any jargon the rest of the article
-  assumes. No hand-waving, no dumbing down — just context. Call the
-  ``search_context`` tool with the subsystem + key terms (e.g. "GCC IPA-SRA
-  inter-procedural scalar replacement") to ground the primer in real
-  external facts before writing it. Do NOT restate the commit's effect or
-  the TL;DR here; focus on background the reader needs to follow along.
+- ``primer_expert`` — the "What is this even about?" context written FOR
+  toolchain insiders. 2–4 sentences, ≤ 500 chars. Assume the reader already
+  knows compiler passes, ELF/DWARF, relocations, PIC/PIE, ABI conventions,
+  and the wider project vocabulary — don't waste words defining those.
+  Instead, place THIS specific subsystem inside that map: name the concrete
+  pass / file / invariant / data structure in play (e.g. ``ipa-sra.cc`` and
+  ``IPA_PARAM_DESCRIPTOR`` for GCC IPA-SRA), note why a toolchain dev
+  outside the subsystem still wouldn't instantly know it, and flag any
+  non-obvious interaction with neighbouring subsystems.
+- ``primer_general`` — the same section written FOR a competent software
+  engineer who does NOT work on toolchains. 4–6 sentences, ≤ 800 chars.
+  Explain the subsystem from first principles: what problem it exists to
+  solve, where it sits in the pipeline (source → IR → object → binary →
+  runtime), and every piece of jargon the expert version assumes. No
+  hand-waving, no dumbing down — just enough context that a working dev
+  who has never opened a compiler source tree can follow the rest of the
+  article.
+- For BOTH primers: call the ``search_context`` tool with the subsystem +
+  key terms (e.g. "GCC IPA-SRA inter-procedural scalar replacement") once
+  and reuse the grounding for both versions. Do NOT restate the commit's
+  effect or the TL;DR in either primer; focus on background.
 - ``tags`` — up to 5 short topic tags (e.g. ["optimization", "risc-v"]).
 - ``impact_score`` 1–10 with a one-line ``impact_rationale``. Rubric:
     9–10 : CVE, ABI break, perf ≥ 10%, new arch / language feature.

@@ -36,8 +36,18 @@ class BimodalBase(BaseModel):
     subsystem: str
     patch_id: str | None = None  # git patch-id --stable for cross-referencing
     tags: list[str] = Field(default_factory=list, max_length=5)
-    # "What is this even about?" primer for devs outside the subsystem.
-    # Populated via Gemini grounded search so it carries real background, not
-    # a rehash of the commit message. Rendered at the end of each article in a
-    # faded typographic register — context, not headline.
-    primer: str | None = Field(default=None, max_length=800)
+    # "What is this even about?" comes in two registers so readers of very
+    # different backgrounds both get something useful. Both are populated via
+    # grounded search and rendered at the end of each article in a faded
+    # typographic register — context, not headline.
+    #
+    # - ``primer_expert`` is dense toolchain-insider prose. Assumes the reader
+    #   already recognises compiler passes, ELF/DWARF, relocations, PIC, the
+    #   usual subsystem vocabulary. It situates *this* subsystem inside that
+    #   mental model and may name specific files, passes, or invariants.
+    # - ``primer_general`` is for a competent software engineer who does not
+    #   work on toolchains. It unpacks the jargon the expert version takes
+    #   for granted, explains why the subsystem exists at all, and gives
+    #   enough footing to follow the rest of the article.
+    primer_expert: str | None = Field(default=None, max_length=600)
+    primer_general: str | None = Field(default=None, max_length=1000)
