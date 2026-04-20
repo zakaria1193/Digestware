@@ -3,32 +3,37 @@ project: glibc
 subsystem: glibc
 patch_id: null
 tags:
+- glibc
 - linker
-- separate-code
+- -z separate-code
 - configure
-- build
+- build system
 discussion_id: PAWPR08MB8982C365D3FBB2440AF45143832F2@PAWPR08MB8982.eurprd08.prod.outlook.com
 source_type: public_inbox
 title: 'Re: [PATCH 1/2] Check if linker supports -z separate-code'
 headline: Check if linker supports -z separate-code
-tldr: A test is being added that uses -z separate-code, and this patch avoids changing
-  configure.ac when changing the test patch.
-stakes: This change is related to code separation which can have performance and security
-  implications. Developers may need to understand how it affects their code.
+tldr: The purpose of a patch to check for linker support for `-z separate-code` is
+  questioned, as the minimum binutils requirement already guarantees its availabilit…
+stakes: Potentially avoids unnecessary code in the build system.
 proposer: Wilco Dijkstra <Wilco.Dijkstra@arm.com>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
 sentiment_rationale: ''
 technical_tradeoffs:
-- Adding a configure check adds complexity to the build process.
-- Not adding the check might require modifying configure.ac more often during test
-  development.
-primer: The `-z separate-code` linker option places code in a separate segment, potentially
-  improving security by making it harder to overwrite code and data. It can also improve
-  performance in some cases by reducing the working set size. The configure.ac file
-  is used to configure the build environment for glibc. `binutils` is a collection
-  of binary tools, including the linker.
+- Unnecessary code in configure script vs. explicit check for feature support.
+- Relying on minimum tool version vs. probing for specific features.
+primer_expert: This thread discusses a configure check for `-z separate-code` linker
+  support. The question is whether this check is redundant given the minimum binutils
+  version required by glibc. The configure script determines which features are available
+  during the build process. In this case, it seems the feature in question is already
+  guaranteed to be present.
+primer_general: When building software, the configure script checks for the presence
+  of required tools and libraries. The `-z separate-code` linker option separates
+  code into its own segment, which can improve security. This discussion questions
+  whether a specific check for this linker option is necessary because glibc's minimum
+  tool requirements already ensure that the linker supports it, potentially making
+  the check redundant.
 series_id: glibc:check if linker supports -z separate-code
 series_role: reply
 series_parts: []
@@ -37,4 +42,4 @@ bugzilla_url: null
 date: '2026-04-20'
 ---
 
-This patch adds a check to see if the linker supports the `-z separate-code` option. This is being done to avoid having to modify configure.ac when the test patch that uses `-z separate-code` is modified. The reviewer is questioning the necessity of this patch, as the minimum binutils requirement already ensures this option is available.
+Wilco Dijkstra questions the necessity of a patch that checks for linker support for the `-z separate-code` option. The option is already guaranteed to be present due to the minimum required version of binutils. The original author, HJ, mentions it's for adding tests using `-z separate-code` but doesn't clarify why the check is needed.

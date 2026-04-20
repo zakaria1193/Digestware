@@ -3,37 +3,40 @@ project: glibc
 subsystem: io
 patch_id: null
 tags:
+- glibc
+- io
 - fts
 - gnulib
-- glibc
-- file system
-- compatibility
+- FTS_NOSTAT
 discussion_id: lhuy0iit5cy.fsf@oldenburg.str.redhat.com
 source_type: public_inbox
 title: 'Re: [PATCH v5 2/2] io: Use gnulib fts implementation (BZ 22944, BZ 20331)'
 headline: 'io: Use gnulib fts implementation (BZ 22944, BZ 20331)'
-tldr: The patch replaces glibc's fts implementation with the one from gnulib, and
-  the discussion concerns compatibility issues related to stat'ing behavior.
-stakes: The fts functions are used for file system traversal. Changes can affect programs
-  like `find` and `du`. Compatibility issues can break existing applications. Performance
-  of file system operations can be impacted.
+tldr: Discussion about potential regressions from using the gnulib `fts` implementation
+  in glibc, specifically concerning `FTS_NOSTAT` behavior.
+stakes: Potential breakage of existing applications relying on specific `fts` behavior,
+  particularly those using `FTS_NOSTAT`.
 proposer: Florian Weimer <fweimer@redhat.com>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
 sentiment_rationale: ''
 technical_tradeoffs:
-- Replacing the existing implementation with gnulib's may introduce subtle behavioral
-  changes.
-- Adding compatibility symbols increases the complexity of the code base.
-- Not addressing the compatibility issue may break existing applications relying on
-  the old behavior.
-primer: The `fts` functions (fts_open, fts_read, fts_children, fts_close) provide
-  a standardized way to traverse file system hierarchies. gnulib is a collection of
-  portable implementations of standard library functions. The `stat` function retrieves
-  information about a file, such as its size, permissions, and modification time.
-  `FTS_NOSTAT` is a flag that tells `fts_open` not to `stat` files, presumably for
-  performance reasons.
+- Correctness of `FTS_NOSTAT` vs. compatibility with existing applications.
+- Maintenance burden of compatibility symbols vs. forcing application updates.
+- Complexity of integrating gnulib code into glibc.
+primer_expert: The thread discusses integrating gnulib's `fts` implementation into
+  glibc. The core issue is a behavioral change regarding `FTS_NOSTAT`. The older implementation
+  performed implicit `stat` calls even with `FTS_NOSTAT`, a behavior some applications
+  relied upon. The discussion centers on whether to maintain compatibility via compatibility
+  symbols or force applications to adapt to the new, stricter `FTS_NOSTAT` semantics.
+primer_general: The `fts` functions in glibc provide a way to traverse directory hierarchies.  The
+  `FTS_NOSTAT` flag is intended to prevent the `fts` functions from calling `stat`
+  on each file, which can improve performance.  However, older implementations of
+  `fts` in glibc may have ignored this flag and still called `stat`.  This discussion
+  concerns a change in glibc to use a new `fts` implementation from gnulib, which
+  correctly honors `FTS_NOSTAT`.  This change could break applications that relied
+  on the old, incorrect behavior.
 series_id: 'glibc:io: use gnulib fts implementation (bz 22944, bz 20331)'
 series_role: reply
 series_parts: []
@@ -42,4 +45,4 @@ bugzilla_url: null
 date: '2026-04-20'
 ---
 
-This patch replaces the glibc's implementation of the `fts` (file tree traversal) functions with the implementation from gnulib. The discussion revolves around a potential compatibility issue where the old behavior of `fts` performed stat'ing even with `FTS_NOSTAT` specified. The author suggests adding compatibility symbols to mitigate the impact on existing applications.
+This discussion concerns a patch to use the gnulib `fts` implementation in glibc.  Adhemerval Zanella Netto asks if bug 34078 should be closed as WONTFIX, which relates to the `FTS_NOSTAT` flag. Florian Weimer expresses concern that more than just dracut might be affected by the change in behavior and suggests adding compatibility symbols to perform post-processing, confining the changes to glibc.

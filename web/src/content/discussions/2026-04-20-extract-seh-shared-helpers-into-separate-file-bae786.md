@@ -5,29 +5,33 @@ patch_id: null
 tags:
 - binutils
 - gas
+- assembler
 - SEH
-- COFF
-- exception handling
+- refactoring
 discussion_id: 9f4c08db-358a-4a3b-902f-77b139e937b0@suse.com
 source_type: public_inbox
 title: 'Re: [PATCH v7 2/3] Extract SEH shared helpers into separate file.'
 headline: Extract SEH shared helpers into separate file.
-tldr: This patch extracts shared SEH helpers into a separate file, with minor issues
-  concerning copyright year and code style being addressed.
-stakes: This change improves code organization and maintainability within the binutils
-  project. Developers working on exception handling or COFF object format may be interested.
+tldr: Review comments on a patch extracting SEH shared helpers into a separate file,
+  focusing on copyright year and code placement.
+stakes: Ensures proper code attribution and maintainability when refactoring.
 proposer: Jan Beulich <jbeulich@suse.com>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
 sentiment_rationale: ''
 technical_tradeoffs:
-- Extracting code into a separate file improves modularity and reusability.
-- Incorrectly handling copyright notices could lead to legal issues.
-- Minor code style issues can impact readability and maintainability.
-primer: Structured Exception Handling (SEH) is a mechanism used by Windows to handle
-  exceptions. COFF (Common Object File Format) is a file format used for executables,
-  object code, and shared libraries. gas is the GNU Assembler, part of binutils.
+- Improved code organization and reusability vs. potential for introducing errors
+  during refactoring.
+primer_expert: 'This patch refactors the gas assembler by extracting shared SEH (Structured
+  Exception Handling) helpers into `obj-coff-seh-shared.c`. The review concerns minor
+  details: ensuring correct copyright attribution by carrying over the year range
+  from the original code, and verifying the proper placement of code.'
+primer_general: The GNU Assembler (gas) translates assembly code into machine code.
+  Structured Exception Handling (SEH) is a mechanism for handling errors and exceptions
+  in a program. This patch reorganizes the assembler's code by moving SEH-related
+  helper functions into a separate file. The review process focuses on ensuring that
+  the code is properly attributed and that the changes are made correctly.
 series_id: binutils:extract seh shared helpers into separate file
 series_role: reply
 series_parts: []
@@ -36,4 +40,4 @@ bugzilla_url: null
 date: '2026-04-20'
 ---
 
-This patch extracts shared Structured Exception Handling (SEH) helpers into a separate file named `obj-coff-seh-shared.c`. The reviewer noted that the copyright year range from the original file needs to be copied, and a blank line is missing. These minor adjustments may be made during commit.
+Jan Beulich reviews a patch that extracts SEH shared helpers into a separate file. The review focuses on ensuring the copyright year range from the original file is copied to the new file. Also the reviewer requests a blank line and seeks clarification of code movement.
