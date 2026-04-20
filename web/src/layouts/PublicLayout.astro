@@ -72,18 +72,7 @@ const volume = `VOL. ${now.getFullYear() - 2025} · NO. ${Math.floor((now.getTim
         ))}
       </nav>
 
-      <nav class="subnav">
-        <div class="subnav-left">
-          <a href={`/${project.slug}/`}>Front Page</a>
-          <a href={`/${project.slug}/#stream`}>The Wire</a>
-          <a href={`/${project.slug}/rss.xml`}>RSS</a>
-        </div>
-        <div class="subnav-right">
-          <span class="subnav-price">NO&nbsp;SUBSCRIPTION &middot; OPEN SOURCE</span>
-        </div>
-      </nav>
-
-      <main class="paper-main">
+<main class="paper-main">
         <slot />
       </main>
 
@@ -217,31 +206,7 @@ const volume = `VOL. ${now.getFullYear() - 2025} · NO. ${Math.floor((now.getTim
         border-bottom-color: var(--color-accent);
       }
 
-      .subnav {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0.55rem 0;
-        border-bottom: 1px solid var(--color-rule-strong);
-        font-family: var(--font-sans);
-        font-size: 0.72rem;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-      }
-      .subnav-left { display: flex; gap: 1.75rem; }
-      .subnav-left a {
-        color: var(--color-ink);
-        text-decoration: none;
-        font-weight: 600;
-        position: relative;
-        padding: 0.1rem 0;
-      }
-      .subnav-left a:hover { color: var(--color-accent); }
-      .subnav-price { color: var(--color-muted); font-size: 0.66rem; }
-
       @media (max-width: 640px) {
-        .subnav { flex-direction: column; gap: 0.35rem; align-items: flex-start; }
-        .subnav-left { gap: 1rem; flex-wrap: wrap; }
         .projtab { padding: 0.5rem 0.7rem 0.4rem; font-size: 0.68rem; letter-spacing: 0.12em; }
       }
 
