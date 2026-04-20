@@ -5,6 +5,13 @@ const seriesPart = z.object({
   url: z.string(),
 });
 
+const exchange = z.object({
+  author: z.string(),
+  role: z.string().nullable().optional(),
+  position: z.string(),
+  quote: z.string().nullable().optional(),
+});
+
 const discussions = defineCollection({
   type: 'content',
   schema: z.object({
@@ -23,6 +30,7 @@ const discussions = defineCollection({
     sentiment_score: z.number().nullable().optional(),
     sentiment_rationale: z.string().optional(),
     technical_tradeoffs: z.array(z.string()).optional(),
+    exchanges: z.array(exchange).optional(),
     primer_expert: z.string().nullable().optional(),
     primer_general: z.string().nullable().optional(),
     series_id: z.string().nullable().optional(),

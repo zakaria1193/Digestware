@@ -63,7 +63,33 @@ FIELDS (all required unless noted):
 - ``stakes`` — 1–2 sentences: why a general dev should care (perf, ABI,
   security, ergonomics, policy).
 - ``summary`` — 2–4 sentences covering what's proposed and where the thread
-  sits.
+  sits. IMPORTANT: ``summary`` is the narrator-voice overview ONLY. Do NOT
+  collapse different participants' statements into it — use ``exchanges``
+  for that.
+- ``exchanges`` — REQUIRED whenever the thread has at least one reply. An
+  ordered list of per-participant entries that separates what each party
+  actually said. Never merge two authors into one entry; never speak in a
+  composite "the community says" voice here.
+  Each entry has:
+    * ``author`` — the person's name or handle (e.g. "Martin Uecker",
+      "jane.doe@example.com"). Use the name from the original message; do
+      not anonymise.
+    * ``role`` — one of proposer / reviewer / maintainer / contributor /
+      other. The first entry is ALWAYS the ``proposer`` and describes
+      what the patch / RFC proposes. Later entries are typically
+      ``reviewer`` (weighs in on the proposal) or ``maintainer`` (owns
+      the subsystem).
+    * ``position`` — 1–2 sentences, active voice, describing THIS
+      participant's stance / concern / suggestion. Examples: "Suggests
+      using tagged unions for ABI stability.", "NACKs the patch because
+      it breaks arm64 bootstrap.", "Asks whether the overhead is
+      measurable on hot paths."
+    * ``quote`` — optional short verbatim excerpt (≤ 400 chars) from
+      that person's message when a direct quote clarifies the stance.
+      Strip quoted-reply lines (``> …``, ``On … wrote:``). Omit when no
+      crisp excerpt exists — do not fabricate.
+  When the thread has no replies yet, ``exchanges`` may be a single-entry
+  list containing only the proposer, OR an empty list — both are valid.
 - ``primer_expert`` — the "What is this even about?" context written FOR
   toolchain insiders. 2–4 sentences, ≤ 500 chars. Assume the reader already
   knows compiler passes, ELF/DWARF, relocations, PIC/PIE, ABI conventions,
@@ -176,6 +202,24 @@ def _parse_discussion_batch(
     return _ADAPTER.validate_python(raw_list)
 
 
+def _reply_author(r: dict) -> str:
+    """Return a human-readable author for a reply dict.
+
+    public_inbox puts it under ``author``; GitHub puts it under
+    ``user.login``. Fall back to "unknown" so exchanges can still be
+    attributed instead of being silently merged into a composite voice.
+    """
+    direct = r.get("author")
+    if isinstance(direct, str) and direct.strip():
+        return direct
+    user = r.get("user")
+    if isinstance(user, dict):
+        login = user.get("login")
+        if isinstance(login, str) and login.strip():
+            return login
+    return "unknown"
+
+
 def _render_batch(batch: list[RawDiscussion]) -> str:
     lines: list[str] = []
     for d in batch:
@@ -208,8 +252,9 @@ def _render_batch(batch: list[RawDiscussion]) -> str:
         if d.replies:
             lines.append(f"replies ({len(d.replies)} total):")
             for r in d.replies[:5]:
+                author = _reply_author(r)
                 body = r.get("body", r.get("comment", ""))[:500]
-                lines.append(f"  - {body}")
+                lines.append(f"  - [{author}]: {body}")
         if d.diff_text:
             lines.append(f"diff (truncated):\n{d.diff_text[:1000]}")
         lines.append("")
