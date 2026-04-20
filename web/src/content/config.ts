@@ -20,7 +20,7 @@ const discussions = defineCollection({
     proposer: z.string().optional(),
     consensus: z.string().optional(),
     outcome: z.string().optional(),
-    sentiment_score: z.number().optional(),
+    sentiment_score: z.number().nullable().optional(),
     sentiment_rationale: z.string().optional(),
     technical_tradeoffs: z.array(z.string()).optional(),
     primer: z.string().nullable().optional(),

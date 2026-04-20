@@ -18,7 +18,10 @@ class DiscussionDigest(BimodalBase):
     proposer: str
     consensus: ConsensusStatus                 # legacy single status
     outcome: Outcome = Outcome.PROPOSED        # richer lifecycle state
-    sentiment_score: int = Field(..., ge=1, le=10)
+    # None when the community has not responded yet — we must not fabricate a
+    # sentiment when no one has weighed in. Only set 1..10 once there is at
+    # least one reply to judge.
+    sentiment_score: int | None = Field(default=None, ge=1, le=10)
     sentiment_rationale: str = ""
     technical_tradeoffs: list[str]
     summary: str

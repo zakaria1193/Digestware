@@ -57,7 +57,7 @@ class TestDiscussionDigest:
         d = sample_discussion_digest
         assert d.project == "gcc"
         assert d.subsystem == "gcc/ipa"
-        assert 1 <= d.sentiment_score <= 10
+        assert d.sentiment_score is not None and 1 <= d.sentiment_score <= 10
 
     def _discussion(self, **overrides) -> dict:
         base: dict = dict(
@@ -87,6 +87,16 @@ class TestDiscussionDigest:
     def test_sentiment_too_high(self):
         with pytest.raises(ValidationError):
             DiscussionDigest(**self._discussion(sentiment_score=11))
+
+    def test_sentiment_score_defaults_to_none(self):
+        data = self._discussion()
+        data.pop("sentiment_score")
+        d = DiscussionDigest(**data)
+        assert d.sentiment_score is None
+
+    def test_sentiment_score_accepts_none(self):
+        d = DiscussionDigest(**self._discussion(sentiment_score=None))
+        assert d.sentiment_score is None
 
     def test_bugzilla_url_optional(self, sample_discussion_digest: DiscussionDigest):
         assert sample_discussion_digest.bugzilla_url is None
