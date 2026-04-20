@@ -6,35 +6,34 @@ tags:
 - binutils
 - dwarf
 - objdump
-- debugging
 - embedded source
+- debugging
 discussion_id: 20260420143919.2721336-1-hawkinsw@obs.cr
 source_type: public_inbox
 title: '[PATCH v2] binutils/dwarf: Print embedded source, when available'
-headline: 'Binutils/dwarf: Print embedded source, when available'
-tldr: This patch enables objdump to print embedded source code from DWARF debugging
-  information, if available.
-stakes: Improves debugging experience by allowing developers to view source code directly
-  from objdump output.
+headline: 'binutils/dwarf: Print embedded source, when available'
+tldr: The patch adds support to objdump to print embedded source code from DWARF debug
+  information.
+stakes: Allows developers to inspect embedded source code directly from the executable,
+  which is useful for debugging and reverse engineering.
 proposer: Will Hawkins <hawkinsw@obs.cr>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
 sentiment_rationale: ''
 technical_tradeoffs:
-- Increases the size of the DWARF debugging information.
-- Adds complexity to objdump.
-- Provides a more convenient way to view source code during debugging.
-primer_expert: This patch modifies binutils' DWARF handling to support embedded source
-  code, specifically by adding `DW_LNCT_source` and `DW_LNCT_LLVM_source` content
-  types. This affects how `objdump` interprets and displays DWARF line number information.
-  The patch likely requires changes to `dwarf.c` and related test infrastructure.
-primer_general: DWARF is a debugging data format used to store information about a
-  program's source code, variables, and other debugging-related information. `objdump`
-  is a binutils tool that displays information from object files, including debugging
-  information. This patch extends `objdump` to extract and display embedded source
-  code directly from the DWARF information, which can be useful when the source code
-  is not readily available.
+- Increased complexity in `binutils/dwarf.c` to handle embedded source.
+- Potential increase in `objdump` output size when embedded source is present.
+exchanges: []
+primer_expert: DWARF line tables can embed source code. This patch modifies `binutils/dwarf.c`
+  to extract and print such embedded source when using `objdump`. The relevant DWARF
+  line number table content types are `DW_LNCT_source` and `DW_LNCT_LLVM_source`.
+primer_general: DWARF is a debugging data format used to describe the structure and
+  contents of compiled programs.  It includes information like source file names,
+  line numbers, and variable types.  This patch extends `objdump`, a tool for inspecting
+  object files, to extract and display source code embedded directly within the DWARF
+  debugging information. This allows developers to see the original source code that
+  corresponds to the compiled machine code directly within `objdump`'s output.
 series_id: null
 series_role: standalone
 series_parts: []
@@ -43,4 +42,4 @@ bugzilla_url: null
 date: '2026-04-20'
 ---
 
-This patch enables objdump to print embedded source code stored within DWARF debugging information. It adds new content types to DWARF and modifies objdump to handle them. The patch includes new test cases and has undergone initial review.
+Will Hawkins proposes a patch to `binutils/dwarf.c` that enables `objdump` to print embedded source code when it's available in the DWARF debug information. The patch adds new tests and modifies the `dwarf.c` file to handle the `DW_LNCT_source` and `DW_LNCT_LLVM_source` content types.

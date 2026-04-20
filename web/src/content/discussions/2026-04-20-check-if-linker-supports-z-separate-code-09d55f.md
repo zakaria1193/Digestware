@@ -5,37 +5,46 @@ patch_id: null
 tags:
 - glibc
 - linker
-- configure
-- build system
-- optimization
+- -z separate-code
+- build configuration
 discussion_id: PAWPR08MB8982C365D3FBB2440AF45143832F2@PAWPR08MB8982.eurprd08.prod.outlook.com
 source_type: public_inbox
 title: 'Re: [PATCH 1/2] Check if linker supports -z separate-code'
-headline: Check if linker supports `-z separate-code`.
-tldr: Questioning the necessity of a patch that checks for linker support for `-z
-  separate-code` when the minimum binutils version already guarantees it.
-stakes: Potentially simplifies the configuration process by removing an unnecessary
-  check.
+headline: Check if linker supports -z separate-code
+tldr: This patch checks if the linker supports the `-z separate-code` option, but
+  its necessity is questioned since the minimum binutils requirement should guarantee…
+stakes: Potentially impacts build configuration and optimization. Developers might
+  need to care if the `-z separate-code` flag is crucial for their builds and the
+  check introduces unnecessary complexity.
 proposer: Wilco Dijkstra <Wilco.Dijkstra@arm.com>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
 sentiment_rationale: ''
 technical_tradeoffs:
-- Potential simplification of the configuration process.
-- Removal of a potentially redundant check.
-- Reliance on the minimum binutils version for `-z separate-code` support.
-primer_expert: This patch likely modifies `configure.ac` to check for linker support
-  for `-z separate-code`. The minimum binutils version ensures that this option is
-  supported, so this check is redundant. The discussion questions the purpose of this
-  configure check if it's always true. This relies on `AC_LINK_IFELSE` or similar
-  macros.
-primer_general: When building software, the configuration step checks for the presence
-  of necessary tools and libraries.  This discussion revolves around a check for a
-  specific feature in the linker, a program that combines compiled code into an executable.
-  The `-z separate-code` option tells the linker to put code in a separate segment,
-  which can improve security. The question is whether this check is still needed,
-  given the minimum required version of the linker toolchain.
+- Potentially adds unnecessary complexity to the build process.
+- Could provide a more robust check for linker capabilities.
+- May enable the use of `-z separate-code` in subsequent tests and optimizations.
+exchanges:
+- author: Wilco Dijkstra <Wilco.Dijkstra@arm.com>
+  role: proposer
+  position: Proposes a patch to check for `-z separate-code` linker support.
+  quote: Set have-separate-code to yes if linker supports -z separate-code.
+- author: Wilco Dijkstra <Wilco.Dijkstra@arm.com>
+  role: reviewer
+  position: Questions the necessity of the patch, suggesting it might be redundant.
+  quote: Sure, but why do we need this patch at all? What problem does it solve?
+primer_expert: The patch probes for linker support of `-z separate-code`, which segregates
+  code into separate segments. This can improve security by enabling finer-grained
+  memory permissions (e.g., marking code segments read-only). `configure.ac` decides
+  the build environment. The minimum binutils requirement in glibc influences which
+  linker features are assumed present.
+primer_general: The GNU C Library (glibc) provides essential functions for programs.
+  Part of building glibc is figuring out what the system's compiler and linker can
+  do. This patch is about testing if the linker supports a specific feature (`-z separate-code`).
+  This feature helps improve security by separating code from other data in memory,
+  making it harder for attackers to inject malicious code. The discussion questions
+  if the test is even needed, given the assumed capabilities of the system's toolset.
 series_id: glibc:check if linker supports -z separate-code
 series_role: reply
 series_parts: []
@@ -44,4 +53,4 @@ bugzilla_url: null
 date: '2026-04-20'
 ---
 
-This email questions the purpose of a patch that checks if the linker supports the `-z separate-code` option. The author argues that the minimum binutils version required by glibc already ensures that this option is available, making the check redundant. It seeks clarification on the problem that this patch is intended to solve.
+A patch is proposed to check if the linker supports the `-z separate-code` option, setting `have-separate-code` accordingly.  However, a reviewer questions the patch's purpose, suggesting it might be redundant given the minimum binutils version requirement.  The proposer intends to utilize the `-z separate-code` option in subsequent tests.
