@@ -6,38 +6,35 @@ tags:
 - gas
 - assembler
 - dwarf
+- debugging
 - segfault
-- fuzzing
 discussion_id: aeXD6PoTmHjtu1iC@squeak.grove.modra.org
 source_type: public_inbox
 title: 'gas: segfault in out_debug_str'
-headline: 'gas: Segfault in out_debug_str'
-tldr: Fixes a segfault in the assembler (gas) when processing DWARF debug information
-  with a NULL file name.
-stakes: Prevents a crash in the assembler, improving its reliability and security
-  when handling potentially malformed input.
+headline: 'Gas: Segfault in out_debug_str'
+tldr: Fixes a segfault in the assembler when processing DWARF debug information with
+  a NULL filename.
+stakes: This patch resolves a crash in the assembler, improving its robustness when
+  handling potentially malformed input files.
 proposer: Alan Modra <amodra@gmail.com>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
 sentiment_rationale: ''
 technical_tradeoffs:
-- Adds a check for a NULL file name, potentially increasing the runtime slightly.
-- Improves robustness by preventing a crash due to malformed input.
-- Does not add any new features.
+- Adds a check for a NULL filename, which may slightly impact performance.
+- Prevents a segfault, improving the robustness of the assembler.
+- No diagnostic message is emitted for the invalid input.
 exchanges: []
-primer_expert: The patch modifies `gas/dwarf2dbg.c` to prevent a segmentation fault
-  in `out_debug_str` when processing DWARF debug information. The function now checks
-  for a NULL filename before attempting to use it. This prevents a crash when the
-  assembler encounters malformed DWARF information. DWARF is used for representing
-  debugging information.
-primer_general: The GNU Assembler (GAS) translates assembly code into machine code.  DWARF
-  is a standard format for storing debugging information, which maps machine code
-  instructions back to the original source code. This information is crucial for debuggers
-  to function correctly.  This patch fixes a bug in the assembler that could cause
-  it to crash when processing DWARF debug information, specifically when a file name
-  is missing. By adding a check for a NULL file name, the patch prevents the assembler
-  from attempting to access invalid memory, thus avoiding the crash.
+primer_expert: The `out_debug_str` function in `gas/dwarf2dbg.c` handles the output
+  of strings related to DWARF debugging information. This patch addresses a null pointer
+  dereference that occurs when `files[first_file].filename` is NULL. The fix adds
+  a check for this condition before calling `strlen` and `memcpy`, preventing a segfault.
+primer_general: The GNU assembler (gas) is a tool that translates assembly language
+  source code into machine code. DWARF is a debugging data format used to provide
+  information about the source code location of machine code instructions. This patch
+  fixes a bug in the assembler that occurs when processing DWARF debugging information
+  that contains a missing filename, preventing the assembler from crashing.
 series_id: null
 series_role: standalone
 series_parts: []
@@ -46,4 +43,4 @@ bugzilla_url: null
 date: '2026-04-20'
 ---
 
-This patch fixes a segfault in the `out_debug_str` function within the assembler's DWARF debugging information processing logic. The segfault occurred when the file name was NULL. The patch adds a check to prevent dereferencing the NULL file name, avoiding the crash.
+This patch fixes a segfault vulnerability in the GNU assembler (gas) that occurs in the `out_debug_str` function within `dwarf2dbg.c`.  The segfault is triggered when processing DWARF debug information and encountering a NULL filename. The patch adds a check for a NULL filename before attempting to access its length, preventing the crash.

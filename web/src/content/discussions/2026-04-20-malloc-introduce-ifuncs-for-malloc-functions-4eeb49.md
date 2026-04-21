@@ -26,6 +26,10 @@ series_parts:
   n: 2
   total: 2
 - title: 'malloc: introduce ifuncs for malloc functions'
+  url: https://inbox.sourceware.org/libc-alpha/aec3VhIwZSVZmZU8@arm.com
+  n: 2
+  total: 2
+- title: 'malloc: introduce ifuncs for malloc functions'
   url: https://inbox.sourceware.org/libc-alpha/xno6jd4nx0.fsf@greed.delorie.com
   n: 2
   total: 2

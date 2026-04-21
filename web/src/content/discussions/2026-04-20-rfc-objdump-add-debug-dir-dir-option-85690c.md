@@ -4,40 +4,45 @@ subsystem: rfc
 patch_id: null
 tags:
 - objdump
+- debugging
 - debuginfo
-- elfutils
 - debuginfod
 discussion_id: 871pg9385i.fsf@redhat.com
 source_type: public_inbox
 title: 'Re: RFC: objdump: Add --debug-dir=<DIR> option'
 headline: 'RFC: objdump: Add --debug-dir=<DIR> option'
-tldr: Suggests using elfutils debuginfod as an alternative to the proposed `--debug-dir`
-  option for objdump.
-stakes: Suggests an alternative approach to finding debug information, potentially
-  impacting debugging workflows.
+tldr: Suggests using a local debuginfod instance as an alternative to adding a `--debug-dir`
+  option to objdump.
+stakes: This discussion is relevant to developers who debug binaries with split debug
+  information, as it affects how debuggers and related tools locate the necessary
+  debug symbols.
 proposer: fche@redhat.com
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
 sentiment_rationale: ''
 technical_tradeoffs:
-- Using debuginfod requires setting up and configuring a separate service.
-- The proposed --debug-dir option would be simpler for local, one-off debugging scenarios.
-- debuginfod provides a more centralized and scalable solution for managing debug
-  information.
-exchanges: []
-primer_expert: The RFC proposes a change to `objdump` to find separate debug files.
-  This response suggests using `debuginfod` instead. `debuginfod` is part of `elfutils`
-  and serves debug information (sources, binaries, and debuginfo) over HTTP.  A local
-  instance can be configured to search specific directories, and the `DEBUGINFOD_URLS`
-  environment variable can point toolchain tools to the local instance.
-primer_general: '`objdump` is a command-line utility for displaying information about
-  object files. Debug information is often stored separately from the main executable
-  to reduce its size.  `elfutils debuginfod` is a tool that serves debug information
-  over HTTP. This allows debuggers to automatically find the correct debug information
-  for a program, even if it''s stored in a non-standard location.  The message suggests
-  using `debuginfod` as a system-wide solution for locating debug information, rather
-  than adding a specific option to `objdump` itself.'
+- Adding a `--debug-dir` option would simplify the command-line usage of `objdump`
+  for some users, but could also lead to inconsistencies if the specified directory
+  is not up-to-date.
+- Using `debuginfod` requires setting up and configuring a `debuginfod` server, but
+  provides a more robust and scalable solution for managing debug information.
+exchanges:
+- author: fche@redhat.com
+  role: other
+  position: Suggests using a local debuginfod instance as an alternative to the proposed
+    `--debug-dir` option.
+  quote: By the way, you can handle this scenario easily enough by running a local
+    temporary copy of elfutils debuginfod, giving it a list of your build subdirectories
+primer_expert: '`objdump` and `readelf` need to locate split debuginfo files (.dwo)
+  when the main binary is stripped.  The traditional approach is a fixed search path
+  or environment variables. `debuginfod` is a modern alternative.'
+primer_general: '`objdump` is a command-line utility for displaying various information
+  about object files, including debugging information.  Separate debug files are used
+  to store debugging information outside of the main executable, typically to reduce
+  the size of the deployed binary. The location of these separate files needs to be
+  discoverable by debuggers and related tools. `debuginfod` is a tool that provides
+  a centralized way to locate debug information files.'
 series_id: null
 series_role: standalone
 series_parts: []
@@ -46,4 +51,4 @@ bugzilla_url: null
 date: '2026-04-20'
 ---
 
-This message responds to an RFC proposing a `--debug-dir` option for objdump to specify a directory for searching separate debug information files. The author suggests using a local temporary copy of elfutils debuginfod instead, configured to search the build subdirectories. This approach allows the toolchain to find sources, binaries, and debuginfo.
+Nick Clifton proposed adding a `--debug-dir` option to objdump to specify a directory to search for separate debug information files. Frank Eigler suggests using a local temporary instance of elfutils debuginfod instead.
