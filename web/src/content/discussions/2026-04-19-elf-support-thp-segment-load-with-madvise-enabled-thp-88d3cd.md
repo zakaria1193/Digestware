@@ -6,66 +6,59 @@ tags:
 - glibc
 - elf
 - thp
-- loader
 - memory management
+- dynamic linking
 discussion_id: CAMe9rOqKfFXMDY07GRuppudP3V9fsCDXoyxDesPMNQLDrRhzvg@mail.gmail.com
 source_type: public_inbox
 title: '[PATCH v4] elf: Support THP segment load with madvise enabled THP'
-headline: 'elf: Support THP segment load with madvise enabled THP'
-tldr: This patch modifies glibc's ELF loader to properly handle THP when THP is enabled
-  with madvise in the kernel.
-stakes: Improves performance for applications using THP by ensuring correct segment
-  alignment and madvise calls, especially when THP is enabled with madvise.
+headline: 'Elf: Support THP Segment Load With Madvise Enabled THP'
+tldr: This patch enables Transparent Huge Page (THP) support for segment loading in
+  glibc when THP is enabled with madvise in the kernel.
+stakes: Enabling THP with madvise can improve application performance by using larger
+  memory pages, but requires careful management to avoid performance regressions or
+  memory waste.
 proposer: H.J. Lu <hjl.tools@gmail.com>
-consensus: Under Review
+consensus: Proposed
 outcome: proposed
-sentiment_score: 7
-sentiment_rationale: The patch has been through several revisions and has been acknowledged.
-  No negative feedback is apparent.
+sentiment_score: null
+sentiment_rationale: ''
 technical_tradeoffs:
-- Increased complexity in the ELF loader.
-- Potential for regressions if alignment is not handled correctly.
-- Dependence on kernel configuration (THP enabled with madvise).
-- Possible performance regressions if madvise calls introduce overhead.
+- Enabling THP can improve performance for some applications but may degrade performance
+  for others due to latency spikes and memory waste.
+- Using madvise provides applications with control over THP usage, but requires developers
+  to understand the performance implications.
+- The patch adds complexity to the dynamic linking process.
 exchanges:
 - author: H.J. Lu <hjl.tools@gmail.com>
   role: proposer
-  position: Proposes a patch to support THP segment loading when THP is enabled with
-    madvise, involving changes to segment alignment and calls to `madvise`.
-  quote: 'If THP is enabled with madvise in the
-
-    kernel, to enable THP segment load in an application, madvise should
+  position: Proposes enabling Transparent Huge Page (THP) support for segment loading
+    in glibc when THP is enabled with madvise in the kernel.
+  quote: 'to enable THP segment load in an application, madvise should
 
     be called with MADV_HUGEPAGE on all THP eligible PT_LOAD segments'
 - author: Carlos O'Donell <carlos@redhat.com>
   role: reviewer
-  position: Acknowledged the patch and quoted the changes from previous versions.
-  quote: "On 4/18/26 11:15 PM, H.J. Lu wrote:\n> Changes from v3:\n> \n> 1. Fold the\
-    \ -z separate-code linker option check.\n> 2. Move DL_MAP_DEFAULT_THP_PAGESIZE\
-    \ to <hugepages.h>\n> and default it to 0.\n> 3. Don't run strace tests for cross-compiling.\n\
-    > 4. Remove return after FAIL_UNSUPPORTED in THP test."
+  position: Acknowledges the patch and lists the changes from the previous version.
+  quote: null
 - author: H.J. Lu <hjl.tools@gmail.com>
   role: contributor
-  position: Quoted Carlos O'Donell's acknowledgement of the patch.
-  quote: 'On Mon, Apr 20, 2026 at 9:15 PM Carlos O''Donell <carlos@redhat.com> wrote:
-
-    >
-
-    > On 4/18/26 11:15 PM, H.J. Lu wrote:
-
-    > > Changes from v3:'
-primer_expert: This patch focuses on glibc's ELF loader (`_dl_map_segment_align`,
-  `_dl_executable_postprocess`, `_dl_postprocess_loadcmd_extra`) to ensure proper
-  alignment and `madvise` calls for THP-eligible PT_LOAD segments when THP is enabled
-  with `madvise` in the kernel. It addresses issues related to dynamic and static
-  executables, as well as shared objects. The patch introduces `DL_MAP_DEFAULT_THP_PAGESIZE`
-  in `hugepages.h`.
-primer_general: This patch addresses how glibc, the standard C library, loads programs
-  and shared libraries into memory. It specifically deals with Transparent Huge Pages
-  (THP), a kernel feature that uses larger memory pages for performance gains. When
-  THP is enabled in 'madvise' mode, applications must explicitly request THP for specific
-  memory regions. This patch ensures that glibc correctly aligns memory segments and
-  requests THP when loading programs and libraries, potentially improving performance.
+  position: Replies to Carlos O'Donell, seemingly in agreement.
+  quote: null
+primer_expert: This patch modifies glibc's dynamic linker to support THP when enabled
+  with `madvise`. It involves changes to `_dl_map_segment_align`, `rtld_setup_main_map`,
+  and `_dl_postprocess_loadcmd` to call `madvise` with `MADV_HUGEPAGE` on THP-eligible
+  `PT_LOAD` segments. The patch also introduces `DL_MAP_DEFAULT_THP_PAGESIZE` in `hugepages.h`.
+  This is relevant for understanding how glibc interacts with the kernel's memory
+  management and dynamic linking, specifically the ELF loading process.
+primer_general: Transparent Huge Pages (THP) is a Linux kernel feature that attempts
+  to improve performance by using larger memory pages (typically 2MB) instead of the
+  standard 4KB pages. This patch modifies glibc, the GNU C Library, to support THP
+  when THP is enabled in "madvise" mode. In this mode, applications can advise the
+  kernel to use THP for specific memory regions. The patch ensures that when a program
+  or library is loaded, the appropriate memory segments are marked for THP if the
+  system is configured to use it. This can improve performance for applications that
+  benefit from larger pages, but also introduces potential drawbacks like increased
+  memory usage or memory fragmentation.
 series_id: null
 series_role: standalone
 series_parts: []
@@ -74,4 +67,4 @@ bugzilla_url: null
 date: '2026-04-19'
 ---
 
-H.J. Lu proposes a patch to enable THP segment load when THP is enabled with madvise in the kernel. The patch updates segment alignment, calls `madvise` with `MADV_HUGEPAGE` on THP-eligible segments, and adds tests to verify correct alignment. Carlos O'Donell acknowledged the patch.
+H.J. Lu proposes enabling Transparent Huge Page (THP) support for segment loading in glibc when THP is enabled with madvise in the kernel. The patch modifies how segments are aligned and mapped during dynamic linking, and calls `madvise` with `MADV_HUGEPAGE` on THP-eligible segments. The patch also adds tests to verify that large executable PT_LOAD segments are mapped at addresses aligned to THP page size.
