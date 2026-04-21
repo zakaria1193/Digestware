@@ -5,40 +5,41 @@ patch_id: null
 tags:
 - binutils
 - m32r
+- elf
 - relocation
-- security
 - fuzzing
 discussion_id: aeXEBvhXwRjo2qaW@squeak.grove.modra.org
 source_type: public_inbox
 title: m32r hi/lo reloc offset sanity checks
-headline: M32r hi/lo reloc offset sanity checks
-tldr: Adds sanity checks for relocation offsets in the m32r architecture to prevent
-  fuzzer- выявлено crashes.
-stakes: This patch improves the security and stability of binutils by preventing potential
-  crashes caused by malformed object files.
+headline: m32r hi/lo reloc offset sanity checks
+tldr: This patch adds sanity checks for relocation offsets in the M32R ELF backend
+  to prevent crashes caused by malformed binaries.
+stakes: This patch improves the robustness of the linker, preventing crashes when
+  processing untrusted or malformed binaries.
 proposer: Alan Modra <amodra@gmail.com>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
 sentiment_rationale: ''
 technical_tradeoffs:
-- Adds additional checks to the relocation process, which may slightly impact performance.
-- Improves the security and stability of binutils by preventing potential crashes
-  caused by malformed object files.
-- The checks are specific to the M32R architecture and may not be applicable to other
-  architectures.
+- Adds overhead to relocation processing due to the added checks.
+- May reject valid binaries if the relocation information is slightly out of bounds
+  (though this is unlikely).
+- Improves security and stability by preventing crashes due to invalid relocation
+  offsets.
 exchanges: []
-primer_expert: This patch focuses on the M32R architecture's ELF relocation handling
-  in binutils (`bfd/elf32-m32r.c`). It addresses potential out-of-bounds reads during
-  relocation by adding checks to `m32r_elf_hi16_reloc` and `m32r_elf_lo16_reloc` to
-  ensure that relocation offsets are within the bounds of the input section. The patch
-  also modifies `m32r_elf_relocate_hi16` to include the input section and return a
-  status.
-primer_general: Relocation is the process of adjusting addresses in object files or
-  executables when they are linked or loaded into memory. This patch focuses on the
-  M32R architecture and adds checks to ensure that the relocation process does not
-  attempt to access memory outside the valid bounds of the input section. This helps
-  prevent crashes and security vulnerabilities.
+primer_expert: The patch targets `bfd/elf32-m32r.c`, specifically the handling of
+  HI16 and LO16 relocations for the M32R architecture. It ensures that relocation
+  offsets are within the bounds of the input section to prevent out-of-bounds memory
+  accesses.  The `bfd_reloc_offset_in_range` function is used to perform the offset
+  validation.
+primer_general: When linking object files, the linker uses relocation information
+  to update addresses in the code. This patch fixes a potential security issue in
+  the binutils linker when processing M32R (Mitsubishi 32-bit RISC) object files.  It
+  adds checks to ensure that the offsets specified in the relocation information are
+  valid, preventing the linker from reading or writing to invalid memory locations,
+  which could lead to a crash or potentially arbitrary code execution.  Fuzzers are
+  tools that automatically generate potentially malformed inputs to find such vulnerabilities.
 series_id: null
 series_role: standalone
 series_parts: []
@@ -47,4 +48,4 @@ bugzilla_url: null
 date: '2026-04-20'
 ---
 
-This patch adds sanity checks for relocation offsets when processing M32R ELF files, specifically for HI16 and LO16 relocations. These checks prevent out-of-bounds memory accesses that can be triggered by maliciously crafted or corrupted object files, addressing a fuzzer-identified vulnerability.
+This patch addresses a fuzzer-discovered vulnerability in the M32R ELF backend of binutils. It adds sanity checks to the `m32r_elf_hi16_reloc` and `m32r_elf_lo16_reloc` functions to validate relocation offsets before accessing section contents. It also simplifies sign extension and makes minor adjustments to function calls.
