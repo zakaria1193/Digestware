@@ -4,7 +4,8 @@ Model strategy (budget-aware):
 - google/gemini-2.0-flash-001 for all bulk processing.
 - anthropic/claude-sonnet-4-5 only when impact_score >= 9 (re-run single item).
 
-Batching: 15 commits per LLM call.
+Batching: 8 commits per LLM call (down from 15 after observing Gemini Flash
+truncate LandingDigest JSON output mid-string on larger batches).
 
 Cross-reference trailers (Closes #N, Message-Id:, Link:, PR N, Bugzilla: N) are
 extracted deterministically from raw commit messages and applied post-hoc to
@@ -45,7 +46,7 @@ from agents.usage_log import append_usage
 
 logger = logging.getLogger(__name__)
 
-_BATCH_SIZE = 15
+_BATCH_SIZE = 8
 _DEFAULT_MODEL = "google/gemini-2.0-flash-001"
 _PREMIUM_MODEL = "anthropic/claude-sonnet-4-5"
 
@@ -139,6 +140,32 @@ _ADAPTER: TypeAdapter[list[LandingDigest]] = TypeAdapter(list[LandingDigest])
 # overlong LLM output before validation instead of failing the whole batch.
 _TLDR_MAX = 160
 
+# Mirrored from the Pydantic schema so we can repair overruns rather than let
+# the whole batch fail validation.
+_TAGS_MAX = 5
+_PRIMER_EXPERT_MAX = 600
+_PRIMER_GENERAL_MAX = 1000
+
+
+def _repair_landing_item(item: dict) -> None:
+    """Fix deterministic schema violations the cheap model keeps making.
+
+    Observed failure modes (from production logs):
+    - ``tags`` length > 5 (schema caps at 5).
+    - ``primer_expert`` > 600 chars / ``primer_general`` > 1000 chars.
+    """
+    tags = item.get("tags")
+    if isinstance(tags, list) and len(tags) > _TAGS_MAX:
+        item["tags"] = tags[:_TAGS_MAX]
+
+    for field, limit in (
+        ("primer_expert", _PRIMER_EXPERT_MAX),
+        ("primer_general", _PRIMER_GENERAL_MAX),
+    ):
+        val = item.get(field)
+        if isinstance(val, str) and len(val) > limit:
+            item[field] = val[: limit - 1].rstrip() + "…"
+
 
 def _fill_required_from_raw(item: dict, raw: RawCommit) -> None:
     """Backfill required fields the LLM dropped from a parsed JSON item.
@@ -181,17 +208,19 @@ def _parse_landing_batch(
     if text.endswith("```"):
         text = text[:text.rindex("```")].rstrip()
     raw_list = json.loads(text)
-    if batch and isinstance(raw_list, list):
-        by_sha = {c.sha: c for c in batch}
+    if isinstance(raw_list, list):
+        by_sha = {c.sha: c for c in batch} if batch else {}
         for idx, item in enumerate(raw_list):
             if not isinstance(item, dict):
                 continue
-            sha = item.get("commit_hash")
-            raw = by_sha.get(sha) if isinstance(sha, str) else None
-            if raw is None and idx < len(batch):
-                raw = batch[idx]
-            if raw is not None:
-                _fill_required_from_raw(item, raw)
+            if batch:
+                sha = item.get("commit_hash")
+                raw = by_sha.get(sha) if isinstance(sha, str) else None
+                if raw is None and idx < len(batch):
+                    raw = batch[idx]
+                if raw is not None:
+                    _fill_required_from_raw(item, raw)
+            _repair_landing_item(item)
     return _ADAPTER.validate_python(raw_list)
 
 

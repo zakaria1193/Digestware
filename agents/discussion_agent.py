@@ -144,6 +144,45 @@ _ADAPTER: TypeAdapter[list[DiscussionDigest]] = TypeAdapter(list[DiscussionDiges
 # overlong LLM output before validation instead of failing the whole batch.
 _TLDR_MAX = 160
 
+# Mirrored from the Pydantic schema so we can repair overruns rather than let
+# the whole batch fail validation. Kept in one place for easy upkeep.
+_TAGS_MAX = 5
+_PRIMER_EXPERT_MAX = 600
+_PRIMER_GENERAL_MAX = 1000
+_VALID_ROLES = {"proposer", "reviewer", "maintainer", "contributor", "other"}
+
+
+def _repair_discussion_item(item: dict) -> None:
+    """Fix deterministic schema violations the cheap model keeps making.
+
+    These are the recurring failure modes observed in production logs:
+    - ``tags`` length > 5 (schema caps at 5).
+    - ``exchanges[*].role`` outside the allowed enum (e.g. "author").
+    - ``primer_expert`` > 600 chars / ``primer_general`` > 1000 chars.
+    Rather than burn retries on a prompt the model won't self-correct, we
+    clamp the output in place before validation.
+    """
+    tags = item.get("tags")
+    if isinstance(tags, list) and len(tags) > _TAGS_MAX:
+        item["tags"] = tags[:_TAGS_MAX]
+
+    for field, limit in (
+        ("primer_expert", _PRIMER_EXPERT_MAX),
+        ("primer_general", _PRIMER_GENERAL_MAX),
+    ):
+        val = item.get(field)
+        if isinstance(val, str) and len(val) > limit:
+            item[field] = val[: limit - 1].rstrip() + "…"
+
+    exchanges = item.get("exchanges")
+    if isinstance(exchanges, list):
+        for ex in exchanges:
+            if not isinstance(ex, dict):
+                continue
+            role = ex.get("role")
+            if role is not None and role not in _VALID_ROLES:
+                ex["role"] = "other"
+
 
 def _fill_required_from_raw(item: dict, raw: RawDiscussion) -> None:
     """Backfill required fields the LLM dropped from a parsed JSON item.
@@ -188,17 +227,19 @@ def _parse_discussion_batch(
     if text.endswith("```"):
         text = text[:text.rindex("```")].rstrip()
     raw_list = json.loads(text)
-    if batch and isinstance(raw_list, list):
-        by_id = {d.id: d for d in batch}
+    if isinstance(raw_list, list):
+        by_id = {d.id: d for d in batch} if batch else {}
         for idx, item in enumerate(raw_list):
             if not isinstance(item, dict):
                 continue
-            disc_id = item.get("discussion_id")
-            raw = by_id.get(disc_id) if isinstance(disc_id, str) else None
-            if raw is None and idx < len(batch):
-                raw = batch[idx]
-            if raw is not None:
-                _fill_required_from_raw(item, raw)
+            if batch:
+                disc_id = item.get("discussion_id")
+                raw = by_id.get(disc_id) if isinstance(disc_id, str) else None
+                if raw is None and idx < len(batch):
+                    raw = batch[idx]
+                if raw is not None:
+                    _fill_required_from_raw(item, raw)
+            _repair_discussion_item(item)
     return _ADAPTER.validate_python(raw_list)
 
 
