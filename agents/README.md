@@ -37,7 +37,7 @@ main.py ──── builds adapters ──► IngestionEngine
                         │                          │
                         ▼                          ▼
                discussion_agent           landing_agent
-               (Gemini Flash,             (Gemini Flash, batch 15)
+               (Gemini Flash,             (Gemini Flash, batch 8)
                 batch 10)                          │
                         │                  impact_score ≥ 9?
                         │                          │  yes

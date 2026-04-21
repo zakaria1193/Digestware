@@ -52,12 +52,36 @@ jobs:
       # every nightly run starts from a clean slate, then pulls the last 48 h,
       # expanding the window as needed until at least 5 discussions AND 5
       # landings have been produced.
-      - name: Purge existing generated content
+      #
+      # The previous run's output is archived under ``.old/<UTC-timestamp>/``
+      # rather than deleted, so usage.log and the superseded Markdown files
+      # remain available for debugging while the live content folders still
+      # show only the latest run (which Astro reads from).
+      - name: Archive previous generated content
         run: |
-          find web/src/content/discussions/ -type f ! -name '.gitkeep' -delete 2>/dev/null || true
-          find web/src/content/landings/    -type f ! -name '.gitkeep' -delete 2>/dev/null || true
-          find web/src/content/digests/     -type f ! -name '.gitkeep' -delete 2>/dev/null || true
-          find agents/output/               -type f ! -name '.gitkeep' -delete 2>/dev/null || true
+          set -euo pipefail
+          TS="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
+          ARCHIVE=".old/${TS}"
+          mkdir -p \
+            "${ARCHIVE}/content/discussions" \
+            "${ARCHIVE}/content/landings" \
+            "${ARCHIVE}/content/digests" \
+            "${ARCHIVE}/output"
+          move_files() {
+            local src="$1" dst="$2"
+            # Move every file except .gitkeep; suppress "no files matched" noise.
+            find "${src}" -type f ! -name '.gitkeep' -exec mv -t "${dst}" {} + 2>/dev/null || true
+          }
+          move_files web/src/content/discussions "${ARCHIVE}/content/discussions"
+          move_files web/src/content/landings    "${ARCHIVE}/content/landings"
+          move_files web/src/content/digests     "${ARCHIVE}/content/digests"
+          move_files agents/output               "${ARCHIVE}/output"
+          # Drop empty archive subdirs so a run with nothing to archive doesn't
+          # leave behind a pile of empty dated folders.
+          find "${ARCHIVE}" -mindepth 1 -type d -empty -delete
+          rmdir "${ARCHIVE}" 2>/dev/null || true
+          rmdir .old 2>/dev/null || true
+          echo "ARCHIVE_PATH=${ARCHIVE}" >> "${GITHUB_ENV}"
 
       - name: Run digest pipeline (48 h window, backfill to min 5 each)
         env:
@@ -92,5 +116,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add web/src/content/
+          # -f because agents/output/usage.log is gitignored at the original
+          # path but we want the archived copy under .old/ committed for
+          # debugging history.
+          [ -d .old ] && git add -f .old/ || true
           git diff --cached --quiet && echo "No content change." || \
             git commit -m "chore(digest): nightly purge+refresh $(date -u +%Y-%m-%d)" && git push

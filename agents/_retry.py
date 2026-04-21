@@ -5,10 +5,13 @@ of 10-15 items to low-value stub digests.
 """
 from __future__ import annotations
 
+import json
 import logging
 import time
 from collections.abc import Callable
 from typing import TypeVar
+
+from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +19,14 @@ T = TypeVar("T")
 
 _DEFAULT_ATTEMPTS = 3
 _DEFAULT_BASE_DELAY = 2.0  # seconds; 2, 4, 8 …
+
+# Errors that won't be fixed by trying again with the same prompt. Retrying a
+# schema mismatch or a truncated JSON response just burns OpenRouter budget
+# until we land in the same stub path anyway.
+_NON_RETRYABLE: tuple[type[BaseException], ...] = (
+    ValidationError,
+    json.JSONDecodeError,
+)
 
 
 def retry_with_backoff(
@@ -34,6 +45,12 @@ def retry_with_backoff(
     for attempt in range(1, attempts + 1):
         try:
             return fn()
+        except _NON_RETRYABLE as exc:
+            logger.warning(
+                "%s failed with non-retryable %s on attempt %d — not retrying: %s",
+                label, type(exc).__name__, attempt, exc,
+            )
+            raise
         except Exception as exc:
             last_exc = exc
             if attempt >= attempts:

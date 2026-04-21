@@ -81,6 +81,12 @@ def _sanitise_body(body: str | None, *, context: str) -> str:
         logger.info("writer: whitespace-only body in %s — using fallback", context)
         return _FALLBACK_BODY
 
+    # Body is already the stub fallback (stub-digest path). Skip the rest of
+    # the validation so we don't emit a misleading "body too short" log for
+    # something we deliberately set upstream.
+    if text == _FALLBACK_BODY:
+        return _FALLBACK_BODY
+
     first_line = text.splitlines()[0]
     if re.match(r"^\s*(re\s*:|>|On .+ wrote:)", first_line, re.IGNORECASE):
         logger.info("writer: quoted-email body in %s — using fallback", context)
