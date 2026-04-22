@@ -5,30 +5,32 @@ patch_id: null
 tags:
 - c++
 - reflection
-- ctad
+- CTAD
+- templates
 commit_hash: a2dab8f1d8ba2934e780f57c88bb6a513313e93f
 source_type: github
 author: Marek Polacek
-headline: 'c++/reflection: Support splices with CTAD.'
-tldr: Enables class template argument deduction (CTAD) with reflection splices in
-  C++.
-why_it_matters: Extends the functionality of C++ reflection, allows more flexible
-  and expressive metaprogramming.
+headline: 'C++: Support class template argument deduction (CTAD) with reflection splices.'
+tldr: The C++ reflection implementation now handles class template argument deduction
+  (CTAD) when used with splice-type-specifiers.
+why_it_matters: Enables more flexible and concise code when using reflection to generate
+  types, as CTAD reduces the verbosity of template instantiations.
 impact_score: 7
-impact_rationale: Adds support for a new language feature (CTAD with reflection),
-  significantly increasing metaprogramming capabilities.
+impact_rationale: Implements a user-visible feature, enhancing the capabilities of
+  C++ reflection.
 performance_win: false
 breaking_change: false
 outcome: committed
-primer_expert: The commit modifies `parser.cc` and `pt.cc` to support CTAD with reflection
-  splices. The issue was that the compiler didn't handle splice-type-specs designating
-  deducible templates.  `cp_parser_splice_type_specifier` and `tsubst_splice_scope`
-  are updated to call `make_template_placeholder` when `ctad_template_p` is true.
-primer_general: This commit enhances C++'s reflection capabilities.  Reflection allows
-  a program to inspect and manipulate its own structure at compile time.  Class Template
-  Argument Deduction (CTAD) is a C++17 feature that allows the compiler to deduce
-  the template arguments of a class from the constructor arguments.  This commit enables
-  CTAD to work in conjunction with reflection, providing more flexibility in metaprogramming.
+primer_expert: The C++ reflection implementation in GCC's `parser.cc` and `pt.cc`
+  now supports CTAD with splices. When `cp_parser_splice_type_specifier` or `tsubst_splice_scope`
+  encounters a deducible template, `make_template_placeholder` is called. This resolves
+  PR c++/124706, enabling reflection on types deduced via CTAD.
+primer_general: C++ reflection allows programs to inspect and manipulate their own
+  structure at compile time. Template argument deduction (CTAD) simplifies template
+  usage by automatically inferring template arguments. This commit extends the C++
+  reflection capabilities to work seamlessly with CTAD. Now, when reflective code
+  generates types that rely on CTAD, the compiler can correctly deduce the template
+  arguments, leading to more concise and expressive code.
 discussion_id_link: null
 bugzilla_pr: null
 series_id: null
@@ -37,4 +39,4 @@ url: https://github.com/gcc-mirror/gcc/commit/a2dab8f1d8ba2934e780f57c88bb6a5133
 date: '2026-04-17'
 ---
 
-This commit adds support for class template argument deduction (CTAD) when using reflection splices in C++. It addresses a case where a splice-type-spec designates a deducible template, which then serves as a placeholder for CTAD. The fix calls `make_template_placeholder` when a deducible template is encountered during splice processing.
+The C++ reflection implementation was missing support for splice-type-specifiers that designate deducible templates, which are used as placeholders for CTAD. This commit adds the necessary logic to handle these cases by calling `make_template_placeholder` when a deducible template is encountered during parsing and template substitution. This allows CTAD to be used with reflection splices.
