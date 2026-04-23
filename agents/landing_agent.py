@@ -363,7 +363,7 @@ def run_landing_agent(
     # Re-run high-impact items with premium model BEFORE applying trailers —
     # otherwise the premium merge would clobber deterministically-extracted
     # discussion_id_link / bugzilla_pr values.
-    premium_items = [r for r in results if r.impact_score >= 9]
+    premium_items = [r for r in results if r.impact_score is not None and r.impact_score >= 9]
     if premium_items:
         logger.info(
             "Re-running %d high-impact items with premium model",
@@ -678,8 +678,6 @@ def _stub_digests(items: list[RawCommit]) -> list[LandingDigest]:
                 headline=headline,
                 tldr=tldr,
                 why_it_matters="Summary unavailable — see source link.",
-                impact_score=5,
-                impact_rationale="Stub digest; score not evaluated.",
                 summary="Summary unavailable — see source link.",
                 url=c.url,
                 date=c.date,

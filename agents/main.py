@@ -330,7 +330,7 @@ def main() -> int:
             )
 
     # Summary
-    bento_worthy = sum(1 for landing in landings if landing.impact_score >= 7)
+    bento_worthy = sum(1 for landing in landings if landing.impact_score is not None and landing.impact_score >= 7)
     d_stubbed = discussion_agent_module.batches_stubbed
     d_total = discussion_agent_module.batches_total
     l_stubbed = landing_agent_module.batches_stubbed
