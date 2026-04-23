@@ -11,10 +11,7 @@ author: feedable
 headline: 'Testsuite: Convert gcc.c-torture/execute/ieee to the new test format'
 tldr: The GCC testsuite's `gcc.c-torture/execute/ieee` tests are converted to use
   dg-* annotations, replacing separate test setup files.
-why_it_matters: Modernizing the test format simplifies test maintenance and makes
-  it easier to understand test requirements and expected behavior.
 impact_score: 5
-impact_rationale: Modernizes test format for improved maintainability.
 performance_win: false
 breaking_change: false
 outcome: committed

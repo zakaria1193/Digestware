@@ -12,10 +12,7 @@ author: Andrew Pinski
 headline: 'Cfghooks: Pass data to callback function of make_forwarder_block'
 tldr: The data argument is now passed to the callback function of 'make_forwarder_block',
   which removes global variables and simplifies the code.
-why_it_matters: Reducing reliance on global variables makes the code more thread-safe
-  and easier to reason about, which is important for projects like Parallel GCC.
 impact_score: 5
-impact_rationale: Refactoring to remove global variables and improve code maintainability.
 performance_win: false
 breaking_change: false
 outcome: committed

@@ -12,12 +12,7 @@ author: Jakub Jelinek
 headline: 'Gensupport: Fix comment handling in syntax files.'
 tldr: Fixes an infinite loop in gensupport.cc when handling // comments in the new
   syntax *.md files.
-why_it_matters: This bug prevented proper processing of comments in syntax files,
-  potentially leading to incorrect code generation or unexpected behavior. The fix
-  ensures that comments are handled correctly during the generation process.
 impact_score: 5
-impact_rationale: Fixes a bug that caused an infinite loop, preventing proper processing
-  of comments in syntax files.
 performance_win: false
 breaking_change: false
 outcome: committed
