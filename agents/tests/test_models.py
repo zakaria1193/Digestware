@@ -115,7 +115,7 @@ class TestLandingDigest:
     def test_valid(self, sample_landing_digest: LandingDigest):
         landing = sample_landing_digest
         assert landing.project == "binutils"
-        assert 1 <= landing.impact_score <= 10
+        assert landing.impact_score is None or 1 <= landing.impact_score <= 10
 
     def _landing(self, **overrides) -> dict:
         base: dict = dict(
@@ -139,6 +139,16 @@ class TestLandingDigest:
             LandingDigest(**self._landing(impact_score=0))
         with pytest.raises(ValidationError):
             LandingDigest(**self._landing(impact_score=11))
+
+    def test_impact_score_defaults_to_none(self):
+        data = self._landing()
+        data.pop("impact_score")
+        d = LandingDigest(**data)
+        assert d.impact_score is None
+
+    def test_impact_score_accepts_none(self):
+        d = LandingDigest(**self._landing(impact_score=None))
+        assert d.impact_score is None
 
     def test_boolean_defaults(self):
         landing = LandingDigest(**self._landing())
