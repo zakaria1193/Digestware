@@ -3,38 +3,38 @@ project: binutils
 subsystem: risc-v
 patch_id: null
 tags:
-- binutils
 - risc-v
+- binutils
 - assembler
-- gas
 - dead code
+- error handling
 discussion_id: d53852fe-455a-44e4-9df7-72ab794141d5@suse.com
 source_type: public_inbox
 title: '[PATCH 17/19] RISC-V: drop dead code from subset parsing'
-headline: 'RISC-V: Drop dead code from subset parsing'
-tldr: Removes unnecessary checks and simplifies error handling in RISC-V subset parsing
-  code.
-stakes: Simplifies code and potentially improves performance by removing dead code
-  in the RISC-V assembler.
+headline: 'Risc-V: Drop dead code from subset parsing'
+tldr: Removes redundant checks and arguments in RISC-V subset parsing code to simplify
+  error handling and improve code clarity.
+stakes: Minor code cleanup; reduces complexity and potential for confusion in RISC-V
+  ISA extension parsing.
 proposer: Jan Beulich <jbeulich@suse.com>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
 sentiment_rationale: ''
 technical_tradeoffs:
-- Reduced code complexity.
-- Potentially improved performance due to fewer checks.
+- Removes redundant checks, potentially slightly improving performance.
+- Simplifies error handling logic, making the code easier to understand and maintain.
 exchanges: []
-primer_expert: This patch simplifies the RISC-V subset parsing logic in `bfd/elfxx-riscv.c`
-  and `gas/config/tc-riscv.c` by removing dead code. The patch removes an unused argument
-  passed to the error handler in `riscv_update_subset1()` and removes NULL checks,
-  as `riscv_parsing_subset_version()` cannot return NULL.
-primer_general: The GNU Assembler (gas) translates human-readable assembly code into
-  machine code.  This patch cleans up code related to how the assembler handles specific
-  features (or "subsets") of the RISC-V processor.  It removes some unnecessary checks
-  and simplifies the way errors are reported, making the code easier to understand
-  and maintain. This doesn't change the functionality of the assembler, but makes
-  the underlying code cleaner.
+primer_expert: The RISC-V backend in binutils uses a custom parser (`bfd/elfxx-riscv.c`)
+  to handle ISA extensions specified via `-march` and `.option arch`. This patch cleans
+  up dead code in `riscv_parse_extensions` and `riscv_update_subset1` to simplify
+  error paths. The `errmsg_internal` argument was always empty when passed to error
+  handlers and some functions could not return `NULL`, rendering checks redundant.
+primer_general: The binutils suite includes assemblers and linkers that need to understand
+  the instruction sets they are working with. For RISC-V, which has a modular ISA
+  with many extensions, the tools need to parse the list of extensions enabled. This
+  patch cleans up some error handling code in the RISC-V extension parsing logic to
+  remove redundant checks and simplify the code.
 series_id: 'binutils:risc-v: drop dead code from subset parsing'
 series_role: reply
 series_parts: []
@@ -43,4 +43,4 @@ bugzilla_url: null
 date: '2026-04-21'
 ---
 
-This patch removes dead code and simplifies error handling within the RISC-V subset parsing logic. Specifically, it removes an unnecessary argument from an error handler call and removes checks for a function that cannot return NULL, clarifying that there is no issue with a missing error message.
+This patch removes a redundant argument passed to the error handler in `riscv_update_subset1()` and drops unnecessary NULL checks in `riscv_parsing_subset_version()`. These changes simplify the code and clarify that parsing failures should always emit an error message.

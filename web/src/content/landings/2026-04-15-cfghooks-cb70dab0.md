@@ -3,35 +3,34 @@ project: gcc
 subsystem: cfghooks
 patch_id: null
 tags:
-- cfghooks
-- refactoring
-- code cleanup
-- parallelization
+- cfg
+- refactor
+- parallelism
 commit_hash: cb70dab0e4bfa94e009700086001a5b2dc17ea5d
 source_type: github
 author: Andrew Pinski
 headline: 'Cfghooks: Pass data to callback function of make_forwarder_block'
-tldr: This commit refactors the `make_forwarder_block` function to pass data to its
-  callback, reducing global variables and improving code maintainability.
-why_it_matters: Reduces reliance on global/static variables, improving code reusability
-  and making the compiler more amenable to parallelization.
-impact_score: 6
-impact_rationale: Refactors code to reduce global variables, improving modularity
-  and potential for parallelization.
+tldr: The data argument is now passed to the callback function of 'make_forwarder_block',
+  which removes global variables and simplifies the code.
+why_it_matters: Reducing reliance on global variables makes the code more thread-safe
+  and easier to reason about, which is important for projects like Parallel GCC.
+impact_score: 5
+impact_rationale: Refactoring to remove global variables and improve code maintainability.
 performance_win: false
 breaking_change: false
 outcome: committed
-primer_expert: The `make_forwarder_block` function is used to create basic blocks
-  that forward control flow. Previously, global variables like `mfb_keep_just` were
-  used to communicate data to the callback function. This commit replaces that pattern
-  by directly passing a `void*` data argument, facilitating more flexible and maintainable
-  code. This affects files like `cfgloopmanip.cc` and `tree-ssa-threadupdate.cc`.
-primer_general: In GCC, control flow graph (CFG) hooks allow modification of the program's
-  structure during compilation. This commit refactors a function responsible for creating
-  'forwarder blocks' in the CFG. Instead of relying on global variables to pass data
-  to a callback function, the data is now passed directly as an argument. This makes
-  the code cleaner, easier to understand, and prepares GCC for potential parallel
-  compilation efforts.
+primer_expert: The patch modifies `cfghooks.cc`, `cfghooks.h`, `cfgloop.cc`, `cfgloopmanip.cc`,
+  `cfgloopmanip.h`, `tree-cfgcleanup.cc`, and `tree-ssa-threadupdate.cc`. The `make_forwarder_block`
+  function signature is updated to include a `void* data` argument, which is then
+  passed to the `redirect_edge_p` callback. This eliminates the need for the global
+  variables `mfb_reis_set` and `mfb_kj_edge`.
+primer_general: Control flow graph (CFG) hooks allow GCC to insert custom actions
+  during the compilation process, particularly during control flow graph construction
+  and manipulation. The control flow graph represents how execution flows through
+  a program. This commit improves the design of a callback mechanism related to these
+  hooks by passing data directly to the callback function, avoiding the use of global
+  variables. This makes the system more flexible and easier to maintain, and prepares
+  the ground for parallel compilation.
 discussion_id_link: github:gcc-mirror/gcc#123113
 bugzilla_pr: null
 series_id: null
@@ -40,4 +39,4 @@ url: https://github.com/gcc-mirror/gcc/commit/cb70dab0e4bfa94e009700086001a5b2dc
 date: '2026-04-15'
 ---
 
-The `make_forwarder_block` function in `cfghooks.cc` is updated to accept a data argument which is then passed to the `redirect_edge_p` callback. This change eliminates the need for global/static variables that were previously used to share data with the callback function. Consequently, this refactoring reduces the number of global variables and improves code modularity.
+This commit refactors the `make_forwarder_block` function in `cfghooks.cc` to pass data directly to its callback function, `redirect_edge_p`, rather than using global/static variables. This change reduces the number of global variables, which should benefit the Parallel GCC project. It also simplifies the code and makes it easier to maintain.

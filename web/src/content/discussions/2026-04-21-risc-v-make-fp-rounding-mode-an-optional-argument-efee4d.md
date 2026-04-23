@@ -4,41 +4,36 @@ subsystem: risc-v
 patch_id: null
 tags:
 - risc-v
+- binutils
 - assembler
-- floating-point
+- floating point
 - rounding mode
-- opcode table
 discussion_id: bdfcf3d2-18bf-4e3a-98c6-cd0ebbf4b7d2@suse.com
 source_type: public_inbox
 title: '[PATCH 09/19] RISC-V: make FP rounding mode an optional argument'
-headline: 'Risc-V: Make FP rounding mode an optional argument'
-tldr: Makes the floating-point rounding mode argument optional in RISC-V assembler
-  syntax, reducing opcode table size.
-stakes: Simplifies assembler syntax and reduces code duplication in the opcode table,
-  potentially improving performance and maintainability.
+headline: 'Risc-V: Make fp rounding mode an optional argument'
+tldr: Makes the floating-point rounding mode (RM) an optional argument for certain
+  RISC-V instructions to reduce opcode table size.
+stakes: Reduces code duplication and simplifies the instruction encoding for floating-point
+  operations.
 proposer: Jan Beulich <jbeulich@suse.com>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
 sentiment_rationale: ''
 technical_tradeoffs:
-- The change introduces additional complexity in the assembler and disassembler to
-  handle the optional argument.
-- May break existing assembly code that relies on the rounding mode being a mandatory
-  argument (though unlikely).
-- Reduces opcode table size, which could improve lookup performance.
+- Reduced opcode table size and code duplication.
+- Increased code complexity in argument parsing due to optional argument handling.
 exchanges: []
-primer_expert: The RISC-V instruction set architecture (ISA) includes floating-point
-  instructions that can specify a rounding mode. This patch modifies the assembler
-  (`gas/config/tc-riscv.c`) and disassembler (`opcodes/riscv-dis.c`) to treat the
-  rounding mode as an optional argument for some instructions. This reduces the size
-  of the `riscv_opcodes` table in `opcodes/riscv-opc.c` by merging entries with and
-  without the rounding mode.
-primer_general: When writing assembly code for RISC-V, floating-point operations often
-  require specifying a rounding mode. This patch makes the rounding mode optional
-  for some instructions, allowing the assembler to infer the default rounding mode
-  if not explicitly specified. This simplifies the assembly syntax and reduces redundancy
-  in the toolchain's internal tables.
+primer_expert: This patch modifies `gas/config/tc-riscv.c` and `opcodes/riscv-*.c`
+  to make the rounding mode (RM) an optional argument. This change reduces the number
+  of required opcode table entries. The code now handles the 'm' operand specifier
+  to allow for an optional RM argument, similar to how the 'Vm' argument is handled.
+primer_general: The binutils suite includes an assembler that translates assembly
+  code into machine code. This patch simplifies the way the assembler handles floating
+  point rounding modes. This change makes the assembler more flexible and reduces
+  the size of internal tables used to store instruction information, by making the
+  RM field optional.
 series_id: 'binutils:risc-v: make fp rounding mode an optional argument'
 series_role: reply
 series_parts: []
@@ -47,4 +42,4 @@ bugzilla_url: null
 date: '2026-04-21'
 ---
 
-This patch modifies the RISC-V assembler to allow the floating-point rounding mode argument to be optional for certain instructions.  By making the rounding mode optional, the number of entries in the opcode table can be reduced. The patch adjusts the assembler and disassembler to handle the optional rounding mode.
+This patch modifies the RISC-V assembler to treat the floating-point rounding mode (RM) as an optional argument for certain instructions, similar to the handling of the 'Vm' argument. This change allows the assembler to reduce the number of entries in the opcode table, simplifying instruction encoding and potentially reducing code size.

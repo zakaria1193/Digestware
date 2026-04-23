@@ -4,37 +4,36 @@ subsystem: risc-v
 patch_id: null
 tags:
 - risc-v
+- binutils
+- assembler
 - memory management
-- strdup
-- xstrdup
+- error handling
 discussion_id: ab2b7941-e67a-41ea-8cac-5e5cb72fb197@suse.com
 source_type: public_inbox
 title: '[PATCH 11/19] RISC-V: avoid strdup()'
 headline: 'Risc-V: Avoid strdup()'
-tldr: Replaces `strdup()` with `xstrdup()` in RISC-V related code for better memory
-  management.
-stakes: Enhances code robustness and prevents potential memory leaks by using the
-  project's memory allocation functions.
+tldr: Replaces `strdup()` with `xstrdup()` in RISC-V code for consistent memory allocation
+  and error handling.
+stakes: Ensures consistent memory allocation practices and leverages existing error
+  handling mechanisms.
 proposer: Jan Beulich <jbeulich@suse.com>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
 sentiment_rationale: ''
 technical_tradeoffs:
-- Using `xstrdup()` might introduce a slight performance overhead compared to `strdup()`
-  due to the custom memory management.
-- It centralizes memory allocation, potentially simplifying debugging and memory leak
-  detection.
+- Consistent memory allocation and error handling.
+- No performance impact.
 exchanges: []
-primer_expert: '`strdup` is a standard C library function to duplicate a string. However,
-  it can lead to memory leaks if the allocated memory is not freed. `xstrdup` is a
-  custom replacement that integrates with binutils'' memory management, likely providing
-  better error handling and freeing guarantees.'
-primer_general: '`strdup` is used to create a copy of a string in memory. This patch
-  replaces it with a safer alternative (`xstrdup`) that likely integrates with the
-  project''s memory management system, ensuring that memory is properly allocated
-  and deallocated, preventing potential memory leaks and improving the overall stability
-  of the tool.'
+primer_expert: The RISC-V backend in binutils uses `strdup()` in `bfd/elfxx-riscv.c`
+  and `gas/config/tc-riscv.c` for string duplication.  This patch replaces these calls
+  with `xstrdup()`, which is expected to handle allocation failures consistently with
+  the rest of the codebase.  This ensures that out-of-memory conditions are handled
+  gracefully.
+primer_general: This patch replaces a standard C library function with a custom version
+  that provides better error checks in the binutils RISC-V code. This ensures that
+  memory allocation failures are handled consistently across the toolchain, improving
+  reliability.
 series_id: 'binutils:risc-v: avoid strdup()'
 series_role: reply
 series_parts: []
@@ -43,4 +42,4 @@ bugzilla_url: null
 date: '2026-04-21'
 ---
 
-This patch replaces instances of `strdup()` with `xstrdup()` in the RISC-V related code within binutils. `xstrdup()` is assumed to be a custom memory allocation function that provides better error handling or memory management compared to the standard `strdup()`.
+This patch replaces instances of `strdup()` with `xstrdup()` in the RISC-V code within binutils.  `xstrdup()` is assumed to be a wrapper around `strdup()` that also checks for allocation failures. Using `xstrdup()` promotes consistency and better error handling within the codebase.

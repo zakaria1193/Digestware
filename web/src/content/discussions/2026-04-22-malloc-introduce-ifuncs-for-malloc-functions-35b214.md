@@ -20,11 +20,7 @@ primer_expert: null
 primer_general: null
 series_id: 'glibc:malloc: introduce ifuncs for malloc functions'
 series_role: reply
-series_parts:
-- title: 'malloc: introduce ifuncs for malloc functions'
-  url: https://inbox.sourceware.org/libc-alpha/aec3VhIwZSVZmZU8@arm.com
-  n: 2
-  total: 2
+series_parts: []
 url: https://inbox.sourceware.org/libc-alpha/aejNe9XR3GwycAYO@arm.com
 bugzilla_url: null
 date: '2026-04-22'
