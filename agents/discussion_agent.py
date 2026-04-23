@@ -60,12 +60,12 @@ FIELDS (all required unless noted):
 - ``subsystem`` — e.g. "gcc/ipa", "malloc", "kernel/mm". Never "unknown".
 - ``headline`` — readable title, ≤ 80 chars, no brackets, no "Re:".
 - ``tldr`` — one sentence, ≤ 140 chars.
-- ``stakes`` — 1–2 sentences: why a general dev should care (perf, ABI,
-  security, ergonomics, policy).
-- ``summary`` — 2–4 sentences covering what's proposed and where the thread
-  sits. IMPORTANT: ``summary`` is the narrator-voice overview ONLY. Do NOT
-  collapse different participants' statements into it — use ``exchanges``
-  for that.
+- ``summary`` — 2–4 sentences covering what's proposed, where the thread
+  sits, and why a working dev should care (perf, ABI, security,
+  ergonomics, policy). Weave the stakes into the flow — don't tack them
+  on as a separate clause. IMPORTANT: ``summary`` is the narrator-voice
+  overview ONLY. Do NOT collapse different participants' statements into
+  it — use ``exchanges`` for that.
 - ``exchanges`` — REQUIRED whenever the thread has at least one reply. An
   ordered list of per-participant entries that separates what each party
   actually said. Never merge two authors into one entry; never speak in a
@@ -114,9 +114,8 @@ FIELDS (all required unless noted):
 - ``tags`` — up to 5 topic tags.
 - ``technical_tradeoffs`` — bullet list; never empty for a non-trivial RFC.
 - ``sentiment_score`` 1–10 (1=hostile/NACK storm, 5=neutral debate, 10=wide
-  approval) with a one-line ``sentiment_rationale``. Set ``sentiment_score``
-  to ``null`` (and leave ``sentiment_rationale`` empty) when the discussion
-  has no replies yet — never invent a neutral default; absence of community
+  approval). Set ``sentiment_score`` to ``null`` when the discussion has no
+  replies yet — never invent a neutral default; absence of community
   response is not the same as a neutral community response.
 - ``outcome`` — one of proposed / under_review / needs_revision / nackd /
   ready / committed / withdrawn / stalled. Use the ``outcome_hint`` from
@@ -387,7 +386,6 @@ def _apply_series_and_subsystem(
             # default from the model can't leak through.
             if not (raw.replies or []) and d.sentiment_score is not None:
                 patch["sentiment_score"] = None
-                patch["sentiment_rationale"] = ""
 
             if not d.subsystem or d.subsystem.lower() in {"unknown", "general", ""}:
                 patch["subsystem"] = extract_subsystem(
@@ -551,12 +549,10 @@ def _stub_digests(items: list[RawDiscussion]) -> list[DiscussionDigest]:
                 title=d.title,
                 headline=headline,
                 tldr=headline[:160] if headline else "Discussion open.",
-                stakes="Summary unavailable — see source link.",
                 proposer=d.author,
                 consensus=ConsensusStatus.PROPOSED,
                 outcome=outcome,
                 sentiment_score=None,
-                sentiment_rationale="",
                 technical_tradeoffs=[],
                 summary="Summary unavailable — see source link.",
                 url=d.url,

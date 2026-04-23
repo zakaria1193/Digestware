@@ -13,9 +13,7 @@ class LandingDigest(BimodalBase):
     author: str
     headline: str             # human-readable title (not the raw commit subject)
     tldr: str = Field(..., max_length=160)   # one sentence, ≤ 160 chars
-    why_it_matters: str       # 1–2 sentences, dev-facing stakes
     impact_score: int = Field(..., ge=1, le=10)
-    impact_rationale: str = ""  # one-line justification for the score
     performance_win: bool = False
     breaking_change: bool = False
     outcome: Outcome = Outcome.COMMITTED  # landed commits default to committed

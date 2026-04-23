@@ -61,7 +61,6 @@ class TestWriteDiscussion:
                 title="[PATCH] same title",
                 headline="Same title",
                 tldr="Same title tldr.",
-                stakes="Stakes not yet evaluated.",
                 proposer="a@example.com",
                 consensus=ConsensusStatus.PROPOSED,
                 sentiment_score=5,

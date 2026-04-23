@@ -89,20 +89,6 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
       </div>
     </header>
 
-    {d.why_it_matters && (
-      <aside class="stakes">
-        <div class="stakes-head">Why It Matters</div>
-        <p>{d.why_it_matters}</p>
-      </aside>
-    )}
-
-    {d.impact_rationale && (
-      <aside class="rationale">
-        <div class="rationale-head">Impact Rationale</div>
-        <p>{d.impact_rationale}</p>
-      </aside>
-    )}
-
     {linkedDiscussion && (
       <aside class="thread-link">
         <div class="thread-link-head">From the Thread</div>
@@ -293,13 +279,6 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
   .byline em { font-weight: 600; color: var(--color-ink); font-style: italic; }
   .byline-outcome { text-transform: uppercase; letter-spacing: 0.08em; font-style: normal; font-size: 0.72rem; font-family: var(--font-sans); }
 
-  .stakes, .rationale {
-    border-top: 1px solid var(--color-rule-strong);
-    border-bottom: 1px solid var(--color-rule-strong);
-    padding: 0.9rem 0;
-    margin: 0 0 1rem;
-  }
-
   .thread-link {
     margin: 0.5rem 0 1.25rem;
     padding: 0.9rem 1rem;
@@ -351,25 +330,6 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
   }
   .thread-link-meta em { font-weight: 600; color: var(--color-ink); font-style: italic; }
   .thread-link .bullet { color: var(--color-rule); }
-  .rationale { border-color: var(--color-rule); }
-  .stakes-head, .rationale-head {
-    font-family: var(--font-sans);
-    font-size: 0.66rem;
-    font-weight: 700;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    margin-bottom: 0.35rem;
-  }
-  .stakes-head { color: var(--color-accent); }
-  .rationale-head { color: var(--color-muted); }
-  .stakes p, .rationale p {
-    font-family: var(--font-serif);
-    font-size: 1rem;
-    line-height: 1.55;
-    margin: 0;
-    color: var(--color-ink);
-  }
-  .rationale p { color: var(--color-muted); }
 
   .body {
     font-family: var(--font-serif);

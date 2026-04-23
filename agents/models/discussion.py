@@ -33,7 +33,6 @@ class DiscussionDigest(BimodalBase):
     title: str                # original subject line (kept for reference)
     headline: str             # translated, human-readable title
     tldr: str = Field(..., max_length=160)
-    stakes: str               # why the proposal matters, for a working dev
     proposer: str
     consensus: ConsensusStatus                 # legacy single status
     outcome: Outcome = Outcome.PROPOSED        # richer lifecycle state
@@ -41,7 +40,6 @@ class DiscussionDigest(BimodalBase):
     # sentiment when no one has weighed in. Only set 1..10 once there is at
     # least one reply to judge.
     sentiment_score: int | None = Field(default=None, ge=1, le=10)
-    sentiment_rationale: str = ""
     technical_tradeoffs: list[str]
     # Per-participant breakdown of the thread. Empty list when the thread has
     # only the proposer and no replies. The narrator-voice ``summary`` below

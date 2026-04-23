@@ -74,13 +74,6 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
       </div>
     </header>
 
-    {d.stakes && (
-      <aside class="stakes">
-        <div class="stakes-head">What&rsquo;s at Stake</div>
-        <p>{d.stakes}</p>
-      </aside>
-    )}
-
     <div class="body wsj-dropcap">
       <Content />
     </div>
@@ -267,29 +260,6 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
   }
   .byline em { font-weight: 600; color: var(--color-ink); font-style: italic; }
   .byline-score { letter-spacing: 0.02em; }
-
-  .stakes {
-    border-top: 1px solid var(--color-rule-strong);
-    border-bottom: 1px solid var(--color-rule-strong);
-    padding: 0.9rem 0;
-    margin: 0 0 1.75rem;
-  }
-  .stakes-head {
-    font-family: var(--font-sans);
-    font-size: 0.66rem;
-    font-weight: 700;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: var(--color-accent);
-    margin-bottom: 0.35rem;
-  }
-  .stakes p {
-    font-family: var(--font-serif);
-    font-size: 1rem;
-    line-height: 1.55;
-    margin: 0;
-    color: var(--color-ink);
-  }
 
   .body {
     font-family: var(--font-serif);
