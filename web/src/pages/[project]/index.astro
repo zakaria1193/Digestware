@@ -69,7 +69,36 @@ const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
 
 <PublicLayout project={project}>
   <div class="page-grid">
-    <!-- Left: Bento Grid -->
+    <!-- Left: Commit Stream (sidebar) -->
+    <aside class="commit-stream" id="stream">
+      <div class="stream-head">
+        <div class="stream-brand">Latest&nbsp;Merges</div>
+        <div class="stream-sub">Fresh commits, on the hour</div>
+      </div>
+      <div class="stream-rule"></div>
+      <div class="stream-rule-thin"></div>
+
+      <div class="stream-filter">
+        <div class="filter-heading">Filter by impact</div>
+        <div class="filter-track">
+          <input type="range" id="impact-filter" min="1" max="3" step="1" value="1" />
+        </div>
+        <div class="filter-labels">
+          <span>Low</span>
+          <span>Avg</span>
+          <span>High</span>
+        </div>
+      </div>
+
+      <div class="stream-list" id="stream-list">
+        {landings.length === 0 && (
+          <p class="empty-wire">No landed commits in the current window.</p>
+        )}
+        {landings.map(entry => <CommitRow entry={entry} projectSlug={project.slug} />)}
+      </div>
+    </aside>
+
+    <!-- Right: Bento Grid -->
     <div class="main-col">
       <div class="wsj-section-head">
         <h2>Today&rsquo;s Digest</h2>
@@ -101,35 +130,6 @@ const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
         );
       })}
     </div>
-
-    <!-- Right: Commit Stream (sidebar) -->
-    <aside class="commit-stream" id="stream">
-      <div class="stream-head">
-        <div class="stream-brand">Latest&nbsp;Merges</div>
-        <div class="stream-sub">Fresh commits, on the hour</div>
-      </div>
-      <div class="stream-rule"></div>
-      <div class="stream-rule-thin"></div>
-
-      <div class="stream-filter">
-        <div class="filter-heading">Filter by impact</div>
-        <div class="filter-track">
-          <input type="range" id="impact-filter" min="1" max="3" step="1" value="1" />
-        </div>
-        <div class="filter-labels">
-          <span>Low</span>
-          <span>Avg</span>
-          <span>High</span>
-        </div>
-      </div>
-
-      <div class="stream-list" id="stream-list">
-        {landings.length === 0 && (
-          <p class="empty-wire">No landed commits in the current window.</p>
-        )}
-        {landings.map(entry => <CommitRow entry={entry} projectSlug={project.slug} />)}
-      </div>
-    </aside>
   </div>
 
 <script>
@@ -259,7 +259,7 @@ const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
 
   @media (min-width: 900px) {
     .page-grid {
-      grid-template-columns: minmax(0, 3fr) minmax(240px, 1fr);
+      grid-template-columns: minmax(260px, 1fr) minmax(0, 3fr);
       gap: 2rem;
     }
     .bento-grid {
@@ -268,8 +268,8 @@ const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
       row-gap: 0;
     }
     .commit-stream {
-      border-left: 1px solid var(--color-rule-strong);
-      padding-left: 1.5rem;
+      border-right: 1px solid var(--color-rule-strong);
+      padding-right: 1.5rem;
       position: sticky;
       top: 0.75rem;
       max-height: calc(100vh - 1.5rem);
