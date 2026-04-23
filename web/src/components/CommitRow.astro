@@ -11,9 +11,10 @@ const d = entry.data;
 
 const dateStr = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
 const isHigh = (d.impact_score ?? 0) >= 8;
+const isLow = (d.impact_score ?? 10) <= 3;
 ---
 
-<a href={`/${projectSlug}/landings/${entry.id}`} class:list={["wire", isHigh && "wire-starred"]}>
+<a href={`/${projectSlug}/landings/${entry.id}`} class:list={["wire", isHigh && "wire-starred", isLow && "wire-dim"]}>
   <div class="wire-top">
     <span class="wire-date">{dateStr}</span>
     <span class="wire-sep">&mdash;</span>
@@ -76,6 +77,21 @@ const isHigh = (d.impact_score ?? 0) >= 8;
   }
 
   .wire-starred .wire-headline { font-weight: 900; }
+
+  .wire-dim {
+    opacity: 0.45;
+  }
+  .wire-dim .wire-headline {
+    font-size: 0.78rem;
+    font-weight: 500;
+  }
+  .wire-dim .wire-deck {
+    font-size: 0.7rem;
+    -webkit-line-clamp: 1;
+  }
+  .wire-dim .wire-top {
+    font-size: 0.54rem;
+  }
 
   .wire:hover .wire-headline { color: var(--color-accent); }
 
