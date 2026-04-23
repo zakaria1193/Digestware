@@ -23,8 +23,6 @@ outcome: proposed
 sentiment_score: 6
 sentiment_rationale: The discussion is mostly neutral, with some concerns raised but
   also openness to exploring the benefits of AI tools.
-technical_tradeoffs:
-- Stricter policies may hinder developers who effectively use AI tools for faster
   bug fixes.
 - Looser policies may introduce copyright and legal ambiguities regarding code origin.
 - Transparency requirements could deter developers from using AI tools due to potential

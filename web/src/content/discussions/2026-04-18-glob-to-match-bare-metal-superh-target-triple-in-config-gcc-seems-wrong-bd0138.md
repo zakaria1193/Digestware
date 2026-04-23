@@ -20,9 +20,6 @@ outcome: proposed
 sentiment_score: 5
 sentiment_rationale: Discussion is neutral, exploring potential issues with a configuration
   glob.
-technical_tradeoffs:
-- Changing the glob may break existing configurations.
-- Leaving it as-is may cause confusion and incorrect target matching.
 series_id: null
 series_role: standalone
 series_parts: []

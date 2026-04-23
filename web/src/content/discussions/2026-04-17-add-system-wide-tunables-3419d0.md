@@ -21,8 +21,6 @@ outcome: proposed
 sentiment_score: 7
 sentiment_rationale: The patch series has gone through several revisions, indicating
   active development and refinement.
-technical_tradeoffs:
-- Reuses ldconfig for reading the configuration, which avoids introducing new tooling
   but may constrain the design.
 - Adds complexity to ld.so.cache loading.
 - Introduces a new configuration file format.

@@ -21,9 +21,6 @@ outcome: proposed
 sentiment_score: 7
 sentiment_rationale: The discussion is focused on code quality and bisectability,
   indicating a positive and constructive environment.
-technical_tradeoffs:
-- Combining the test and the fix simplifies bisecting.
-- A separate patch optimizes %ms expansion.
 series_id: 'glibc:[patch v4 ] stdio-common: fix buffer overflow in scanf %mc [bz #34008]'
 series_role: cover
 series_parts: []

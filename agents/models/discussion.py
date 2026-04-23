@@ -20,7 +20,6 @@ class DiscussionDigest(BimodalBase):
     outcome: Outcome = Outcome.PROPOSED        # richer lifecycle state
     sentiment_score: int = Field(..., ge=1, le=10)
     sentiment_rationale: str = ""
-    technical_tradeoffs: list[str]
     summary: str
     series_id: str | None = None
     series_role: Literal["cover", "reply", "standalone"] | None = None

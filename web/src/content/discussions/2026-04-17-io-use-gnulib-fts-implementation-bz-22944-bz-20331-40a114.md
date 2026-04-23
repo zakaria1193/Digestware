@@ -20,9 +20,6 @@ outcome: proposed
 sentiment_score: 8
 sentiment_rationale: The discussion is about resolving a bug report with a clear justification,
   suggesting a consensus towards the proposed action.
-technical_tradeoffs:
-- Fixing dracut and similar programs is preferred over versioning the symbol.
-- Maintaining the current behavior avoids breaking existing (mis-)usages.
 series_id: 'glibc:io: use gnulib fts implementation (bz 22944, bz 20331)'
 series_role: reply
 series_parts: []

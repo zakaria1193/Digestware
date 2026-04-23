@@ -17,7 +17,6 @@ consensus: Committed
 outcome: committed
 sentiment_score: 10
 sentiment_rationale: Necessary addition, already committed.
-technical_tradeoffs: []
 series_id: null
 series_role: standalone
 series_parts: []

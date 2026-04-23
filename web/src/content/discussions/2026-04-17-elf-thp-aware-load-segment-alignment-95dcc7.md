@@ -22,11 +22,6 @@ outcome: proposed
 sentiment_score: 8
 sentiment_rationale: The patch series has gone through multiple revisions and shows
   performance improvements, indicating positive interest and progress.
-technical_tradeoffs:
-- Requires changes to the ELF loader.
-- May increase memory usage due to alignment requirements.
-- Needs careful handling of different THP modes.
-- Potential compatibility issues with older kernels or systems.
 series_id: 'glibc:elf: thp-aware load segment alignment'
 series_role: cover
 series_parts: []

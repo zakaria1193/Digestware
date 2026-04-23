@@ -21,8 +21,6 @@ outcome: proposed
 sentiment_score: 5
 sentiment_rationale: The tone is slightly concerned, reflecting worries about potential
   misuse of LLMs, but generally neutral.
-technical_tradeoffs:
-- Balancing the benefits of AI-assisted development with the risks of unvetted, automated
   code.
 - Determining the appropriate level of human oversight required for LLM-generated
   contributions.

@@ -65,7 +65,6 @@ FIELDS (all required unless noted):
 - ``summary`` — 2–4 sentences covering what's proposed and where the thread
   sits.
 - ``tags`` — up to 5 topic tags.
-- ``technical_tradeoffs`` — bullet list; never empty for a non-trivial RFC.
 - ``sentiment_score`` 1–10 (1=hostile/NACK storm, 5=neutral debate, 10=wide
   approval) with a one-line ``sentiment_rationale``.
 - ``outcome`` — one of proposed / under_review / needs_revision / nackd /
@@ -440,7 +439,6 @@ def _stub_digests(items: list[RawDiscussion]) -> list[DiscussionDigest]:
                 outcome=outcome,
                 sentiment_score=5,
                 sentiment_rationale="Stub digest; sentiment not evaluated.",
-                technical_tradeoffs=[],
                 summary="Summary unavailable — see source link.",
                 url=d.url,
                 date=d.date,

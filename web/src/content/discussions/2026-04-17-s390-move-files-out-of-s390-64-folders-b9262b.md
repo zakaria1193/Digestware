@@ -20,10 +20,6 @@ outcome: ready
 sentiment_score: 9
 sentiment_rationale: The patch is addressing code organization and has received positive
   feedback, suggesting it's close to being accepted.
-technical_tradeoffs:
-- Requires careful merging of files to avoid conflicts.
-- Needs updating build scripts and configuration files.
-- Potential impact on existing build processes and dependencies.
 series_id: 'glibc:s390: move files out of s390-64 folders'
 series_role: reply
 series_parts:

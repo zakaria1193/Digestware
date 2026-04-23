@@ -21,8 +21,6 @@ outcome: committed
 sentiment_score: 10
 sentiment_rationale: The patch has been pushed, indicating wide approval and successful
   integration.
-technical_tradeoffs:
-- Adds a single line to the iso-639.def file.
 series_id: 'glibc:locale: define hunsrik (hrx) in iso-639.def'
 series_role: reply
 series_parts:

@@ -79,16 +79,6 @@ const dateStr = d.date.toLocaleDateString('en-US', { year: 'numeric', month: 'lo
       <Content />
     </div>
 
-    <!-- Technical tradeoffs -->
-    {(d.technical_tradeoffs ?? []).length > 0 && (
-      <section class="tradeoffs">
-        <h2>Technical tradeoffs</h2>
-        <ul>
-          {d.technical_tradeoffs!.map(t => <li>{t}</li>)}
-        </ul>
-      </section>
-    )}
-
     <!-- Series parts -->
     {(d.series_parts ?? []).length > 0 && (
       <section class="series-block">

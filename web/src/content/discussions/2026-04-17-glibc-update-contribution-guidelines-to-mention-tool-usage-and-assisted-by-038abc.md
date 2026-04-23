@@ -20,9 +20,6 @@ consensus: Proposed
 outcome: proposed
 sentiment_score: 8
 sentiment_rationale: The proposal is generally well-received.
-technical_tradeoffs:
-- Adding these guidelines increases the burden on contributors slightly.
-- More detailed attribution improves transparency and clarifies licensing.
 series_id: null
 series_role: standalone
 series_parts: []

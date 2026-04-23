@@ -20,8 +20,6 @@ consensus: Proposed
 outcome: proposed
 sentiment_score: 6
 sentiment_rationale: Discussion is generally positive but cautious about legal implications.
-technical_tradeoffs:
-- Allowing AI-generated code could speed up development but introduces copyright and
   legal risks.
 - Restricting AI to assistance may limit potential gains but ensures compliance with
   current legal frameworks.

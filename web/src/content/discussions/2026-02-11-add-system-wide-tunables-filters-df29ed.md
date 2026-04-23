@@ -22,10 +22,6 @@ outcome: stalled
 sentiment_score: 5
 sentiment_rationale: This is a complex security-related feature, so a neutral score
   is appropriate in the absence of further discussion.
-technical_tradeoffs:
-- Enables fine-grained control but increases configuration complexity.
-- Filtering based on process name might not be reliable in all cases.
-- Adds overhead to tunable application due to filter evaluation.
 series_id: 'glibc:add system-wide tunables: filters'
 series_role: reply
 series_parts: []

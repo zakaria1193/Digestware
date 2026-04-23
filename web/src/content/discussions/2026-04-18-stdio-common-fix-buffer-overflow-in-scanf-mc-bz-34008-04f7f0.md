@@ -20,9 +20,6 @@ consensus: Ready to Land
 outcome: ready
 sentiment_score: 9
 sentiment_rationale: Fixes a security vulnerability and has been reviewed.
-technical_tradeoffs:
-- The patch modifies vfscanf-internal.c and adds a new test case, tst-vfscanf-bz34008.c.
-- The fix potentially impacts performance, though likely negligibly.
 series_id: null
 series_role: standalone
 series_parts: []

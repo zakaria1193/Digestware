@@ -19,8 +19,6 @@ consensus: Proposed
 outcome: proposed
 sentiment_score: 6
 sentiment_rationale: The author indicates this was the wrong patch.
-technical_tradeoffs:
-- Requires a linker that supports the -z separate-code option.
 series_id: glibc:check if linker supports -z separate-code
 series_role: reply
 series_parts:

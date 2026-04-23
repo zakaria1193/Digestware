@@ -11,10 +11,7 @@ source_type: github
 author: Marek Polacek
 headline: 'c++/reflection: splicing null reflection'
 tldr: The compiler now detects and handles splicing of null reflections in C++ reflection.
-why_it_matters: Improves the robustness of C++ reflection by correctly handling null
-  reflection cases.
 impact_score: 4
-impact_rationale: Addresses a specific issue in C++ reflection, improving its robustness.
 performance_win: false
 breaking_change: false
 outcome: committed

@@ -20,10 +20,6 @@ outcome: proposed
 sentiment_score: 9
 sentiment_rationale: The patch is described as mechanical and has received explicit
   approval from upstream, suggesting a high level of confidence and agreement.
-technical_tradeoffs:
-- Reduces code duplication by consolidating implementations.
-- Simplifies maintenance by using a common implementation.
-- Removes arch-specific implementations where off_t and off64_t are the same.
 series_id: 'glibc:io: consolidate ftw implementation'
 series_role: reply
 series_parts:

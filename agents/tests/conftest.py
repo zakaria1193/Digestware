@@ -70,7 +70,6 @@ def sample_discussion_digest() -> DiscussionDigest:
         outcome=Outcome.UNDER_REVIEW,
         sentiment_score=7,
         sentiment_rationale="One ACK, one blocker on arm64.",
-        technical_tradeoffs=["May increase code size", "Improves hot-path performance"],
         summary="This patch refines GCC's inliner to better handle hot functions "
                 "by introducing a configurable frequency threshold.",
         url="https://gcc.gnu.org/ml/gcc-patches/2026-04/msg00042.html",
@@ -91,9 +90,7 @@ def sample_landing_digest() -> LandingDigest:
         author="John Smith",
         headline="Binutils LD fixes RISC-V relaxation loop for compressed insns",
         tldr="LD no longer loops on RISC-V compressed instructions near section ends.",
-        why_it_matters="Anyone linking RISC-V binaries with -Os was hitting this.",
         impact_score=6,
-        impact_rationale="Bugfix with narrow but real user impact.",
         performance_win=False,
         breaking_change=False,
         outcome=Outcome.COMMITTED,

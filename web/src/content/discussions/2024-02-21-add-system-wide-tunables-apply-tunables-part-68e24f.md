@@ -22,10 +22,6 @@ sentiment_score: 5
 sentiment_rationale: This patch implements a significant part of the tunables feature,
   but the deferral of security policies warrants a neutral score in the absence of
   further discussion.
-technical_tradeoffs:
-- Enables dynamic configuration but requires careful management of tunables.
-- Loading and applying tunables adds overhead to program startup.
-- Security policies are deferred to a later stage.
 series_id: 'glibc:add system-wide tunables: apply tunables part'
 series_role: reply
 series_parts: []

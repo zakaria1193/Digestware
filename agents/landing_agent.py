@@ -87,10 +87,11 @@ FIELDS (all required unless noted):
 - ``subsystem`` — e.g. "gcc/ipa", "kernel/mm", "binutils/ld". Never "unknown".
 - ``headline`` — human-readable title, ≤ 80 chars.
 - ``tldr`` — one short sentence, ≤ 140 chars.
-- ``why_it_matters`` — 1–2 sentences framing the stakes for a general dev.
-- ``summary`` — 2–4 sentences of prose covering what + how.
+- ``summary`` — 2–4 sentences of prose covering what changed, how, and why
+  a working dev should care (perf, ABI, security, ergonomics, policy).
+  Weave the stakes into the flow — don't tack them on as a separate clause.
 - ``tags`` — up to 5 short topic tags (e.g. ["optimization", "risc-v"]).
-- ``impact_score`` 1–10 with a one-line ``impact_rationale``. Rubric:
+- ``impact_score`` 1–10. Rubric:
     9–10 : CVE, ABI break, perf ≥ 10%, new arch / language feature.
     7–8  : user-visible feature, non-trivial optimisation, toolchain policy.
     4–6  : refactor, internal API, test infra, bugfix with limited user impact.
@@ -627,9 +628,7 @@ def _stub_digests(items: list[RawCommit]) -> list[LandingDigest]:
                 author=c.author,
                 headline=headline,
                 tldr=tldr,
-                why_it_matters="Summary unavailable — see source link.",
                 impact_score=5,
-                impact_rationale="Stub digest; score not evaluated.",
                 summary="Summary unavailable — see source link.",
                 url=c.url,
                 date=c.date,

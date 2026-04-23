@@ -21,8 +21,6 @@ consensus: Ready to Land
 outcome: ready
 sentiment_score: 9
 sentiment_rationale: Fixes a security vulnerability and has been reviewed.
-technical_tradeoffs:
-- Modifies the buffer resizing logic in `vfscanf-internal.c`.
 series_id: 'glibc:stdio-common: fix buffer overflow in scanf %mc [bz #34008]'
 series_role: reply
 series_parts: []

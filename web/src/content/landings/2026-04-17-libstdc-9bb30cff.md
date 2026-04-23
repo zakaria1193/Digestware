@@ -13,11 +13,7 @@ author: Jakub Jelinek
 headline: 'Libstdc++: Update baseline symbols for various Linux architectures.'
 tldr: Updates baseline symbols for several Linux architectures in libstdc++, mainly
   based on Fedora package builds and analysis of GCC 15 changes.
-why_it_matters: Ensuring up-to-date baseline symbols is crucial for maintaining ABI
-  compatibility and preventing unexpected behavior when linking against libstdc++.
 impact_score: 6
-impact_rationale: Updates to baseline symbols affect ABI compatibility, with potential
-  impact on applications using libstdc++.
 performance_win: false
 breaking_change: false
 outcome: committed

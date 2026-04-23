@@ -21,10 +21,6 @@ outcome: proposed
 sentiment_score: 6
 sentiment_rationale: The discussion raises a valid API naming question, indicating
   a neutral but engaged review process.
-technical_tradeoffs:
-- Introduces ifuncs for potential performance benefits via target-specific implementations.
-- Renaming core functions requires careful consideration of naming conventions.
-- Targets without ifunc support will alias external functions to their respective
   *_core symbols.
 series_id: 'glibc:malloc: introduce ifuncs for malloc functions'
 series_role: reply

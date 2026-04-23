@@ -22,10 +22,6 @@ outcome: stalled
 sentiment_score: 5
 sentiment_rationale: This is a complex feature with many potential implications, so
   a neutral score is appropriate in the absence of further discussion.
-technical_tradeoffs:
-- Allows for system-wide configuration but needs careful security considerations.
-- Adds complexity to the build and runtime environment.
-- The cache format improves load-time performance but increases cache size.
 series_id: 'glibc:add system-wide tunables: ldconfig part'
 series_role: reply
 series_parts: []

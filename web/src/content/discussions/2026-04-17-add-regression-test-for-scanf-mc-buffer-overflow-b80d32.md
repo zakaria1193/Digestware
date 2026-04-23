@@ -22,9 +22,6 @@ outcome: proposed
 sentiment_score: 7
 sentiment_rationale: Adding a regression test is a positive step, but copyright and
   code style feedback prevent a higher score.
-technical_tradeoffs:
-- Adds a new test case to the test suite.
-- Requires additional dependencies for the test environment (MALLOC_CHECK_, LD_PRELOAD).
 series_id: 'glibc:stdio-common: add regression test [bz #34008]'
 series_role: reply
 series_parts: []

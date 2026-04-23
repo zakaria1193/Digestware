@@ -21,10 +21,6 @@ consensus: Proposed
 outcome: proposed
 sentiment_score: 6
 sentiment_rationale: Some concern about the naming of the new properties.
-technical_tradeoffs:
-- Adding new GNU properties increases complexity but provides finer-grained control.
-- Opting into THP can improve performance in some cases but may degrade it in others.
-- The `NEEDED` suffix is questioned; alternatives are `OPTIONAL`, `DESIRED`, or no
   suffix.
 series_id: null
 series_role: standalone

@@ -23,10 +23,6 @@ outcome: proposed
 sentiment_score: 8
 sentiment_rationale: The email presents empirical data supporting a potential optimization,
   which is generally viewed positively.
-technical_tradeoffs:
-- Adding compiler passes increases compilation time.
-- The code size improvement may be architecture-specific or depend on the input code.
-- The benefit of the additional pass needs to be weighed against the cost of maintaining
   another pass in the compiler.
 - Consider whether a late combine entry, invoked only when BB reordering duplicates
   paths, would be sufficient.

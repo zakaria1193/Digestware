@@ -21,10 +21,6 @@ outcome: proposed
 sentiment_score: 8
 sentiment_rationale: The patch series adds new language support and fixes issues in
   previous versions, suggesting positive progress.
-technical_tradeoffs:
-- Requires adding new data files to glibc.
-- Needs to ensure correct locale data and formatting.
-- May increase the size of glibc.
 series_id: glibc:add hunsrik locale support (hrx, hrx_br)
 series_role: cover
 series_parts: []

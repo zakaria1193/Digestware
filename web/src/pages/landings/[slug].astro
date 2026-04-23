@@ -63,18 +63,6 @@ const dateStr = d.date.toLocaleDateString('en-US', { year: 'numeric', month: 'lo
       </div>
     </header>
 
-    {d.why_it_matters && (
-      <div class="stakes-block">
-        <strong>Why it matters:</strong> {d.why_it_matters}
-      </div>
-    )}
-
-    {d.impact_rationale && (
-      <div class="rationale-block">
-        <strong>Impact rationale:</strong> {d.impact_rationale}
-      </div>
-    )}
-
     <div class="prose">
       <Content />
     </div>

@@ -29,7 +29,6 @@ const attributes: Array<[string, unknown]> = [
   ['outcome', d.outcome],
   ['sentiment_score', d.sentiment_score],
   ['sentiment_rationale', d.sentiment_rationale],
-  ['technical_tradeoffs', d.technical_tradeoffs],
   ['series_id', d.series_id],
   ['series_role', d.series_role],
   ['series_parts', d.series_parts],
@@ -80,19 +79,6 @@ const attributes: Array<[string, unknown]> = [
             }`}>{d.sentiment_score ?? '—'}<span class="text-xs text-zinc-500">/10</span></p>
           </div>
         </div>
-        {d.technical_tradeoffs && d.technical_tradeoffs.length > 0 && (
-          <div>
-            <p class="text-xs text-zinc-500 mb-1">Technical tradeoffs</p>
-            <ul class="space-y-1">
-              {d.technical_tradeoffs.map(t => (
-                <li class="text-xs text-zinc-300 flex gap-2">
-                  <span class="text-zinc-600 shrink-0">•</span>
-                  <span>{t}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
         {d.url && (
           <div>
             <a href={d.url} target="_blank" rel="noopener noreferrer"

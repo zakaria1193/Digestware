@@ -21,8 +21,6 @@ consensus: Proposed
 outcome: proposed
 sentiment_score: 8
 sentiment_rationale: Straightforward announcement; no controversy expected.
-technical_tradeoffs:
-- In-person only, no online presentations.
 series_id: null
 series_role: standalone
 series_parts: []

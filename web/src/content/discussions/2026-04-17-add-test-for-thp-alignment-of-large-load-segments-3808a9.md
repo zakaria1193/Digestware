@@ -22,8 +22,6 @@ outcome: proposed
 sentiment_score: 8
 sentiment_rationale: The patch adds a test, improving code quality. Version 10 suggests
   refinement and heading towards consensus.
-technical_tradeoffs:
-- The test is skipped if the THP size cannot be determined or if THP is not enabled
   in "always" mode.
 - Adds a new test file and modifies the Makefile.
 series_id: null

@@ -22,9 +22,6 @@ outcome: proposed
 sentiment_score: 7
 sentiment_rationale: The patch addresses a limitation in THP support and builds upon
   previous work. The discussion suggests ongoing refinement.
-technical_tradeoffs:
-- Requires changes to the dynamic linker to handle madvise-based THP.
-- Adds complexity to the ELF loading process.
 series_id: 'glibc:elf: support thp segment load with madvise enabled thp'
 series_role: reply
 series_parts:

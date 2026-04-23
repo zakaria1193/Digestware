@@ -22,8 +22,6 @@ outcome: proposed
 sentiment_score: 4
 sentiment_rationale: The RFC identifies a performance regression in a specific use
   case (container hosts), which can lead to contention.
-technical_tradeoffs:
-- Automatic THP allocation can be beneficial for some workloads but detrimental in
   container environments.
 - Using GLIBC_TUNABLES is not a stable ABI.
 - Disabling THP system-wide penalizes workloads that benefit from it.

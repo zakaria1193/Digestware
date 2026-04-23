@@ -20,8 +20,6 @@ consensus: Under Review
 outcome: under_review
 sentiment_score: 5
 sentiment_rationale: The author is explicitly asking for feedback, indicating uncertainty.
-technical_tradeoffs:
-- The proposed fix involves directly setting the buffer to NULL, rejecting `setbuf`
   requests, and returning `EINVAL` if space is insufficient. This approach may limit
   flexibility.
 - Alternative approaches, such as adding a specific size of allocated buffer function,

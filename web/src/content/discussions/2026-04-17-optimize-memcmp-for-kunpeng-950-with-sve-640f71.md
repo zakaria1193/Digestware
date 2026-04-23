@@ -22,11 +22,6 @@ outcome: proposed
 sentiment_score: 7
 sentiment_rationale: Positive benchmark results and addressed review comments indicate
   a good direction.
-technical_tradeoffs:
-- Uses SVE predication for branch-free handling of short inputs and tails.
-- Implements 4-way loop unrolling to maximize pipeline utilization.
-- Optimizes mismatch detection with early exit logic.
-- Potential regressions in edge cases where offsets are near 4K boundaries.
 series_id: null
 series_role: standalone
 series_parts: []

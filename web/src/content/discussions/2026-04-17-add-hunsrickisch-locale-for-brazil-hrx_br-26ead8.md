@@ -21,9 +21,6 @@ outcome: committed
 sentiment_score: 10
 sentiment_rationale: The patch has been pushed, indicating wide approval and successful
   integration.
-technical_tradeoffs:
-- Adds a new locale definition file.
-- Increases the size of the glibc localedata.
 series_id: 'glibc:localedata: add hunsrickisch locale for brazil (hrx_br)'
 series_role: reply
 series_parts:

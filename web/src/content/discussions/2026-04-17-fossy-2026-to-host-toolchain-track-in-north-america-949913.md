@@ -23,9 +23,6 @@ outcome: proposed
 sentiment_score: 9
 sentiment_rationale: Announcement of a positive event, suggesting enthusiasm and community
   engagement.
-technical_tradeoffs:
-- In-person only conference limits participation to those who can travel.
-- Talks may be recorded and published, increasing accessibility but potentially reducing
   in-person attendance.
 series_id: null
 series_role: standalone

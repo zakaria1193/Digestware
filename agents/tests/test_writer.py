@@ -65,7 +65,6 @@ class TestWriteDiscussion:
                 proposer="a@example.com",
                 consensus=ConsensusStatus.PROPOSED,
                 sentiment_score=5,
-                technical_tradeoffs=[],
                 summary=(
                     "Some enough text here that passes the writer body "
                     "validator so the fallback message is not used instead."
@@ -89,7 +88,7 @@ class TestWriteDiscussion:
         required = {
             "project", "subsystem", "discussion_id", "source_type",
             "title", "proposer", "consensus", "sentiment_score",
-            "technical_tradeoffs", "url", "date",
+            "url", "date",
         }
         assert required.issubset(fm.keys())
 

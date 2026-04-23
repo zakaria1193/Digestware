@@ -11,11 +11,7 @@ source_type: github
 author: Marek Polacek
 headline: 'c++/reflection: Tweak reflection_function_template_p'
 tldr: Improves C++ reflection by using a narrower type check for function templates.
-why_it_matters: Refines the C++ reflection mechanism, potentially leading to more
-  accurate and efficient reflection capabilities.
 impact_score: 5
-impact_rationale: Refactoring of internal reflection mechanisms.  Likely a bugfix
-  of some sort, but probably narrow impact.
 performance_win: false
 breaking_change: false
 outcome: committed
