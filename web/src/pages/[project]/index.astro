@@ -112,6 +112,7 @@ const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
       <div class="stream-rule-thin"></div>
 
       <div class="stream-filter">
+        <div class="filter-heading">Filter by impact</div>
         <div class="filter-track">
           <input type="range" id="impact-filter" min="1" max="3" step="1" value="1" />
         </div>
@@ -213,6 +214,15 @@ const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
 
   .stream-filter {
     margin-bottom: 0.75rem;
+  }
+  .filter-heading {
+    font-family: var(--font-sans);
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    margin-bottom: 0.3rem;
   }
   .filter-track {
     padding: 0 0.1rem;
