@@ -13,11 +13,7 @@ author: Marek Polacek
 headline: Suppress bogus -Wmissing-field-initializers warning with <meta>.
 tldr: This commit suppresses false -Wmissing-field-initializers warnings when using
   the `<meta>` reflection feature.
-why_it_matters: This prevents the compiler from issuing unnecessary warnings when
-  using C++ reflection features, reducing noise and improving the developer experience.
 impact_score: 5
-impact_rationale: Addresses a false positive warning related to C++ reflection, cleaning
-  up the build process.
 performance_win: false
 breaking_change: false
 outcome: committed

@@ -13,10 +13,7 @@ author: Jonathan Wakely
 headline: Update comment on std::print helper __open_terminal in libstdc++.
 tldr: This commit updates a comment for the `__open_terminal` helper function in `std::print`
   to reflect its current behavior.
-why_it_matters: This commit improves the clarity and accuracy of the libstdc++ codebase
-  by updating a comment to match the current implementation of the `std::print` feature.
 impact_score: 2
-impact_rationale: A comment was out of date, and this commit corrects it.
 performance_win: false
 breaking_change: false
 outcome: committed

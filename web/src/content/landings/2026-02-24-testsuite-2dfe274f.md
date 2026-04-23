@@ -12,10 +12,7 @@ author: feedable
 headline: 'Testsuite: Fix floating-point test compilation on systems without FE_UPWARD'
 tldr: 'A floating-point test in the GCC testsuite now compiles correctly on platforms
   lacking FE_UPWARD by moving a declaration before an #ifdef.'
-why_it_matters: Ensuring tests compile across different platforms improves the reliability
-  and portability of the GCC compiler.
 impact_score: 4
-impact_rationale: Fixes a test compilation issue on specific platforms.
 performance_win: false
 breaking_change: false
 outcome: committed
