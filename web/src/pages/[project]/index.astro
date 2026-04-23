@@ -135,16 +135,27 @@ const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
 <script>
   const slider = document.getElementById('impact-filter') as HTMLInputElement;
   const list = document.getElementById('stream-list')!;
-  // 1=Low (show all), 2=Avg (score≥4), 3=High (score≥8)
   const thresholds = [0, 4, 8];
 
-  slider.addEventListener('input', () => {
-    const min = thresholds[parseInt(slider.value) - 1];
+  function applyFilter(level: number): number {
+    const min = thresholds[level - 1];
+    let visible = 0;
     list.querySelectorAll<HTMLElement>('.wire').forEach(row => {
-      const score = parseInt(row.dataset.score ?? '0');
-      row.hidden = score < min;
+      const show = parseInt(row.dataset.score ?? '0') >= min;
+      row.hidden = !show;
+      if (show) visible++;
     });
-  });
+    return visible;
+  }
+
+  // Default to Avg; fall back to Low if it would show nothing
+  if (applyFilter(2) > 0) {
+    slider.value = '2';
+  } else {
+    applyFilter(1);
+  }
+
+  slider.addEventListener('input', () => applyFilter(parseInt(slider.value)));
 </script>
 
 </PublicLayout>
