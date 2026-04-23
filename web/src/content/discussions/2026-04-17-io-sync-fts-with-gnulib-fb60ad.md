@@ -22,8 +22,6 @@ sentiment_score: 8
 sentiment_rationale: The patch addresses feedback and incorporates suggestions, indicating
   a positive reception.
   maintenance.
-- Adopting changes from gnulib may require adapting glibc-specific code.
-- May need to resolve conflicts that arise during the synchronization process.
 series_id: 'glibc:io: sync fts with gnulib'
 series_role: reply
 series_parts:

@@ -22,7 +22,6 @@ sentiment_score: 6
 sentiment_rationale: The patch is mostly approved, but one change is flagged for further
   review, indicating a neutral but cautious sentiment.
   reviewed.
-- Adding comments clarifies the purpose and structure of the Makefile.
 series_id: 'glibc:misc: fix lint-makefiles failures'
 series_role: reply
 series_parts: []

@@ -24,7 +24,6 @@ sentiment_score: 8
 sentiment_rationale: The email presents empirical data supporting a potential optimization,
   which is generally viewed positively.
   another pass in the compiler.
-- Consider whether a late combine entry, invoked only when BB reordering duplicates
   paths, would be sufficient.
 series_id: null
 series_role: standalone

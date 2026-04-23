@@ -24,10 +24,7 @@ sentiment_score: 6
 sentiment_rationale: The discussion is mostly neutral, with some concerns raised but
   also openness to exploring the benefits of AI tools.
   bug fixes.
-- Looser policies may introduce copyright and legal ambiguities regarding code origin.
-- Transparency requirements could deter developers from using AI tools due to potential
   rejection of contributions.
-- Clear guidelines are needed to ensure fair review and handling of LLM-assisted patches.
 series_id: null
 series_role: reply
 series_parts: []

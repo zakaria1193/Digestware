@@ -23,7 +23,6 @@ sentiment_score: 8
 sentiment_rationale: The patch adds a test, improving code quality. Version 10 suggests
   refinement and heading towards consensus.
   in "always" mode.
-- Adds a new test file and modifies the Makefile.
 series_id: null
 series_role: standalone
 series_parts: []

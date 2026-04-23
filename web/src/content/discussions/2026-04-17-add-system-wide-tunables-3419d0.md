@@ -22,9 +22,6 @@ sentiment_score: 7
 sentiment_rationale: The patch series has gone through several revisions, indicating
   active development and refinement.
   but may constrain the design.
-- Adds complexity to ld.so.cache loading.
-- Introduces a new configuration file format.
-- Requires careful validation of tunable values to prevent unexpected behavior.
 series_id: glibc:add system-wide tunables
 series_role: cover
 series_parts: []

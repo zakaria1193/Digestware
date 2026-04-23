@@ -21,7 +21,6 @@ outcome: proposed
 sentiment_score: 6
 sentiment_rationale: Discussion is generally positive but cautious about legal implications.
   legal risks.
-- Restricting AI to assistance may limit potential gains but ensures compliance with
   current legal frameworks.
 series_id: null
 series_role: standalone

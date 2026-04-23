@@ -23,8 +23,6 @@ sentiment_score: 8
 sentiment_rationale: The patch series aims to improve code maintainability and incorporates
   external updates, suggesting a positive direction.
   handled carefully.
-- Synchronization with gnulib may require adapting glibc-specific code.
-- Increased code complexity in the common implementation.
 series_id: glibc:consolidate and sync fts/ftw
 series_role: cover
 series_parts: []
