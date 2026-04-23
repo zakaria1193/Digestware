@@ -65,6 +65,19 @@ const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
   return latestB - latestA;
 });
 
+type AnyEntry = { data: { impact_score?: number | null; sentiment_score?: number | null } };
+function groupConsecutiveLow<T extends AnyEntry>(entries: T[]) {
+  const out: Array<{ isLow: boolean; entries: T[] }> = [];
+  for (const e of entries) {
+    const score = e.data.impact_score ?? e.data.sentiment_score ?? null;
+    const isLow = score != null && score > 0 && score <= 3;
+    const last = out[out.length - 1];
+    if (last && last.isLow === isLow) last.entries.push(e);
+    else out.push({ isLow, entries: [e] });
+  }
+  return out;
+}
+
 ---
 
 <PublicLayout project={project}>
@@ -93,9 +106,20 @@ const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
               <span class="wsj-section-rule"></span>
             </div>
             <div class="bento-grid">
-              {visibleEntries.map(entry => (
-                <BentoCard entry={entry} projectSlug={project.slug} clusterCount={clusterMap.get(entry.id)?.count ?? 1} />
-              ))}
+              {groupConsecutiveLow(visibleEntries).map(group =>
+                group.isLow ? (
+                  <details class="bento-dim-group">
+                    <summary class="dim-toggle">{group.entries.length} low-impact {group.entries.length === 1 ? 'item' : 'items'}</summary>
+                    {group.entries.map(entry => (
+                      <BentoCard entry={entry} projectSlug={project.slug} clusterCount={clusterMap.get(entry.id)?.count ?? 1} />
+                    ))}
+                  </details>
+                ) : (
+                  group.entries.map(entry => (
+                    <BentoCard entry={entry} projectSlug={project.slug} clusterCount={clusterMap.get(entry.id)?.count ?? 1} />
+                  ))
+                )
+              )}
             </div>
           </section>
         );
@@ -115,7 +139,16 @@ const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
         {landings.length === 0 && (
           <p class="empty-wire">No landed commits in the current window.</p>
         )}
-        {landings.map(entry => <CommitRow entry={entry} projectSlug={project.slug} />)}
+        {groupConsecutiveLow(landings).map(group =>
+          group.isLow ? (
+            <details class="dim-group">
+              <summary class="dim-toggle">{group.entries.length} low-impact {group.entries.length === 1 ? 'commit' : 'commits'}</summary>
+              {group.entries.map(entry => <CommitRow entry={entry} projectSlug={project.slug} />)}
+            </details>
+          ) : (
+            group.entries.map(entry => <CommitRow entry={entry} projectSlug={project.slug} />)
+          )
+        )}
       </div>
     </aside>
   </div>
@@ -185,6 +218,44 @@ const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
 
   .stream-list { display: flex; flex-direction: column; }
 
+  .dim-toggle {
+    list-style: none;
+    display: block;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    padding: 0.5rem 0;
+    user-select: none;
+  }
+  .dim-toggle::-webkit-details-marker { display: none; }
+  .dim-toggle::before { content: '▸\00a0'; }
+  details[open] > .dim-toggle::before { content: '▾\00a0'; }
+
+  .dim-group {
+    border-bottom: 1px solid var(--color-rule);
+  }
+
+  .bento-dim-group {
+    grid-column: 1 / -1;
+  }
+  .bento-dim-group > .dim-toggle {
+    border-top: 1px dashed var(--color-rule);
+    border-bottom: 1px dashed var(--color-rule);
+    padding: 0.6rem 0;
+  }
+  .bento-dim-group[open] {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .bento-dim-group[open] > summary {
+    grid-column: 1 / -1;
+  }
+
   @media (min-width: 900px) {
     .page-grid {
       grid-template-columns: minmax(0, 3fr) minmax(240px, 1fr);
@@ -194,6 +265,10 @@ const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
       grid-template-columns: 1fr 1fr;
       column-gap: 1.75rem;
       row-gap: 0;
+    }
+    .bento-dim-group[open] {
+      grid-template-columns: 1fr 1fr;
+      column-gap: 1.75rem;
     }
     .commit-stream {
       border-left: 1px solid var(--color-rule-strong);
@@ -210,6 +285,10 @@ const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
 
   @media (min-width: 1200px) {
     .bento-grid {
+      grid-template-columns: 1fr 1fr 1fr;
+      column-gap: 1.5rem;
+    }
+    .bento-dim-group[open] {
       grid-template-columns: 1fr 1fr 1fr;
       column-gap: 1.5rem;
     }
