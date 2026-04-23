@@ -65,19 +65,6 @@ const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
   return latestB - latestA;
 });
 
-type AnyEntry = { data: { impact_score?: number | null; sentiment_score?: number | null } };
-function groupConsecutiveLow<T extends AnyEntry>(entries: T[]) {
-  const out: Array<{ isLow: boolean; entries: T[] }> = [];
-  for (const e of entries) {
-    const score = e.data.impact_score ?? e.data.sentiment_score ?? null;
-    const isLow = score != null && score > 0 && score <= 3;
-    const last = out[out.length - 1];
-    if (last && last.isLow === isLow) last.entries.push(e);
-    else out.push({ isLow, entries: [e] });
-  }
-  return out;
-}
-
 ---
 
 <PublicLayout project={project}>
@@ -106,20 +93,9 @@ function groupConsecutiveLow<T extends AnyEntry>(entries: T[]) {
               <span class="wsj-section-rule"></span>
             </div>
             <div class="bento-grid">
-              {groupConsecutiveLow(visibleEntries).map(group =>
-                group.isLow ? (
-                  <details class="bento-dim-group">
-                    <summary class="dim-toggle">{group.entries.length} low-impact {group.entries.length === 1 ? 'item' : 'items'}</summary>
-                    {group.entries.map(entry => (
-                      <BentoCard entry={entry} projectSlug={project.slug} clusterCount={clusterMap.get(entry.id)?.count ?? 1} />
-                    ))}
-                  </details>
-                ) : (
-                  group.entries.map(entry => (
-                    <BentoCard entry={entry} projectSlug={project.slug} clusterCount={clusterMap.get(entry.id)?.count ?? 1} />
-                  ))
-                )
-              )}
+              {visibleEntries.map(entry => (
+                <BentoCard entry={entry} projectSlug={project.slug} clusterCount={clusterMap.get(entry.id)?.count ?? 1} />
+              ))}
             </div>
           </section>
         );
@@ -135,23 +111,40 @@ function groupConsecutiveLow<T extends AnyEntry>(entries: T[]) {
       <div class="stream-rule"></div>
       <div class="stream-rule-thin"></div>
 
-      <div class="stream-list">
+      <div class="stream-filter">
+        <div class="filter-track">
+          <input type="range" id="impact-filter" min="1" max="3" step="1" value="1" />
+        </div>
+        <div class="filter-labels">
+          <span>Low</span>
+          <span>Avg</span>
+          <span>High</span>
+        </div>
+      </div>
+
+      <div class="stream-list" id="stream-list">
         {landings.length === 0 && (
           <p class="empty-wire">No landed commits in the current window.</p>
         )}
-        {groupConsecutiveLow(landings).map(group =>
-          group.isLow ? (
-            <details class="dim-group">
-              <summary class="dim-toggle">{group.entries.length} low-impact {group.entries.length === 1 ? 'commit' : 'commits'}</summary>
-              {group.entries.map(entry => <CommitRow entry={entry} projectSlug={project.slug} />)}
-            </details>
-          ) : (
-            group.entries.map(entry => <CommitRow entry={entry} projectSlug={project.slug} />)
-          )
-        )}
+        {landings.map(entry => <CommitRow entry={entry} projectSlug={project.slug} />)}
       </div>
     </aside>
   </div>
+
+<script>
+  const slider = document.getElementById('impact-filter') as HTMLInputElement;
+  const list = document.getElementById('stream-list')!;
+  // 1=Low (show all), 2=Avg (score≥4), 3=High (score≥8)
+  const thresholds = [0, 4, 8];
+
+  slider.addEventListener('input', () => {
+    const min = thresholds[parseInt(slider.value) - 1];
+    list.querySelectorAll<HTMLElement>('.wire').forEach(row => {
+      const score = parseInt(row.dataset.score ?? '0');
+      row.hidden = score < min;
+    });
+  });
+</script>
 
 </PublicLayout>
 
@@ -218,42 +211,27 @@ function groupConsecutiveLow<T extends AnyEntry>(entries: T[]) {
 
   .stream-list { display: flex; flex-direction: column; }
 
-  .dim-toggle {
-    list-style: none;
-    display: block;
+  .stream-filter {
+    margin-bottom: 0.75rem;
+  }
+  .filter-track {
+    padding: 0 0.1rem;
+  }
+  #impact-filter {
+    width: 100%;
+    accent-color: var(--color-accent);
     cursor: pointer;
+  }
+  .filter-labels {
+    display: flex;
+    justify-content: space-between;
     font-family: var(--font-sans);
-    font-size: 0.6rem;
+    font-size: 0.55rem;
     font-weight: 700;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--color-muted);
-    padding: 0.5rem 0;
-    user-select: none;
-  }
-  .dim-toggle::-webkit-details-marker { display: none; }
-  .dim-toggle::before { content: '▸\00a0'; }
-  details[open] > .dim-toggle::before { content: '▾\00a0'; }
-
-  .dim-group {
-    border-bottom: 1px solid var(--color-rule);
-  }
-
-  .bento-dim-group {
-    grid-column: 1 / -1;
-  }
-  .bento-dim-group > .dim-toggle {
-    border-top: 1px dashed var(--color-rule);
-    border-bottom: 1px dashed var(--color-rule);
-    padding: 0.6rem 0;
-  }
-  .bento-dim-group[open] {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 0;
-  }
-  .bento-dim-group[open] > summary {
-    grid-column: 1 / -1;
+    padding: 0.1rem 0.1rem 0;
   }
 
   @media (min-width: 900px) {
@@ -265,10 +243,6 @@ function groupConsecutiveLow<T extends AnyEntry>(entries: T[]) {
       grid-template-columns: 1fr 1fr;
       column-gap: 1.75rem;
       row-gap: 0;
-    }
-    .bento-dim-group[open] {
-      grid-template-columns: 1fr 1fr;
-      column-gap: 1.75rem;
     }
     .commit-stream {
       border-left: 1px solid var(--color-rule-strong);
@@ -285,10 +259,6 @@ function groupConsecutiveLow<T extends AnyEntry>(entries: T[]) {
 
   @media (min-width: 1200px) {
     .bento-grid {
-      grid-template-columns: 1fr 1fr 1fr;
-      column-gap: 1.5rem;
-    }
-    .bento-dim-group[open] {
       grid-template-columns: 1fr 1fr 1fr;
       column-gap: 1.5rem;
     }
