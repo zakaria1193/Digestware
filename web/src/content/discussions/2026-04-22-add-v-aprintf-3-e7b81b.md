@@ -8,12 +8,10 @@ source_type: public_inbox
 title: 'Re: [PATCH 0/3] Add [v]aprintf(3)'
 headline: Add [v]aprintf(3)
 tldr: Add [v]aprintf(3)
-stakes: Summary unavailable — see source link.
 proposer: Alejandro Colomar <alx@kernel.org>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
-sentiment_rationale: ''
 technical_tradeoffs: []
 exchanges: []
 primer_expert: null

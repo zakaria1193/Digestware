@@ -8,12 +8,10 @@ source_type: public_inbox
 title: '[PATCH 2/3] manual/: Prefer aprintf(3) over asprintf(3)'
 headline: 'manual/: Prefer aprintf(3) over asprintf(3)'
 tldr: 'manual/: Prefer aprintf(3) over asprintf(3)'
-stakes: Summary unavailable — see source link.
 proposer: Alejandro Colomar <alx@kernel.org>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
-sentiment_rationale: ''
 technical_tradeoffs: []
 exchanges: []
 primer_expert: null

@@ -8,12 +8,10 @@ source_type: public_inbox
 title: 'Re: [PATCH v2] RISC-V: add multiarch RVV support for memcpy using FMV IFUNC'
 headline: 'RISC-V: add multiarch RVV support for memcpy using FMV IFUNC'
 tldr: 'RISC-V: add multiarch RVV support for memcpy using FMV IFUNC'
-stakes: Summary unavailable — see source link.
 proposer: Jeffrey Law <jeffrey.law@oss.qualcomm.com>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
-sentiment_rationale: ''
 technical_tradeoffs: []
 exchanges: []
 primer_expert: null

@@ -8,12 +8,10 @@ source_type: public_inbox
 title: 'Re: SuperH literal pools in gas'
 headline: SuperH literal pools in gas
 tldr: SuperH literal pools in gas
-stakes: Summary unavailable — see source link.
 proposer: Joseph Matthews <jmatt50@outlook.com>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
-sentiment_rationale: ''
 technical_tradeoffs: []
 exchanges: []
 primer_expert: null

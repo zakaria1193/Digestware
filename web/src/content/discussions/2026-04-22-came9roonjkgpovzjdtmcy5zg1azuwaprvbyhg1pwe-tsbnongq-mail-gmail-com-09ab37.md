@@ -8,12 +8,10 @@ source_type: public_inbox
 title: ''
 headline: CAMe9rOonJkGpOVzJDTmcy5Zg1AzUwaPrvByhG1PWE+TsbnongQ@mail.gmail.com
 tldr: CAMe9rOonJkGpOVzJDTmcy5Zg1AzUwaPrvByhG1PWE+TsbnongQ@mail.gmail.com
-stakes: Summary unavailable — see source link.
 proposer: '"H.J. Lu" <hjl.tools@gmail.com>'
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
-sentiment_rationale: ''
 technical_tradeoffs: []
 exchanges: []
 primer_expert: null

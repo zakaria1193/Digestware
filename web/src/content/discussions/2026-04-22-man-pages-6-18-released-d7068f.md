@@ -8,12 +8,10 @@ source_type: public_inbox
 title: man-pages-6.18 released
 headline: man-pages-6.18 released
 tldr: man-pages-6.18 released
-stakes: Summary unavailable — see source link.
 proposer: Alejandro Colomar <alx@kernel.org>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
-sentiment_rationale: ''
 technical_tradeoffs: []
 exchanges: []
 primer_expert: null

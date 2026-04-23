@@ -3,31 +3,29 @@ project: gcc
 subsystem: gensupport
 patch_id: null
 tags:
-- bugfix
+- gcc
 - gensupport
-- comments
+- bugfix
 commit_hash: 5efc59de33f0125fe02df9e03b15ad4307c1f53e
 source_type: github
 author: Jakub Jelinek
-headline: 'Gensupport: Fix comment handling in syntax files.'
-tldr: Fixes an infinite loop in gensupport.cc when handling // comments in the new
-  syntax *.md files.
-impact_score: 5
+headline: Gensupport Fixes Comment Handling
+tldr: Fixes an endless loop in gensupport.cc caused by an incorrect logical operator
+  when handling comments.
+impact_score: 4
 performance_win: false
 breaking_change: false
 outcome: committed
-primer_expert: The `gensupport` subsystem handles generation of diagnostic messages
-  and other compiler artifacts from `.md` files. The `convert_syntax` function parses
-  these files.  This patch fixes an infinite loop in the comment handling logic. Toolchain
-  devs outside the subsystem might not immediately recognize the impact, as it's specific
-  to the new syntax used in certain `.md` files.
-primer_general: The `gensupport` component in GCC is responsible for automatically
-  generating parts of the compiler from higher-level descriptions, often stored in
-  `.md` files. This allows developers to define patterns and syntax rules that the
-  compiler needs to understand. The `convert_syntax` function specifically deals with
-  parsing and interpreting these syntax descriptions. A bug in comment handling could
-  prevent the tool from correctly processing these syntax files, leading to errors
-  in the generated compiler code.
+primer_expert: The ``convert_syntax`` function in ``gensupport.cc`` had an error in
+  its comment-handling logic. The loop ``while (*templ != '\n' || *templ != '\0')
+  ++templ;`` should have used ``&&`` instead of ``||``, leading to an infinite loop.
+  This impacts the processing of *.md files during code generation.
+primer_general: The gensupport subsystem in GCC helps automate the generation of code
+  from descriptive files. This commit fixes a bug in the comment-handling logic within
+  these descriptive files. Specifically, when the compiler processed files with a
+  certain syntax, it would get stuck in an infinite loop trying to parse a comment.
+  This fix ensures that gensupport correctly handles comments, allowing the compiler
+  to proceed normally.
 discussion_id_link: null
 bugzilla_pr: null
 series_id: null
@@ -36,4 +34,4 @@ url: https://github.com/gcc-mirror/gcc/commit/5efc59de33f0125fe02df9e03b15ad4307
 date: '2026-04-22'
 ---
 
-The patch corrects a logical error in the `convert_syntax` function within `gensupport.cc`. The original code used an incorrect logical operator (`||` instead of `&&`) in a `while` loop, causing an infinite loop when encountering `//` comments.  The corrected code now uses `&&` to properly handle comments.
+The code in ``gensupport.cc`` used an incorrect logical operator in a loop designed to handle comments, causing it to enter an endless loop. This occurred in the context of new syntax *.md files.  This commit fixes the operator, resolving the infinite loop.

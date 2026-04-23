@@ -8,12 +8,10 @@ source_type: public_inbox
 title: 'Re: [PATCH] riscv: add RVV-optimized memchr'
 headline: 'riscv: add RVV-optimized memchr'
 tldr: 'riscv: add RVV-optimized memchr'
-stakes: Summary unavailable — see source link.
 proposer: daichengrong <daichengrong@iscas.ac.cn>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
-sentiment_rationale: ''
 technical_tradeoffs: []
 exchanges: []
 primer_expert: null

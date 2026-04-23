@@ -8,12 +8,10 @@ source_type: public_inbox
 title: 'Re: [PATCH] ld: Limit PR ld/34088 test to Linux/x86-64 and Linux/aarch64'
 headline: 'ld: Limit PR ld/34088 test to Linux/x86-64 and Linux/aarch64'
 tldr: 'ld: Limit PR ld/34088 test to Linux/x86-64 and Linux/aarch64'
-stakes: Summary unavailable — see source link.
 proposer: Alan Modra <amodra@gmail.com>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
-sentiment_rationale: ''
 technical_tradeoffs: []
 exchanges: []
 primer_expert: null

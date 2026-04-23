@@ -8,12 +8,10 @@ source_type: public_inbox
 title: 'RFC: Annotate immediates in x86 disassembly'
 headline: 'RFC: Annotate immediates in x86 disassembly'
 tldr: 'RFC: Annotate immediates in x86 disassembly'
-stakes: Summary unavailable — see source link.
 proposer: Nick Clifton <nickc@redhat.com>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
-sentiment_rationale: ''
 technical_tradeoffs: []
 exchanges: []
 primer_expert: null

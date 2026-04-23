@@ -8,12 +8,10 @@ source_type: public_inbox
 title: Request for feedback on WG14 proposal N3849 (alloc_at_least)
 headline: Request for feedback on WG14 proposal N3849 (alloc_at_least)
 tldr: Request for feedback on WG14 proposal N3849 (alloc_at_least)
-stakes: Summary unavailable — see source link.
 proposer: Charles Munger <clm@google.com>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
-sentiment_rationale: ''
 technical_tradeoffs: []
 exchanges: []
 primer_expert: null

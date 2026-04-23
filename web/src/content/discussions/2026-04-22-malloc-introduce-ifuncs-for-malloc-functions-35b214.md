@@ -8,12 +8,10 @@ source_type: public_inbox
 title: 'Re: [PATCH v2 2/2] malloc: introduce ifuncs for malloc functions'
 headline: 'malloc: introduce ifuncs for malloc functions'
 tldr: 'malloc: introduce ifuncs for malloc functions'
-stakes: Summary unavailable — see source link.
 proposer: Yury Khrustalev <yury.khrustalev@arm.com>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
-sentiment_rationale: ''
 technical_tradeoffs: []
 exchanges: []
 primer_expert: null

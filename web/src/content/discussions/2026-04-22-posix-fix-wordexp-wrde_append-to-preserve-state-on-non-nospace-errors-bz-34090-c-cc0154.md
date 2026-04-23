@@ -11,12 +11,10 @@ headline: 'posix: Fix wordexp WRDE_APPEND to preserve state on non-NOSPACE error
   (BZ 34090, CVE-2026-6368)'
 tldr: 'posix: Fix wordexp WRDE_APPEND to preserve state on non-NOSPACE errors (BZ
   34090, CVE-2026-6368)'
-stakes: Summary unavailable — see source link.
 proposer: Adhemerval Zanella <adhemerval.zanella@linaro.org>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
-sentiment_rationale: ''
 technical_tradeoffs: []
 exchanges: []
 primer_expert: null

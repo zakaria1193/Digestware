@@ -8,12 +8,10 @@ source_type: public_inbox
 title: 'Re: [PATCH v2] support: add support_address_diff function'
 headline: 'support: add support_address_diff function'
 tldr: 'support: add support_address_diff function'
-stakes: Summary unavailable — see source link.
 proposer: Wilco Dijkstra <Wilco.Dijkstra@arm.com>
 consensus: Proposed
 outcome: ready
 sentiment_score: null
-sentiment_rationale: ''
 technical_tradeoffs: []
 exchanges: []
 primer_expert: null

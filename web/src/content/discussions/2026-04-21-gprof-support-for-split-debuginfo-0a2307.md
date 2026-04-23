@@ -8,12 +8,10 @@ source_type: public_inbox
 title: 'Re: [PATCH] gprof support for split debuginfo'
 headline: gprof support for split debuginfo
 tldr: gprof support for split debuginfo
-stakes: Summary unavailable — see source link.
 proposer: Alan Modra <amodra@gmail.com>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
-sentiment_rationale: ''
 technical_tradeoffs: []
 exchanges: []
 primer_expert: null

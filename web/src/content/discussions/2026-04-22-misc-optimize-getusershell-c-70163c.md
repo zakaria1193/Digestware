@@ -8,12 +8,10 @@ source_type: public_inbox
 title: 'Re: [PATCH v2] misc: Optimize getusershell.c'
 headline: 'misc: Optimize getusershell.c'
 tldr: 'misc: Optimize getusershell.c'
-stakes: Summary unavailable — see source link.
 proposer: Collin Funk <collin.funk1@gmail.com>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
-sentiment_rationale: ''
 technical_tradeoffs: []
 exchanges: []
 primer_expert: null

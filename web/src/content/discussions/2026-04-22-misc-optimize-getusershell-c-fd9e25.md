@@ -8,12 +8,10 @@ source_type: public_inbox
 title: 'Re: [PATCH] misc: Optimize getusershell.c'
 headline: 'misc: Optimize getusershell.c'
 tldr: 'misc: Optimize getusershell.c'
-stakes: Summary unavailable — see source link.
 proposer: Adhemerval Zanella Netto <adhemerval.zanella@linaro.org>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
-sentiment_rationale: ''
 technical_tradeoffs: []
 exchanges: []
 primer_expert: null

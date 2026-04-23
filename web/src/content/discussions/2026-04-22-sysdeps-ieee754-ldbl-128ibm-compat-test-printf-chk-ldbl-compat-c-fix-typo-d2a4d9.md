@@ -9,12 +9,10 @@ title: '[PATCH 3/3]  sysdeps/ieee754/ldbl-128ibm-compat/test-printf-chk-ldbl-com
   Fix typo'
 headline: 'sysdeps/ieee754/ldbl-128ibm-compat/test-printf-chk-ldbl-compat.c: Fix typo'
 tldr: 'sysdeps/ieee754/ldbl-128ibm-compat/test-printf-chk-ldbl-compat.c: Fix typo'
-stakes: Summary unavailable — see source link.
 proposer: Alejandro Colomar <alx@kernel.org>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
-sentiment_rationale: ''
 technical_tradeoffs: []
 exchanges: []
 primer_expert: null
