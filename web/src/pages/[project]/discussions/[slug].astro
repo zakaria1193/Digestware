@@ -136,7 +136,7 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
       <a href={d.url} target="_blank" rel="noopener">View Original Thread &rarr;</a>
     </div>
 
-    {(d.primer_expert || d.primer_general) && (
+    {(d.primer_expert || d.primer_general) && (d.sentiment_score == null || d.sentiment_score > 3) && (
       <aside class="primer">
         <div class="primer-head">What is this even about?</div>
         {d.primer_expert && (
