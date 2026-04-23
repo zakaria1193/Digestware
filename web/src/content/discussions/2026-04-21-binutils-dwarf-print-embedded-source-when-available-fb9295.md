@@ -5,72 +5,67 @@ patch_id: null
 tags:
 - binutils
 - dwarf
-- objdump
 - debugging
 - embedded source
+- objdump
 discussion_id: 20260421020204.2759264-1-hawkinsw@obs.cr
 source_type: public_inbox
-title: '[PATCH v3] binutils/dwarf: Print embedded source, when available'
-headline: 'binutils/dwarf: Print embedded source, when available'
-tldr: objdump can now print embedded source code from DWARF debugging information,
-  with aarch64 support.
-stakes: Improves debugging experience by allowing developers to view source code directly
-  from objdump output.
-proposer: Will Hawkins <hawkinsw@obs.cr>
+title: 'Re: [PATCH v3] binutils/dwarf: Print embedded source, when available'
+headline: 'Binutils/dwarf: Print embedded source, when available'
+tldr: A patch adds the ability to print embedded source code from DWARF debugging
+  information, but needs testing on more architectures.
+stakes: This feature improves debugging by allowing developers to view source code
+  directly from the executable, which is especially useful when the original source
+  files are unavailable.  It streamlines the debugging process and removes the need
+  to search for the correct source version.
+proposer: Jens Remus <jremus@linux.ibm.com>
 consensus: Under Review
 outcome: ready
-sentiment_score: null
-sentiment_rationale: ''
+sentiment_score: 7
+sentiment_rationale: The patch is progressing with identified issues being addressed.
+  Reviewers are providing constructive feedback.
 technical_tradeoffs:
-- Adding embedded source increases the size of the debugging information.
-- Displaying embedded source in objdump can increase the tool's complexity slightly.
-- The patch improves debugging convenience, but requires compilers to embed the source
-  code in the DWARF information.
+- Embedding source code increases the size of the executable.
+- The patch needs to be tested on various architectures to ensure compatibility.
+- Displaying the source code within objdump can improve the debugging experience.
 exchanges:
-- author: Will Hawkins
-  role: proposer
-  position: Announces v3 of the patch, which includes a fix for a failing test on
-    aarch64.
-  quote: v3 should contain a test that passes on aarch64 as well as x86_64. Sorry
-    for the hassle!
-- author: Jens Remus
-  role: contributor
-  position: Asks to keep the original commit message from v1.
-  quote: 'Hello Will, it would be helpful if you could keep the original commit
-
-    message from v1 of your patch (except for the last two paragraphs),
-
-    including the description and motivation, and place any additional
-
-    comments below the three dashes (as you did with the patch changelog).
-
-    This should make it easier for everyone'
-- author: Jan Beulich
-  role: contributor
-  position: Asks about testing on other targets, including 32-bit ones.
+- author: Jens Remus <jremus@linux.ibm.com>
+  role: reviewer
+  position: Requests that the original commit message from v1 of the patch be included
+    in v3 for clarity.
+  quote: it would be helpful if you could keep the original commit message from v1
+    of your patch (except for the last two paragraphs), including the description
+    and motivation
+- author: Jan Beulich <jbeulich@suse.com>
+  role: reviewer
+  position: Asks whether the patch has been tested on other targets, including 32-bit
+    architectures.
   quote: What about other targets, including 32-bit ones?
-- author: Will Hawkins
+- author: Will Hawkins <hawkinsw@obs.cr>
   role: proposer
-  position: Admits lack of testing on other targets and thanks for the feedback.
+  position: Acknowledges that the patch has not yet been tested on 32-bit architectures.
   quote: I, unfortunately, have not tested on that target, yet.
-primer_expert: This patch modifies `binutils/dwarf.c` to extract and display embedded
-  source code stored within DWARF debugging information. DWARF is a debugging data
-  format used by compilers. The patch adds support for `DW_LNCT_LLVM_source` and `DW_LNCT_source`
-  content types in DWARF line number tables. The changes also include a new test case
-  (`binutils/testsuite/binutils-all/dwarf-embedded-source.S`) for verifying the functionality.
-primer_general: When compiling code, debug information can be included in the executable
-  or a separate file. DWARF is a standard format for this debug information, containing
-  information like source file names, line numbers, and variable types. `objdump`
-  is a command-line utility that displays information about object files, including
-  executables and shared libraries. This patch extends `objdump` to extract and display
-  the original source code embedded within the DWARF debugging information, making
-  it easier to debug programs.
+- author: Jan Beulich <jbeulich@suse.com>
+  role: reviewer
+  position: Points out an issue in the code where name/source display is delayed.
+  quote: null
+primer_expert: This patch modifies binutils, specifically the DWARF handling component.
+  DWARF is a debugging data format used to describe the program's structure, variables,
+  and source code location. Embedded source refers to the source code being directly
+  included within the DWARF debugging information, rather than just references to
+  external files.
+primer_general: Binutils is a collection of tools for working with binary files, including
+  executables and object code. DWARF is a standard for storing debugging information
+  in executable files, mapping machine code back to the original source code. This
+  debugging information can include the source code itself, embedded directly in the
+  executable. This allows debuggers to display the original source code even if the
+  source files are not available.
 series_id: null
 series_role: standalone
 series_parts: []
-url: https://inbox.sourceware.org/binutils/20260421020204.2759264-1-hawkinsw@obs.cr
+url: https://inbox.sourceware.org/binutils/d2b8db37-d4d7-4378-9e75-f86072457918@linux.ibm.com
 bugzilla_url: null
 date: '2026-04-21'
 ---
 
-This patch enables `objdump` to print embedded source code directly from DWARF debugging information, when available. The patch includes a test case and fixes a failing test on aarch64. It introduces new DWARF line number content types for source code.
+This patch adds functionality to binutils to print embedded source code directly from DWARF debugging information, when available. The patch has been updated to fix a failing test on aarch64.  Reviewers requested testing on additional architectures, including 32-bit targets, and suggested improving the commit message to include the original description and motivation.

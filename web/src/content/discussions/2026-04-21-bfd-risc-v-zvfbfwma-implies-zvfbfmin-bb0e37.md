@@ -4,32 +4,36 @@ subsystem: bfd/risc-v
 patch_id: null
 tags:
 - risc-v
-- binutils
-- bfd
 - zvfbfwma
 - zvfbfmin
+- extension dependency
+- binutils
 discussion_id: 77e6a033-451e-4a00-bb4c-77f3d90e73bb@suse.com
 source_type: public_inbox
 title: '[PATCH 07/19] bfd/RISC-V: Zvfbfwma implies Zvfbfmin'
-headline: 'Bfd/RISC-V: Zvfbfwma implies Zvfbfmin'
-tldr: 'Updates RISC-V implicit subset dependencies: Zvfbfwma now implies Zvfbfmin.'
-stakes: Ensures correct feature dependencies are enabled when using the Zvfbfwma extension.
+headline: 'Bfd/Risc-V: Zvfbfwma implies Zvfbfmin'
+tldr: Corrects the implicit extension dependencies in the RISC-V backend, stating
+  that Zvfbfwma implies Zvfbfmin.
+stakes: Ensures correct feature detection and code generation for RISC-V vector floating-point
+  extensions.
 proposer: Jan Beulich <jbeulich@suse.com>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
 sentiment_rationale: ''
 technical_tradeoffs:
-- Ensures correct implicit feature enabling.
-- No impact if the user explicitly enables both Zvfbfwma and Zvfbfmin.
+- This change fixes a functional bug and doesn't introduce new tradeoffs.
 exchanges: []
-primer_expert: The BFD library uses implicit subset dependencies to automatically
-  enable required features based on other enabled features. This patch modifies the
-  `riscv_implicit_subsets` table in `bfd/elfxx-riscv.c` to reflect the dependency
-  between Zvfbfwma and Zvfbfmin.
-primer_general: When working with RISC-V, certain extensions require other extensions
-  to be present. This patch updates the toolchain to automatically enable the Zvfbfmin
-  extension when the Zvfbfwma extension is enabled, due to their dependency.
+primer_expert: In `bfd/elfxx-riscv.c`, the `riscv_implicit_subsets` table defines
+  implicit dependencies between RISC-V extensions. This patch corrects the entry for
+  `zvfbfwma` to include `+zvfbfmin`, reflecting the ISA spec's requirement that `Zvfbfwma`
+  implies `Zvfbfmin`. This ensures proper handling of these extensions by the BFD
+  library.
+primer_general: RISC-V uses extensions to add features like vector floating-point
+  operations. Some extensions implicitly enable other extensions. This patch corrects
+  the binutils configuration to reflect the correct dependencies between the `Zvfbfwma`
+  and `Zvfbfmin` extensions, ensuring that the toolchain correctly recognizes and
+  supports these features when compiling RISC-V code.
 series_id: 'binutils:bfd/risc-v: zvfbfwma implies zvfbfmin'
 series_role: reply
 series_parts: []
@@ -38,4 +42,4 @@ bugzilla_url: null
 date: '2026-04-21'
 ---
 
-This patch modifies the implicit subset dependencies for RISC-V configurations.  Specifically, it changes the dependency such that enabling the Zvfbfwma extension also implicitly enables the Zvfbfmin extension. This aligns with the RISC-V specification.
+This patch fixes an incorrect implicit dependency in the RISC-V backend of binutils. It changes the implicit subset relationship such that enabling the `Zvfbfwma` extension automatically implies the `Zvfbfmin` extension. This correction aligns with the RISC-V specification.

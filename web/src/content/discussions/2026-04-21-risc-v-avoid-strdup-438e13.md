@@ -4,36 +4,37 @@ subsystem: risc-v
 patch_id: null
 tags:
 - risc-v
-- binutils
-- memory allocation
+- memory management
 - strdup
 - xstrdup
 discussion_id: ab2b7941-e67a-41ea-8cac-5e5cb72fb197@suse.com
 source_type: public_inbox
 title: '[PATCH 11/19] RISC-V: avoid strdup()'
 headline: 'Risc-V: Avoid strdup()'
-tldr: Replaces `strdup()` with `xstrdup()` for more consistent memory allocation error
-  handling in RISC-V code.
-stakes: Improved code robustness by using a consistent memory allocation scheme, potentially
-  preventing crashes due to memory allocation failures.
+tldr: Replaces `strdup()` with `xstrdup()` in RISC-V related code for better memory
+  management.
+stakes: Enhances code robustness and prevents potential memory leaks by using the
+  project's memory allocation functions.
 proposer: Jan Beulich <jbeulich@suse.com>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
 sentiment_rationale: ''
 technical_tradeoffs:
-- No functional change, assuming xstrdup behaves as expected.
-- Improved robustness in the face of OOM conditions.
+- Using `xstrdup()` might introduce a slight performance overhead compared to `strdup()`
+  due to the custom memory management.
+- It centralizes memory allocation, potentially simplifying debugging and memory leak
+  detection.
 exchanges: []
-primer_expert: '`strdup` is a standard C library function for duplicating strings.
-  `xstrdup` is a custom function (likely provided by binutils) that behaves similarly
-  but provides consistent error handling, such as exiting the program if memory allocation
-  fails. This patch replaces `strdup` with `xstrdup` in the RISC-V assembler and linker
-  code to ensure consistent memory allocation error handling.'
-primer_general: '`strdup` is a C function that duplicates a string by allocating memory
-  and copying the string into the allocated memory. This patch replaces `strdup` with
-  a safer alternative (`xstrdup`) that handles memory allocation errors more consistently,
-  leading to a more stable toolchain.'
+primer_expert: '`strdup` is a standard C library function to duplicate a string. However,
+  it can lead to memory leaks if the allocated memory is not freed. `xstrdup` is a
+  custom replacement that integrates with binutils'' memory management, likely providing
+  better error handling and freeing guarantees.'
+primer_general: '`strdup` is used to create a copy of a string in memory. This patch
+  replaces it with a safer alternative (`xstrdup`) that likely integrates with the
+  project''s memory management system, ensuring that memory is properly allocated
+  and deallocated, preventing potential memory leaks and improving the overall stability
+  of the tool.'
 series_id: 'binutils:risc-v: avoid strdup()'
 series_role: reply
 series_parts: []
@@ -42,4 +43,4 @@ bugzilla_url: null
 date: '2026-04-21'
 ---
 
-This patch replaces instances of `strdup()` with `xstrdup()` in the RISC-V related code. `xstrdup()` is a variant that ensures consistent error handling when memory allocation fails, which can improve the robustness of the code.
+This patch replaces instances of `strdup()` with `xstrdup()` in the RISC-V related code within binutils. `xstrdup()` is assumed to be a custom memory allocation function that provides better error handling or memory management compared to the standard `strdup()`.

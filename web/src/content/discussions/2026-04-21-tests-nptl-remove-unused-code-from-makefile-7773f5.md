@@ -2,36 +2,22 @@
 project: glibc
 subsystem: tests
 patch_id: null
-tags:
-- tests
-- nptl
-- makefile
-- cleanup
+tags: []
 discussion_id: 20260421143804.3933020-7-yury.khrustalev@arm.com
 source_type: public_inbox
 title: '[PATCH v4 6/8] tests: nptl: Remove unused code from makefile'
-headline: 'Tests: nptl: Remove unused code from makefile'
-tldr: Removes unused code related to the non-existent tst-pthread-proc-maps test from
-  the nptl Makefile.
-stakes: Simplifies the build system by removing unnecessary definitions, improving
-  maintainability.
+headline: 'tests: nptl: Remove unused code from makefile'
+tldr: 'tests: nptl: Remove unused code from makefile'
+stakes: Summary unavailable — see source link.
 proposer: Yury Khrustalev <yury.khrustalev@arm.com>
 consensus: Proposed
 outcome: ready
 sentiment_score: null
 sentiment_rationale: ''
 technical_tradeoffs: []
-exchanges:
-- author: Yury Khrustalev <yury.khrustalev@arm.com>
-  role: proposer
-  position: States that there is no test named tst-pthread-proc-maps.
-  quote: There is no test named tst-pthread-proc-maps.
-primer_expert: This patch cleans up the `nptl/Makefile` by removing stale definitions
-  related to a test, `tst-pthread-proc-maps`, that no longer exists.  This removes
-  associated `GLIBC_TUNABLES` and argument settings that were no longer used.
-primer_general: This patch cleans up the `nptl` (Native POSIX Thread Library) build
-  configuration in glibc by removing settings for a test that doesn't exist anymore.
-  This simplifies the build process and makes the configuration easier to understand.
+exchanges: []
+primer_expert: null
+primer_general: null
 series_id: 'glibc:tests: nptl: remove unused code from makefile'
 series_role: reply
 series_parts:
@@ -44,4 +30,4 @@ bugzilla_url: null
 date: '2026-04-21'
 ---
 
-This patch removes unused code from the `nptl/Makefile`. The removed code was related to a test named `tst-pthread-proc-maps`, which does not exist.
+Summary unavailable — see source link.

@@ -3,43 +3,43 @@ project: glibc
 subsystem: glibc
 patch_id: null
 tags:
-- dynamic linker
+- glibc
+- containerization
 - ld.so
-- shared libraries
-- contenerization
-- embedded
+- dynamic linking
+- embedded systems
 discussion_id: 20260421090020.59726-1-l.stelmach@samsung.com
 source_type: public_inbox
 title: '[RFC 0/3] Use multiple ld.so caches to separate execution environments'
 headline: Use multiple ld.so caches to separate execution environments
-tldr: This series introduces changes to use multiple ld.so caches for isolating execution
-  environments, primarily targeting embedded devices.
-stakes: This series enables better isolation of shared libraries, improving security
-  and dependency management in complex, especially embedded, systems.
+tldr: Introduce multiple ld.so caches and configuration options to isolate execution
+  environments, aimed at embedded devices.
+stakes: Enables isolation of vendor-provided components in embedded systems with minimal
+  overhead, preventing conflicts and ensuring compatibility.
 proposer: Łukasz Stelmach <l.stelmach@samsung.com>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
 sentiment_rationale: ''
 technical_tradeoffs:
-- Increased complexity in managing multiple ld.so caches.
-- Potential performance overhead due to additional configuration and lookup operations.
-- Requires careful handling of configuration precedence and isolation levels.
-- May introduce ABI compatibility issues if not implemented carefully.
-- Impacts the dynamic linking process and requires thorough testing.
+- Increases complexity of the dynamic linking process.
+- Provides better isolation and control over library dependencies.
+- May introduce performance overhead.
 exchanges: []
-primer_expert: This series of patches modifies the dynamic linker to support multiple
-  ``ld.so`` caches and configuration files. This affects the dynamic linking process
-  by allowing different execution environments to use different sets of shared libraries
-  and configurations. The core changes are in ``elf/dl-*.c``, ``elf/ldconfig.c``,
-  and the introduction of ``elf/dlconf.c``.
-primer_general: The dynamic linker (``ld.so``) is responsible for loading shared libraries
-  when a program is executed. It uses a cache file (``ld.so.cache``) to quickly locate
-  these libraries. This patch series introduces changes to allow the use of multiple
-  ``ld.so`` caches. This is useful for isolating different execution environments,
-  ensuring that each environment uses its own set of libraries and configurations,
-  preventing conflicts and improving security. It particularly targets embedded systems.
-series_id: null
+primer_expert: This series introduces a `dlconf` mechanism to glibc, allowing for
+  multiple `ld.so` caches and isolated library environments. Patches modify `ldconfig`,
+  `ld.so`, and related files to support configuration-driven linking. The primary
+  goal is to isolate vendor libraries in embedded systems, avoiding conflicts with
+  system libraries.  This is achieved through custom caches and symbol resolution
+  rules.
+primer_general: When a program runs, it depends on shared libraries for many functions.  The
+  standard way to manage these libraries is through a global cache.  This patch series
+  proposes a way to have multiple, separate caches for libraries.  This would allow
+  different parts of a system to use different versions of the same library without
+  interfering with each other. This is particularly useful in embedded systems where
+  some components might be provided by a vendor and need to be isolated from the rest
+  of the system to avoid conflicts.
+series_id: '20260421090020.59726'
 series_role: cover
 series_parts: []
 url: https://inbox.sourceware.org/libc-alpha/20260421090020.59726-1-l.stelmach@samsung.com
@@ -47,4 +47,4 @@ bugzilla_url: null
 date: '2026-04-21'
 ---
 
-This patch series provides a way to isolate execution environments using multiple ``ld.so`` caches.  The primary use case is embedded devices where parts of the platform are delivered by a hardware vendor and need to be kept separate from the rest of the system. The series includes patches for configuring ``ld.so`` via a config file, ignoring standard paths during cache generation, and preventing symbol conflicts.
+This patch series aims to provide containerization with minimal overhead, primarily targeting embedded devices. It introduces configuration options and multiple `ld.so` caches to isolate execution environments. The goal is to separate vendor-provided parts of the platform from the rest of the system, allowing dependencies to be resolved within a specific directory without restricting access to data outside that directory.

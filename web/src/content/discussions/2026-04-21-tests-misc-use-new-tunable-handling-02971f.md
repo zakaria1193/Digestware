@@ -3,32 +3,36 @@ project: glibc
 subsystem: tests
 patch_id: null
 tags:
+- glibc
 - tests
-- misc
 - tunables
+- makefile
 discussion_id: 20260421143804.3933020-5-yury.khrustalev@arm.com
 source_type: public_inbox
 title: '[PATCH v4 4/8] tests: misc: Use new tunable handling'
-headline: 'Tests: misc: Use new tunable handling'
-tldr: Migrates the misc tests to use the new tunable handling mechanism.
-stakes: Standardizes the tunable handling across the misc tests.
+headline: 'Tests: Misc: Use new tunable handling'
+tldr: Use the new mechanism for setting GLIBC tunables in Makefiles for misc tests.
+stakes: Simplifies setting GLIBC tunables in Makefiles for tests.
 proposer: Yury Khrustalev <yury.khrustalev@arm.com>
 consensus: Proposed
 outcome: ready
 sentiment_score: null
 sentiment_rationale: ''
-technical_tradeoffs: []
-exchanges:
-- author: Yury Khrustalev <yury.khrustalev@arm.com>
-  role: proposer
-  position: States that new way of handling test tunables are used in the misc folder.
-  quote: Use new way of handling test tunables in the misc folder.
-primer_expert: This patch migrates the `misc/` tests to use the new tunable handling
-  mechanism.  The key change is in the `Makefile`s, where the `GLIBC_TUNABLES` environment
-  variable assignment is replaced with the `*_TUNABLES +=` syntax.
-primer_general: This patch updates the way the `misc` tests are configured in glibc.
-  It uses a new method for setting test parameters (tunables), bringing the `misc`
-  tests in line with other parts of the glibc test suite.
+technical_tradeoffs:
+- Improved readability and maintainability of Makefiles.
+- More explicit and consistent way of setting GLIBC tunables for tests.
+exchanges: []
+primer_expert: This patch updates Makefiles under the `misc` test suite to use the
+  new `*TUNABLES` Make variable instead of the older `*ENV` form. The test suite uses
+  Makefiles to set environment variables to configure the runtime loader and memory
+  allocator. This change improves maintainability and consistency across the project.
+primer_general: The GNU C Library (glibc) provides a way to tune its behavior through
+  environment variables called "tunables". These tunables can control aspects like
+  memory allocation, threading, and other low-level system behaviors. This patch modifies
+  the Makefiles responsible for building and running tests for glibc, specifically
+  in the `misc` directory. It changes the way these tunables are set for the tests,
+  moving from a general environment variable (`ENV`) to a dedicated `TUNABLES` variable,
+  for clarity and better organization.
 series_id: 'glibc:tests: misc: use new tunable handling'
 series_role: reply
 series_parts:
@@ -41,4 +45,4 @@ bugzilla_url: null
 date: '2026-04-21'
 ---
 
-This patch updates the `misc` tests to use the new tunable handling mechanism, by replacing the `GLIBC_TUNABLES` environment variable assignment with the `*_TUNABLES +=` syntax in `misc/Makefile` and `sysdeps/unix/sysv/linux/Makefile`.
+This patch updates the Makefiles in the misc tests folder to use the new way of handling test tunables, changing from setting tunables in the ENV variable to using the TUNABLES variable.
