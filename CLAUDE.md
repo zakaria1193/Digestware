@@ -73,34 +73,33 @@ technical source material:
   paraphrase identifiers. Quote the relevant snippet when it clarifies intent.
 - **Link the code.** Reference paths in the original repo (e.g.
   `gcc/ipa-sra.cc`, `mm/slub.c`) so experts can jump straight to the source.
-- **Mandatory section — "What is this even about?" (two registers).**
-  Every technical article MUST carry the "What is this even about?" heading
-  and MUST provide TWO variants of it, because our readers split sharply
-  between toolchain insiders and general software engineers. Skipping
-  either variant is a bug, not a stylistic choice. No hand-waving and no
-  dumbing down in either one — just context pitched for the reader.
-    - **For toolchain folks (`primer_expert`).** 2–4 sentences, ≤ 500
-      chars. Assume the reader already knows compiler passes, ELF/DWARF,
-      relocations, PIC/PIE, ABI conventions, libc internals. Do NOT
-      define those. Instead, place THIS specific subsystem inside that
-      map: name the concrete file / pass / invariant / data structure
-      (e.g. `gcc/ipa-sra.cc` + `IPA_PARAM_DESCRIPTOR`, or
-      `malloc/tcache.c` + per-thread `tcache_entry`), note why a
-      toolchain dev outside this subsystem still wouldn't instantly
-      recognise it, and flag non-obvious interactions with neighbouring
-      subsystems.
-    - **For everyone else (`primer_general`).** 4–6 sentences, ≤ 800
-      chars. Written for a competent software engineer who has never
-      opened a compiler / linker / libc source tree. Explain the
-      subsystem from first principles: what problem it exists to solve,
-      where it sits in the pipeline (source → IR → object → binary →
-      runtime), and every piece of jargon the expert variant takes for
-      granted.
-- Neither variant may restate the lede, TL;DR, or the commit's actual
-  effect — they are background, not summary.
-- Place the "What is this even about?" section near the top of the
-  rendered article (after the lede, before the deep-dive) so a reader can
-  pick the register that matches them before committing to the details.
+- **`primer_expert` — "In Details" block (toolchain folks).** 2–4
+  sentences, ≤ 500 chars. Rendered at full opacity as a labelled section.
+  Assume the reader already knows compiler passes, ELF/DWARF, relocations,
+  PIC/PIE, ABI conventions, libc internals. Do NOT define those. Instead,
+  place THIS specific subsystem inside that map: name the concrete file /
+  pass / invariant / data structure (e.g. `gcc/ipa-sra.cc` +
+  `IPA_PARAM_DESCRIPTOR`), note why a toolchain dev outside this subsystem
+  still wouldn't instantly recognise it, and flag non-obvious interactions
+  with neighbouring subsystems.
+- **`primer_glossary` — Glossary block (devs who are not toolchain experts).**
+  An array of `{ term, definition }` objects rendered as a labelled glossary.
+  Include every non-obvious component, concept, flag, or subsystem name that
+  appears in the article and that a competent software engineer outside the
+  toolchain world would not immediately know. Many items are expected — err on
+  the side of more entries, not fewer. Each `term` should be the exact name as
+  it appears in the article (e.g. `IPA`, `SRA`, `-fipa-sra`, `ELF relocations`,
+  `THP`). Each `definition` should be 1–3 sentences: what it is, what problem
+  it solves, and where it sits in the pipeline (source → IR → object → binary →
+  runtime) when that context matters. Do NOT restate the commit's effect — only
+  background. Example frontmatter:
+  ```yaml
+  primer_glossary:
+    - term: "IPA (Interprocedural Analysis)"
+      definition: "A family of GCC optimization passes that reason about the whole program rather than one function at a time, allowing the compiler to inline, specialize, or eliminate functions it would otherwise treat as black boxes."
+    - term: "SRA (Scalar Replacement of Aggregates)"
+      definition: "A compiler pass that breaks up struct and array variables into individual scalar variables so they can be kept in registers, avoiding memory traffic."
+  ```
 
 ## What Claude Should NOT Do
 - Do not add features beyond the current phase.

@@ -12,6 +12,11 @@ const exchange = z.object({
   quote: z.string().nullable().optional(),
 });
 
+const glossaryEntry = z.object({
+  term: z.string(),
+  definition: z.string(),
+});
+
 const discussions = defineCollection({
   type: 'content',
   schema: z.object({
@@ -31,6 +36,7 @@ const discussions = defineCollection({
     exchanges: z.array(exchange).optional(),
     primer_expert: z.string().nullable().optional(),
     primer_general: z.string().nullable().optional(),
+    primer_glossary: z.array(glossaryEntry).optional(),
     series_id: z.string().nullable().optional(),
     series_role: z.string().nullable().optional(),
     series_parts: z.array(seriesPart).optional(),
@@ -58,6 +64,7 @@ const landings = defineCollection({
     breaking_change: z.boolean().optional(),
     primer_expert: z.string().nullable().optional(),
     primer_general: z.string().nullable().optional(),
+    primer_glossary: z.array(glossaryEntry).optional(),
     series_id: z.string().nullable().optional(),
     series_parts: z.array(seriesPart).optional(),
     tags: z.array(z.string()).optional(),
