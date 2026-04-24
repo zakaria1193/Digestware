@@ -12,6 +12,10 @@ on:
         description: 'Run the digest pipeline with DEBUG-level logging'
         type: boolean
         default: false
+      purge:
+        description: 'Purge existing content before running (no archive kept)'
+        type: boolean
+        default: false
 
 jobs:
   # ── 1. Quality gate (reused from test.yml) ───────────────────────────────────
@@ -48,16 +52,10 @@ jobs:
             exit 1
           fi
 
-      # Temporary policy while the agent logic is still being stabilised:
-      # every nightly run starts from a clean slate, then pulls the last 48 h,
-      # expanding the window as needed until at least 5 discussions AND 5
-      # landings have been produced.
-      #
-      # The previous run's output is archived under ``.old/<UTC-timestamp>/``
-      # rather than deleted, so usage.log and the superseded Markdown files
-      # remain available for debugging while the live content folders still
-      # show only the latest run (which Astro reads from).
+      # Scheduled runs (and manual runs without purge) archive previous output
+      # under .old/<UTC-timestamp>/ so history is preserved for debugging.
       - name: Archive previous generated content
+        if: ${{ !inputs.purge }}
         run: |
           set -euo pipefail
           TS="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
@@ -69,19 +67,38 @@ jobs:
             "${ARCHIVE}/output"
           move_files() {
             local src="$1" dst="$2"
-            # Move every file except .gitkeep; suppress "no files matched" noise.
             find "${src}" -type f ! -name '.gitkeep' -exec mv -t "${dst}" {} + 2>/dev/null || true
           }
           move_files web/src/content/discussions "${ARCHIVE}/content/discussions"
           move_files web/src/content/landings    "${ARCHIVE}/content/landings"
           move_files web/src/content/digests     "${ARCHIVE}/content/digests"
           move_files agents/output               "${ARCHIVE}/output"
-          # Drop empty archive subdirs so a run with nothing to archive doesn't
-          # leave behind a pile of empty dated folders.
           find "${ARCHIVE}" -mindepth 1 -type d -empty -delete
           rmdir "${ARCHIVE}" 2>/dev/null || true
           rmdir .old 2>/dev/null || true
           echo "ARCHIVE_PATH=${ARCHIVE}" >> "${GITHUB_ENV}"
+
+      # Manual runs with purge=true delete content outright and bypass dedup
+      # via --force so the agent re-ingests from scratch.
+      - name: Purge previous generated content
+        if: ${{ inputs.purge }}
+        run: |
+          python - <<'PY'
+          import pathlib
+          roots = [
+              pathlib.Path("web/src/content/landings"),
+              pathlib.Path("web/src/content/discussions"),
+              pathlib.Path("web/src/content/digests"),
+          ]
+          removed = 0
+          for root in roots:
+              if not root.is_dir():
+                  continue
+              for md in root.glob("*.md"):
+                  md.unlink()
+                  removed += 1
+          print(f"Purged {removed} file(s).")
+          PY
 
       - name: Run digest pipeline (48 h window, backfill to min 5 each)
         env:
@@ -89,16 +106,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MIN_ENTRIES: '5'
           DEBUG_FLAG: ${{ inputs.debug && '--debug' || '' }}
+          FORCE_FLAG: ${{ inputs.purge && '--force' || '' }}
         run: |
           set -euo pipefail
           count() { find "$1" -type f -name '*.md' 2>/dev/null | wc -l; }
 
-          # Windows to try in order. Start at 48 h; widen only if we're short.
-          # Dedup via build_seen_index() means each extra pass only processes
-          # items older than what we already wrote.
           for hours in 48 168 720 2160; do
             echo "::group::digest run (--since-hours ${hours})"
-            python -m agents.main --since-hours "${hours}" ${DEBUG_FLAG}
+            python -m agents.main --since-hours "${hours}" ${DEBUG_FLAG} ${FORCE_FLAG}
             echo "::endgroup::"
 
             d=$(count web/src/content/discussions)
@@ -116,9 +131,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add web/src/content/
-          # -f because agents/output/usage.log is gitignored at the original
-          # path but we want the archived copy under .old/ committed for
-          # debugging history.
           [ -d .old ] && git add -f .old/ || true
           git diff --cached --quiet && echo "No content change." || \
             git commit -m "chore(digest): nightly purge+refresh $(date -u +%Y-%m-%d)" && git push
