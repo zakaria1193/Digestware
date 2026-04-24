@@ -11,7 +11,7 @@ const d = entry.data;
 
 const dateStr = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
 const isHigh = (d.impact_score ?? 0) >= 8;
-const isLow = (d.impact_score ?? 10) <= 3;
+const isLow = (d.impact_score ?? 0) <= 3;
 ---
 
 <a href={`/${projectSlug}/landings/${entry.id}`} class:list={["wire", isHigh && "wire-starred", isLow && "wire-dim"]} data-score={d.impact_score ?? 0}>
