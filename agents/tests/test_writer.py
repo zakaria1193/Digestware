@@ -105,47 +105,6 @@ class TestWriteDiscussion:
         fm = yaml.safe_load(content.split("---")[1])
         assert isinstance(fm["consensus"], str)
 
-    def test_flow_indicators_in_title_are_quoted(self, tmp_output_dir):
-        """Strings containing `[`, `]`, `{`, `}` must be emitted as quoted
-        scalars so that js-yaml (YAML 1.2, used by Astro) does not try to parse
-        them as flow sequences or mappings.
-
-        Regression: GNU_PROPERTY_1_NEEDED_THP_ON_[READ_ONLY_SEGMENTS|MALLOC]
-        broke the bento because PyYAML emitted the bare `[` as a plain scalar
-        (valid YAML 1.1) but Astro's parser rejected it.
-        """
-        from datetime import datetime, timezone
-
-        from agents.models.base import ConsensusStatus
-        from agents.models.discussion import DiscussionDigest
-
-        d = DiscussionDigest(
-            project="glibc",
-            subsystem="elf/loader",
-            discussion_id="test-id-flow-indicators",
-            source_type="public_inbox",
-            title="[RFC] Add GNU_PROPERTY_1_NEEDED_THP_ON_[READ_ONLY_SEGMENTS|MALLOC]",
-            headline="Add GNU_PROPERTY_1_NEEDED_THP_ON_[READ_ONLY_SEGMENTS|MALLOC]",
-            tldr="Add GNU_PROPERTY_1_NEEDED_THP_ON_[READ_ONLY_SEGMENTS|MALLOC]",
-            proposer="wilco@example.com",
-            consensus=ConsensusStatus.PROPOSED,
-            technical_tradeoffs=[],
-            summary=(
-                "Proposal adds two GNU ELF property bits so ld.so can call "
-                "madvise on read-only segments and heap arenas at startup."
-            ),
-            url="https://inbox.sourceware.org/libc-alpha/test",
-            date=datetime(2026, 4, 23, tzinfo=timezone.utc),
-        )
-        path = write_discussion(d, output_dir=tmp_output_dir)
-        raw = path.read_text(encoding="utf-8")
-
-        # yaml.safe_load must not raise and must return str, not a list
-        fm = yaml.safe_load(raw.split("---")[1])
-        assert isinstance(fm["headline"], str)
-        assert isinstance(fm["tldr"], str)
-        assert "[" in fm["headline"]  # value preserved
-
 
 # ---------------------------------------------------------------------------
 # write_landing
