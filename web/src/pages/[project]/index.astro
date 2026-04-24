@@ -65,9 +65,82 @@ const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
   return latestB - latestA;
 });
 
+// Aggregate tag frequencies across both collections, rank by frequency.
+const tagCounts = new Map<string, number>();
+for (const entry of [...allDiscussions, ...landings]) {
+  for (const tag of entry.data.tags ?? []) {
+    tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+  }
+}
+const rankedTags = [...tagCounts.entries()]
+  .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+  .map(([name, count]) => ({ name, count }));
+const TOP_N = 6;
+const topTags = rankedTags.slice(0, TOP_N);
+const moreTags = rankedTags.slice(TOP_N);
+const totalItems = allDiscussions.length + landings.length;
+
 ---
 
 <PublicLayout project={project}>
+  <!-- Page-wide filter ribbon: governs both commits and discussions -->
+  <section class="filter-bar" aria-label="Digest filters">
+    <div class="filter-bar-head">
+      <span class="wsj-section-label">Filters</span>
+      <span class="wsj-section-rule"></span>
+      <span class="wsj-meta"><span id="filter-visible">{totalItems}</span> of {totalItems}</span>
+    </div>
+
+    <div class="filter-bar-body">
+      <div class="filter-cell filter-cell-impact">
+        <span class="filter-cell-label">Impact</span>
+        <div class="filter-cell-control">
+          <input type="range" id="impact-filter" min="1" max="3" step="1" value="2" aria-label="Minimum impact level" />
+          <div class="filter-ticks">
+            <span>Low</span>
+            <span>Avg</span>
+            <span>High</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="filter-cell filter-cell-labels">
+        <div class="filter-cell-label-row">
+          <span class="filter-cell-label">Labels</span>
+          {rankedTags.length > 0 && (
+            <div class="filter-toggles">
+              <button type="button" class="filter-toggle" data-action="mark-all">Mark&nbsp;All</button>
+              <span class="filter-toggle-sep">/</span>
+              <button type="button" class="filter-toggle" data-action="unmark-all">Unmark&nbsp;All</button>
+            </div>
+          )}
+        </div>
+        <div class="filter-chips" id="filter-chips">
+          {rankedTags.length === 0 && (
+            <span class="filter-empty">No labels in the current window.</span>
+          )}
+          {topTags.map(t => (
+            <button type="button" class="chip" data-tag={t.name} data-selected="true" aria-pressed="true">
+              <span class="chip-name">{t.name}</span>
+              <span class="chip-count">{t.count}</span>
+            </button>
+          ))}
+          {moreTags.map(t => (
+            <button type="button" class="chip chip-extra" data-tag={t.name} data-selected="true" aria-pressed="true" hidden>
+              <span class="chip-name">{t.name}</span>
+              <span class="chip-count">{t.count}</span>
+            </button>
+          ))}
+          {moreTags.length > 0 && (
+            <button type="button" class="filter-show-all" id="filter-show-all" aria-expanded="false">
+              Show&nbsp;all&nbsp;<span class="chip-count">+{moreTags.length}</span>
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  </section>
+
   <div class="page-grid">
     <!-- Left: Commit Stream (sidebar) -->
     <aside class="commit-stream" id="stream">
@@ -77,18 +150,6 @@ const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
       </div>
       <div class="stream-rule"></div>
       <div class="stream-rule-thin"></div>
-
-      <div class="stream-filter">
-        <div class="filter-heading">Filter by impact</div>
-        <div class="filter-track">
-          <input type="range" id="impact-filter" min="1" max="3" step="1" value="1" />
-        </div>
-        <div class="filter-labels">
-          <span>Low</span>
-          <span>Avg</span>
-          <span>High</span>
-        </div>
-      </div>
 
       <div class="stream-list" id="stream-list">
         {landings.length === 0 && (
@@ -116,7 +177,7 @@ const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
         const visibleEntries = entries.filter(e => clusterMap.get(e.id)?.show !== false);
         if (visibleEntries.length === 0) return null;
         return (
-          <section class="subsystem-block">
+          <section class="subsystem-block" data-subsystem-block>
             <div class="subsystem-head">
               <span class="wsj-section-label">{sub}</span>
               <span class="wsj-section-rule"></span>
@@ -134,28 +195,108 @@ const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
 
 <script>
   const slider = document.getElementById('impact-filter') as HTMLInputElement;
-  const list = document.getElementById('stream-list')!;
+  const chipsRoot = document.getElementById('filter-chips')!;
+  const showAllBtn = document.getElementById('filter-show-all') as HTMLButtonElement | null;
+  const visibleCounter = document.getElementById('filter-visible');
   const thresholds = [0, 4, 8];
 
-  function applyFilter(level: number): number {
-    const min = thresholds[level - 1];
+  const chips = Array.from(chipsRoot.querySelectorAll<HTMLButtonElement>('.chip'));
+  const allTagsCount = chips.length;
+  const wires = Array.from(document.querySelectorAll<HTMLElement>('.wire'));
+  const stories = Array.from(document.querySelectorAll<HTMLElement>('.story'));
+  const subsystemBlocks = Array.from(
+    document.querySelectorAll<HTMLElement>('[data-subsystem-block]')
+  );
+
+  function selectedSet(): Set<string> {
+    const s = new Set<string>();
+    for (const c of chips) {
+      if (c.dataset.selected === 'true') s.add(c.dataset.tag ?? '');
+    }
+    return s;
+  }
+
+  function passesLabels(tagStr: string | undefined, selected: Set<string>): boolean {
+    // "Mark All" (every chip selected) is treated as filter-off so no-tag items show too.
+    if (allTagsCount === 0 || selected.size === allTagsCount) return true;
+    if (selected.size === 0) return false;
+    const tags = (tagStr ?? '').split('|').filter(Boolean);
+    for (const t of tags) if (selected.has(t)) return true;
+    return false;
+  }
+
+  function apply(level: number): void {
+    const min = thresholds[Math.max(0, Math.min(2, level - 1))];
+    const selected = selectedSet();
     let visible = 0;
-    list.querySelectorAll<HTMLElement>('.wire').forEach(row => {
-      const show = parseInt(row.dataset.score ?? '0') >= min;
-      row.hidden = !show;
+
+    for (const el of wires) {
+      const score = parseInt(el.dataset.score ?? '0');
+      const show = score >= min && passesLabels(el.dataset.tags, selected);
+      el.hidden = !show;
       if (show) visible++;
+    }
+    for (const el of stories) {
+      const score = parseInt(el.dataset.score ?? '0');
+      const show = score >= min && passesLabels(el.dataset.tags, selected);
+      el.hidden = !show;
+      if (show) visible++;
+    }
+    for (const block of subsystemBlocks) {
+      const anyVisible = block.querySelector('.story:not([hidden])');
+      block.hidden = !anyVisible;
+    }
+    if (visibleCounter) visibleCounter.textContent = String(visible);
+  }
+
+  function setAllChips(selected: boolean): void {
+    for (const c of chips) {
+      c.dataset.selected = selected ? 'true' : 'false';
+      c.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    }
+  }
+
+  // Chip click → toggle individual label
+  chipsRoot.addEventListener('click', (ev) => {
+    const target = (ev.target as HTMLElement).closest<HTMLButtonElement>('.chip');
+    if (!target) return;
+    const on = target.dataset.selected !== 'true';
+    target.dataset.selected = on ? 'true' : 'false';
+    target.setAttribute('aria-pressed', on ? 'true' : 'false');
+    apply(parseInt(slider.value));
+  });
+
+  // Mark All / Unmark All
+  document.querySelectorAll<HTMLButtonElement>('.filter-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      setAllChips(btn.dataset.action === 'mark-all');
+      apply(parseInt(slider.value));
     });
-    return visible;
+  });
+
+  // Show All / Show Less
+  if (showAllBtn) {
+    const extras = chipsRoot.querySelectorAll<HTMLElement>('.chip-extra');
+    const extraCount = extras.length;
+    showAllBtn.addEventListener('click', () => {
+      const expanded = showAllBtn.getAttribute('aria-expanded') === 'true';
+      extras.forEach(el => { el.hidden = expanded; });
+      showAllBtn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+      showAllBtn.innerHTML = expanded
+        ? `Show&nbsp;all&nbsp;<span class="chip-count">+${extraCount}</span>`
+        : `Show&nbsp;less`;
+    });
   }
 
-  // Default to Avg; fall back to Low if it would show nothing
-  if (applyFilter(2) > 0) {
-    slider.value = '2';
-  } else {
-    applyFilter(1);
-  }
+  slider.addEventListener('input', () => apply(parseInt(slider.value)));
 
-  slider.addEventListener('input', () => applyFilter(parseInt(slider.value)));
+  // Default to Avg; fall back to Low if it would show nothing in the commit stream.
+  apply(2);
+  const anyWireVisible = wires.some(w => !w.hidden);
+  if (!anyWireVisible && wires.length > 0) {
+    slider.value = '1';
+    apply(1);
+  }
 </script>
 
 </PublicLayout>
@@ -223,29 +364,63 @@ const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
 
   .stream-list { display: flex; flex-direction: column; }
 
-  .stream-filter {
-    margin-bottom: 0.75rem;
+  /* ---------- Unified filter ribbon (spans both columns) ---------- */
+  .filter-bar {
+    margin: 0 0 1.4rem;
+    padding: 0.1rem 0 0.9rem;
+    border-top: 3px double var(--color-rule-strong);
+    border-bottom: 1px solid var(--color-rule-strong);
   }
-  .filter-heading {
-    font-family: var(--font-sans);
-    font-size: 0.55rem;
-    font-weight: 700;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
+
+  .filter-bar-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.4rem 0 0.6rem;
+  }
+  .filter-bar-head .wsj-meta {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.75rem;
     color: var(--color-muted);
-    opacity: 0.5;
-    text-align: center;
-    margin-bottom: 0.3rem;
+    white-space: nowrap;
   }
-  .filter-track {
-    padding: 0 0.1rem;
+
+  .filter-bar-body {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.9rem 2rem;
+    align-items: start;
+  }
+
+  .filter-cell-label {
+    display: inline-block;
+    font-family: var(--font-sans);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+  }
+
+  .filter-cell-impact {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.6rem 0.9rem;
+    align-items: center;
+  }
+  .filter-cell-impact .filter-cell-control {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
   }
   #impact-filter {
     width: 100%;
     accent-color: var(--color-accent);
     cursor: pointer;
   }
-  .filter-labels {
+  .filter-ticks {
     display: flex;
     justify-content: space-between;
     font-family: var(--font-sans);
@@ -254,7 +429,113 @@ const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--color-muted);
-    padding: 0.1rem 0.1rem 0;
+  }
+
+  .filter-cell-labels {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+  .filter-cell-label-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+  }
+  .filter-toggles {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.35rem;
+  }
+  .filter-toggle {
+    font-family: var(--font-sans);
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    background: transparent;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+  }
+  .filter-toggle:hover { color: var(--color-accent); }
+  .filter-toggle-sep {
+    color: var(--color-rule);
+    font-family: var(--font-sans);
+    font-size: 0.58rem;
+  }
+
+  .filter-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.75rem;
+    align-items: baseline;
+  }
+  .filter-empty {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.78rem;
+    color: var(--color-muted);
+  }
+
+  .chip {
+    font-family: var(--font-sans);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-ink);
+    background: transparent;
+    border: 0;
+    padding: 0.1rem 0 0.18rem;
+    cursor: pointer;
+    border-bottom: 2px solid var(--color-accent);
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.3rem;
+    transition: opacity 0.12s ease, color 0.12s ease;
+  }
+  .chip:hover { opacity: 0.72; }
+  .chip[data-selected="false"] {
+    color: var(--color-muted);
+    border-bottom-color: var(--color-rule);
+    border-bottom-style: dotted;
+    opacity: 0.55;
+  }
+  .chip[data-selected="false"] .chip-name {
+    text-decoration: line-through;
+    text-decoration-color: var(--color-rule);
+  }
+  .chip-count {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.7rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--color-muted);
+  }
+
+  .filter-show-all {
+    font-family: var(--font-sans);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    background: transparent;
+    border: 0;
+    padding: 0.1rem 0 0.18rem;
+    cursor: pointer;
+    border-bottom: 1px solid var(--color-accent);
+  }
+  .filter-show-all:hover { opacity: 0.75; }
+
+  @media (min-width: 900px) {
+    .filter-bar-body {
+      grid-template-columns: minmax(220px, 1fr) minmax(0, 3fr);
+    }
   }
 
   @media (min-width: 900px) {
