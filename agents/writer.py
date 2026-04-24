@@ -222,9 +222,29 @@ def write_landing(
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+class _FrontmatterDumper(yaml.SafeDumper):
+    """PyYAML dumper that quotes strings containing YAML 1.2 flow indicators.
+
+    PyYAML (YAML 1.1) emits `[`, `]`, `{`, `}` as plain scalars in block
+    context. js-yaml v4 (YAML 1.2, used by Astro) treats `[` mid-scalar as a
+    flow-sequence delimiter, breaking frontmatter parsing for identifiers like
+    GNU_PROPERTY_1_NEEDED_THP_ON_[READ_ONLY_SEGMENTS|MALLOC].
+    """
+
+
+def _quoted_str_representer(dumper: yaml.Dumper, data: str) -> yaml.ScalarNode:
+    if any(c in data for c in "[]{}"):
+        return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="'")
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data)
+
+
+_FrontmatterDumper.add_representer(str, _quoted_str_representer)
+
+
 def _render(frontmatter: dict, body: str) -> str:
     fm_str = yaml.dump(
         frontmatter,
+        Dumper=_FrontmatterDumper,
         default_flow_style=False,
         allow_unicode=True,
         sort_keys=False,
