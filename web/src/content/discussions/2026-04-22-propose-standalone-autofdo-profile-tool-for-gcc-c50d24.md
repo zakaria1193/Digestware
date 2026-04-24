@@ -4,44 +4,57 @@ subsystem: rfc
 patch_id: null
 tags:
 - AutoFDO
-- profiling
+- profile
 - optimization
 - perf
+- tool
 discussion_id: B80EC0EC-AE15-40D9-9F48-A01DE8716639@nvidia.com
 source_type: public_inbox
 title: 'RFC: Standalone AutoFDO Profile Tool for GCC'
 headline: Propose Standalone AutoFDO Profile Tool for GCC
-tldr: To replace the current reliance on external Google tools, a native, simplified
-  AutoFDO tool for GCC will be created and integrated.
+tldr: Kugan Vivekanandarajah proposes creating a native, simplified AutoFDO tool for
+  GCC, replacing the current reliance on external Google tools.
 proposer: Kugan Vivekanandarajah <kvivekananda@nvidia.com>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
 technical_tradeoffs:
-- Development and maintenance costs of a new tool.
-- Potential for increased complexity in the GCC build process.
+- Development and maintenance overhead for a new tool.
+- Potential duplication of functionality with existing tools.
 - Risk of introducing new bugs or performance regressions.
 exchanges:
-- author: Kugan Vivekanandarajah
+- author: Kugan Vivekanandarajah <kvivekananda@nvidia.com>
   role: proposer
-  position: Proposes creating a native, simplified AutoFDO tool for GCC, with the
-    goal of integrating it into the GCC repository.
+  position: Proposes creating a standalone AutoFDO profile tool for GCC to replace
+    existing external tools.
   quote: Building on our discussions from the last Cauldron, we propose creating a
     native, simplified AutoFDO tool for GCC to replace our current reliance on external
     Google tools which is not actively maintained.
 - author: Andrew Pinski
   role: other
-  position: Asks whether this tool will replace the existing AutoFDO tools in GCC.
-  quote: null
-primer_expert: AutoFDO uses profile information to guide compiler optimizations.  The
-  proposal is to create a standalone tool that generates the profiles consumed by
-  GCC's AutoFDO. Perf is a performance monitoring tool in Linux that captures data
-  which this tool would consume.
-primer_general: AutoFDO (Automatic Feedback-Directed Optimization) uses runtime information
-  to guide compiler optimizations, improving performance. This proposal is for a new
-  tool that will generate the data used by AutoFDO. This tool will replace the existing
-  tools, which are not well-maintained, with something that is integrated directly
-  into GCC.
+  position: Acknowledges the proposal.
+  quote: '> Hi,
+
+    >
+
+    > Building on our discussions from the last Cauldron, we propose creating a native,
+    simplified AutoFDO tool for GCC to replace our current reliance on external Google
+    tools which is not actively maintained.
+
+    >
+
+    > Thanks,
+
+    > Kugan'
+primer_expert: AutoFDO (Automatic Feedback-Directed Optimization) uses runtime profile
+  data to guide compiler optimizations.  perf.data contains performance counter samples.  This
+  proposal aims to create a GCC-native tool to process perf data into AutoFDO profiles,
+  reducing external dependencies and easing maintenance.
+primer_general: Profile-guided optimization (PGO) uses runtime data to improve compiler
+  optimization decisions. AutoFDO is a type of PGO that automates the process using
+  performance counters. This proposal suggests building a dedicated tool within the
+  GCC project to generate the profiles needed for AutoFDO, simplifying the process
+  and reducing reliance on external tools.
 series_id: null
 series_role: standalone
 series_parts: []
@@ -50,4 +63,4 @@ bugzilla_url: null
 date: '2026-04-22'
 ---
 
-Kugan Vivekanandarajah proposes creating a standalone AutoFDO tool for GCC. The goal is to replace the current reliance on external Google tools. The new tool would support offline reading of perf.data, direct attach to a process via the PMU, and system-wide reading of perf.data.
+Kugan Vivekanandarajah proposes creating a standalone, minimal tool for generating AutoFDO profiles that can be consumed by the GCC AutoFDO toolchain. The goal is to integrate it into the GCC repository and replace the current reliance on external Google tools. The tool would support reading existing perf.data, direct attach to a process via the PMU, and system-wide perf.data collection.
