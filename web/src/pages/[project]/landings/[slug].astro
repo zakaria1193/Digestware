@@ -117,6 +117,13 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
       <Content />
     </div>
 
+    {d.primer_expert && (
+      <section class="extra">
+        <h2>In Details</h2>
+        <p>{d.primer_expert}</p>
+      </section>
+    )}
+
     {(d.series_parts ?? []).length > 0 && (
       <section class="extra">
         <h2>Part of a Series</h2>
@@ -139,21 +146,13 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
       <a href={d.url} target="_blank" rel="noopener">View Commit &rarr;</a>
     </div>
 
-    {(d.primer_expert || d.primer_general) && (d.impact_score == null || d.impact_score > 3) && (
+    {d.primer_general && (d.impact_score == null || d.impact_score > 3) && (
       <aside class="primer">
         <div class="primer-head">What is this even about?</div>
-        {d.primer_expert && (
-          <div class="primer-variant">
-            <div class="primer-audience">For toolchain folks</div>
-            <p>{d.primer_expert}</p>
-          </div>
-        )}
-        {d.primer_general && (
-          <div class="primer-variant">
-            <div class="primer-audience">For everyone else</div>
-            <p>{d.primer_general}</p>
-          </div>
-        )}
+        <div class="primer-variant">
+          <div class="primer-audience">For everyone else</div>
+          <p>{d.primer_general}</p>
+        </div>
       </aside>
     )}
 
@@ -380,6 +379,7 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
     margin: 0 0 0.6rem;
   }
   .extra ul { margin: 0; padding-left: 1.25rem; font-family: var(--font-serif); font-size: 0.95rem; line-height: 1.55; }
+  .extra p { margin: 0; font-family: var(--font-serif); font-size: 0.95rem; line-height: 1.6; color: var(--color-ink); }
   .extra a { color: var(--color-accent); text-decoration: none; border-bottom: 1px solid var(--color-accent); }
 
   .tags {
