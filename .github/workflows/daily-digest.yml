@@ -113,7 +113,7 @@ jobs:
 
           for hours in 48 168 720 2160; do
             echo "::group::digest run (--since-hours ${hours})"
-            python -m agents.main --since-hours "${hours}" ${DEBUG_FLAG} ${FORCE_FLAG}
+            python -m agents.main --since-hours "${hours}" --skip-categorize ${DEBUG_FLAG} ${FORCE_FLAG}
             echo "::endgroup::"
 
             d=$(count web/src/content/discussions)
@@ -126,11 +126,17 @@ jobs:
             fi
           done
 
+      - name: Categorize tags
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          python -m agents.tag_categorizer
+
       - name: Commit generated content
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add web/src/content/
+          git add web/src/content/ web/src/data/tag-categories/
           [ -d .old ] && git add -f .old/ || true
           git diff --cached --quiet && echo "No content change." || \
             git commit -m "chore(digest): nightly purge+refresh $(date -u +%Y-%m-%d)" && git push

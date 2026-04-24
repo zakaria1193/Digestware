@@ -80,6 +80,40 @@ const topTags = rankedTags.slice(0, TOP_N);
 const moreTags = rankedTags.slice(TOP_N);
 const totalItems = allDiscussions.length + landings.length;
 
+// Tag categories are produced at digest-generation time by
+// agents/tag_categorizer.py and written to web/src/data/tag-categories/<project>.json.
+// Astro's import.meta.glob inlines the JSON at build time; if the file is
+// missing the filter bar degrades gracefully (every chip lands in "Other").
+type TagCategoryFile = { assignments: Record<string, string> };
+const tagCategoryModules = import.meta.glob<TagCategoryFile>(
+  '../../data/tag-categories/*.json',
+  { eager: true },
+);
+const tagCategoryFile = tagCategoryModules[`../../data/tag-categories/${projectSlug}.json`];
+const tagAssignments: Record<string, string> = tagCategoryFile?.assignments ?? {};
+
+const CATEGORY_ORDER = ['architectures', 'components', 'topics', 'news', 'other'] as const;
+type Category = typeof CATEGORY_ORDER[number];
+const CATEGORY_LABELS: Record<Category, string> = {
+  architectures: 'Architectures',
+  components: 'Components',
+  topics: 'Topics',
+  news: 'News & Policy',
+  other: 'Other',
+};
+
+function categoryFor(tag: string): Category {
+  const raw = tagAssignments[tag];
+  return (CATEGORY_ORDER as readonly string[]).includes(raw) ? (raw as Category) : 'other';
+}
+
+type RankedTag = { name: string; count: number };
+const groupedMoreTags: Array<{ category: Category; tags: RankedTag[] }> = [];
+for (const cat of CATEGORY_ORDER) {
+  const bucket = moreTags.filter(t => categoryFor(t.name) === cat);
+  if (bucket.length > 0) groupedMoreTags.push({ category: cat, tags: bucket });
+}
+
 ---
 
 <PublicLayout project={project}>
@@ -125,18 +159,30 @@ const totalItems = allDiscussions.length + landings.length;
               <span class="chip-count">{t.count}</span>
             </button>
           ))}
-          {moreTags.map(t => (
-            <button type="button" class="chip chip-extra" data-tag={t.name} data-selected="true" aria-pressed="true" hidden>
-              <span class="chip-name">{t.name}</span>
-              <span class="chip-count">{t.count}</span>
-            </button>
-          ))}
           {moreTags.length > 0 && (
             <button type="button" class="filter-show-all" id="filter-show-all" aria-expanded="false">
               Show&nbsp;all&nbsp;<span class="chip-count">+{moreTags.length}</span>
             </button>
           )}
         </div>
+
+        {moreTags.length > 0 && (
+          <div class="filter-groups" id="filter-groups" hidden>
+            {groupedMoreTags.map(g => (
+              <section class="filter-group" data-group={g.category}>
+                <span class="filter-group-label">{CATEGORY_LABELS[g.category]}</span>
+                <div class="filter-group-chips">
+                  {g.tags.map(t => (
+                    <button type="button" class="chip chip-extra" data-tag={t.name} data-selected="true" aria-pressed="true">
+                      <span class="chip-name">{t.name}</span>
+                      <span class="chip-count">{t.count}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   </section>
@@ -195,12 +241,13 @@ const totalItems = allDiscussions.length + landings.length;
 
 <script>
   const slider = document.getElementById('impact-filter') as HTMLInputElement;
-  const chipsRoot = document.getElementById('filter-chips')!;
+  const labelsCell = document.querySelector<HTMLElement>('.filter-cell-labels')!;
+  const groupsWrapper = document.getElementById('filter-groups') as HTMLElement | null;
   const showAllBtn = document.getElementById('filter-show-all') as HTMLButtonElement | null;
   const visibleCounter = document.getElementById('filter-visible');
   const thresholds = [0, 4, 8];
 
-  const chips = Array.from(chipsRoot.querySelectorAll<HTMLButtonElement>('.chip'));
+  const chips = Array.from(labelsCell.querySelectorAll<HTMLButtonElement>('.chip'));
   const allTagsCount = chips.length;
   const wires = Array.from(document.querySelectorAll<HTMLElement>('.wire'));
   const stories = Array.from(document.querySelectorAll<HTMLElement>('.story'));
@@ -256,8 +303,9 @@ const totalItems = allDiscussions.length + landings.length;
     }
   }
 
-  // Chip click → toggle individual label
-  chipsRoot.addEventListener('click', (ev) => {
+  // Chip click → toggle individual label (delegated across the whole Labels cell
+  // so it catches chips inside the collapsible category groups too)
+  labelsCell.addEventListener('click', (ev) => {
     const target = (ev.target as HTMLElement).closest<HTMLButtonElement>('.chip');
     if (!target) return;
     const on = target.dataset.selected !== 'true';
@@ -274,13 +322,13 @@ const totalItems = allDiscussions.length + landings.length;
     });
   });
 
-  // Show All / Show Less
-  if (showAllBtn) {
-    const extras = chipsRoot.querySelectorAll<HTMLElement>('.chip-extra');
-    const extraCount = extras.length;
+  // Show All / Show Less — toggle the whole groups wrapper (chips inside stay
+  // in the DOM so they still contribute to selectedSet()/passesLabels()).
+  if (showAllBtn && groupsWrapper) {
+    const extraCount = groupsWrapper.querySelectorAll<HTMLElement>('.chip-extra').length;
     showAllBtn.addEventListener('click', () => {
       const expanded = showAllBtn.getAttribute('aria-expanded') === 'true';
-      extras.forEach(el => { el.hidden = expanded; });
+      groupsWrapper.hidden = expanded;
       showAllBtn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
       showAllBtn.innerHTML = expanded
         ? `Show&nbsp;all&nbsp;<span class="chip-count">+${extraCount}</span>`
@@ -531,6 +579,49 @@ const totalItems = allDiscussions.length + landings.length;
     border-bottom: 1px solid var(--color-accent);
   }
   .filter-show-all:hover { opacity: 0.75; }
+
+  /* Expanded overflow chips, grouped by taxonomy category */
+  .filter-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    margin-top: 0.55rem;
+    padding-top: 0.5rem;
+    border-top: 1px dotted var(--color-rule);
+  }
+  .filter-group {
+    display: grid;
+    grid-template-columns: minmax(7.5rem, auto) 1fr;
+    gap: 0.3rem 0.9rem;
+    align-items: baseline;
+  }
+  .filter-group-label {
+    font-family: var(--font-sans);
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    padding-top: 0.18rem;
+    border-right: 1px solid var(--color-rule);
+    padding-right: 0.75rem;
+    text-align: right;
+  }
+  .filter-group-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.75rem;
+    align-items: baseline;
+  }
+  @media (max-width: 700px) {
+    .filter-group { grid-template-columns: 1fr; }
+    .filter-group-label {
+      border-right: 0;
+      border-bottom: 1px solid var(--color-rule);
+      padding: 0 0 0.2rem;
+      text-align: left;
+    }
+  }
 
   @media (min-width: 900px) {
     .filter-bar-body {
