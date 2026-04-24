@@ -4,45 +4,43 @@ subsystem: aarch64
 patch_id: null
 tags:
 - aarch64
-- SME
-- ZA
-- tailcall
-- glibc
+- optimization
+- backtrace
+- abi
+- sme
 discussion_id: 20260421130804.66597-1-muhammad.kamran@arm.com
 source_type: public_inbox
 title: 'Re: [PATCH] aarch64: simplify __libc_arm_za_disable failure path'
-headline: 'aarch64: simplify __libc_arm_za_disable failure path'
-tldr: AArch64 patch simplifies the __libc_arm_za_disable failure path by using a tailcall
-  to __libc_fatal.
-proposer: Wilco Dijkstra
+headline: 'Aarch64: Simplify __libc_arm_za_disable failure path'
+tldr: A patch simplifies the failure path of `__libc_arm_za_disable` by using a tailcall,
+  which may affect backtraces.
+proposer: Wilco Dijkstra <Wilco.Dijkstra@arm.com>
 consensus: Under Review
 outcome: proposed
 sentiment_score: null
-technical_tradeoffs: []
+technical_tradeoffs:
+- Tailcall reduces stack usage but may alter backtrace information.
+- Simplifying the failure path reduces code complexity but could obscure debugging
+  information.
 exchanges:
 - author: Wilco Dijkstra <Wilco.Dijkstra@arm.com>
   role: reviewer
-  position: Suggests changing the code to use a tailcall to `__libc_fatal`.
+  position: Suggests changing the call to `__libc_fatal` to a tailcall to improve
+    backtrace context.
   quote: This should be changed to a tailcall.
 - author: Adhemerval Zanella Netto <adhemerval.zanella@linaro.org>
   role: other
-  position: Summarizes the purpose of the original patch, which is to simplify the
-    failure tail of `__libc_arm_za_disable`.
-  quote: 'The failure tail of __libc_arm_za_disable only leads to
-
-    __libc_fatal, so it does not need to preserve call frame state.'
+  position: Agrees with the change.
+  quote: null
 primer_expert: This patch modifies the `__libc_arm_za_disable` function, which is
-  responsible for disabling the Scalable Matrix Extension (SME) Zeroing Array (ZA)
-  on AArch64. The SME is a relatively new extension, and proper handling of its state,
-  including disabling it upon failures, is crucial for system stability. The use of
-  a tailcall affects stack unwinding and debugging.
-primer_general: The Scalable Matrix Extension (SME) is an extension to the AArch64
-  architecture that provides support for matrix operations. This patch modifies the
-  `__libc_arm_za_disable` function, which is used to disable the SME's Zeroing Array
-  (ZA). The patch aims to simplify the code and improve efficiency of the failure
-  path.  A tailcall is a specific type of function call where the calling function
-  does nothing after the called function returns, allowing the compiler to optimize
-  the code by replacing the call with a jump.
+  likely related to disabling the Scalable Matrix Extension (SME) on AArch64. Turning
+  a regular call into a tailcall impacts stack unwinding and debugging. This is relevant
+  for AArch64 ABI and debugging tools.
+primer_general: This patch focuses on the AArch64 architecture and aims to simplify
+  the error handling path within a function called `__libc_arm_za_disable`. This function
+  likely disables some feature (possibly related to specialized hardware) and the
+  patch modifies how it handles failures. By using a 'tailcall', the program can potentially
+  reduce overhead, but it might also change the information available during debugging.
 series_id: null
 series_role: standalone
 series_parts: []
@@ -51,4 +49,4 @@ bugzilla_url: null
 date: '2026-04-22'
 ---
 
-This patch simplifies the failure path in the `__libc_arm_za_disable` function on AArch64. Instead of preserving the caller's stack frame, it uses a tailcall to `__libc_fatal`. Wilco Dijkstra supports the change, arguing that preserving the caller's frame at the point of the call to `__libc_arm_za_disable` provides sufficient context.
+This patch simplifies the failure path of the `__libc_arm_za_disable` function in glibc for AArch64. Wilco Dijkstra suggests changing a call to `__libc_fatal` to a tailcall to improve context in backtraces. The original patch aimed to avoid preserving the caller's stack frame, but the tailcall provides sufficient context.

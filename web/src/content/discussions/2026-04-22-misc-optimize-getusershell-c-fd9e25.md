@@ -3,40 +3,40 @@ project: glibc
 subsystem: misc
 patch_id: null
 tags:
-- glibc
-- getusershell
 - optimization
 - regression
-- PLT
+- plt
+- symbol visibility
 discussion_id: 46833eeb-72b9-4756-b750-6ab54355fe7f@linaro.org
 source_type: public_inbox
 title: 'Re: [PATCH] misc: Optimize getusershell.c'
-headline: 'misc: Optimize getusershell.c'
-tldr: An optimization patch for `getusershell.c` in glibc caused CI regressions due
-  to the use of non-internal function names.
-proposer: Adhemerval Zanella Netto
-consensus: Under Review
+headline: 'Misc: Optimize getusershell.c'
+tldr: A proposed optimization of getusershell.c is causing CI regressions due to the
+  use of non-internal function names.
+proposer: Adhemerval Zanella Netto <adhemerval.zanella@linaro.org>
+consensus: Needs Revision
 outcome: proposed
 sentiment_score: null
-technical_tradeoffs: []
+technical_tradeoffs:
+- Optimizing for performance may introduce unintended side effects, such as increased
+  code size or extra PLT calls.
+- Using non-internal function names can lead to increased overhead.
 exchanges:
 - author: Adhemerval Zanella Netto <adhemerval.zanella@linaro.org>
   role: other
-  position: Reports CI regressions caused by the patch due to the use of non-internal
-    functions.
-  quote: "This has cause CI regressions [1]:\n\n  elf-check-localplt.out\n  \n  Extra\
-    \ PLT reference: libc.so: endusershell\n  Extra PLT reference: libc.so: fread\n\
-    \  Extra PLT reference: libc.so: setbuf\n\nThis is due the use of the non-internal\
-    \ function names that generated extra\nPLT calls."
-primer_expert: This patch modifies `getusershell.c` in glibc, which is responsible
-  for providing a list of valid user shells.  The optimization aims to reduce memory
-  footprint.  The introduction of non-internal function calls (e.g., `fread`, `setbuf`)
-  adds PLT entries, which impacts performance due to increased indirection.
-primer_general: The `getusershell` function in glibc retrieves a list of valid user
-  shells from the `/etc/shells` file. This file specifies the allowed shell programs
-  that users can use. This patch attempts to optimize the function for improved memory
-  usage or performance. However, the changes introduced have resulted in regressions
-  due to the use of non-internal functions, which can negatively impact performance.
+  position: Reports that the patch causes CI regressions due to the use of non-internal
+    function names, leading to extra PLT calls.
+  quote: 'This has cause CI regressions [1]: ... Extra PLT reference: libc.so: endusershell
+    Extra PLT reference: libc.so: fread Extra PLT reference: libc.so: setbuf'
+primer_expert: '`getusershell.c` retrieves valid login shells from `/etc/shells`.  The
+  proposal aims to optimize this by reading the entire file into memory. The regression
+  is due to the introduction of non-internal symbols, affecting PLT entries. Understanding
+  symbol visibility is crucial here.'
+primer_general: '`getusershell` is a function that retrieves a list of valid user
+  shells from a configuration file.  This patch attempts to optimize the function,
+  but it has introduced unintended side effects. It is causing extra overhead during
+  program execution due to how the code is using functions and symbols which causes
+  a performance regression.'
 series_id: null
 series_role: standalone
 series_parts: []
@@ -45,4 +45,4 @@ bugzilla_url: null
 date: '2026-04-22'
 ---
 
-A patch that rewrites `getusershell.c` to optimize memory footprint and performance has caused CI regressions. Adhemerval Zanella Netto notes that the regressions are due to the use of non-internal function names (`endusershell`, `fread`, `setbuf`), which resulted in extra PLT calls.
+The proposed rewrite of `getusershell.c`, which aims to improve performance by reading the entire `/etc/shells` file into memory, is causing CI regressions. Adhemerval Zanella Netto notes that the regressions are due to the use of non-internal function names, which results in extra PLT calls. This issue needs to be resolved before the patch can be considered further.

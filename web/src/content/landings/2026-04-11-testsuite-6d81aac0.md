@@ -4,27 +4,28 @@ subsystem: testsuite
 patch_id: null
 tags:
 - testsuite
-- floating-point
 - ieee
-- testing
+- test format
 commit_hash: 6d81aac02a9cd39a67c129054795f9626c658056
 source_type: github
 author: feedable
-headline: 'Testsuite: Convert IEEE Tests to the New Test Format'
-tldr: The IEEE floating-point tests are converted to use dg-* annotations, replacing
-  separate test setup files.
+headline: 'Testsuite: Convert gcc.c-torture/execute/ieee to the new test format'
+tldr: Converts the ieee test directory to use dg-* annotations instead of separate
+  test setup files.
 impact_score: 4
 performance_win: false
 breaking_change: false
 outcome: committed
-primer_expert: This commit modernizes the IEEE tests by converting them to use ``dg-*``
-  annotations instead of separate ``.exp`` files, aligning them with the current testsuite
-  conventions. The main change involves replacing ``ieee.exp`` with a modified ``execute/execute.exp``
-  and porting the individual test cases to the new format.
-primer_general: This commit updates the format of GCC's IEEE floating-point tests.  Modern
-  compiler tests often embed directives directly in the test file using special comments.  This
-  commit replaces the older system of separate test setup files with these inline
-  directives, streamlining the tests and making them easier to understand.
+primer_expert: 'The GCC testsuite uses a domain-specific language to describe test
+  expectations.  Older tests relied on ``.exp`` files to set up the test environment;
+  newer tests use ``dg-*`` annotations embedded directly in the C source file.  This
+  commit modernizes the ``gcc.c-torture/execute/ieee`` directory. search_context returned:
+  []'
+primer_general: 'The GCC testsuite verifies the compiler''s correctness.  Tests can
+  be configured using external files or annotations embedded in the test source code
+  itself.  This commit updates the test suite to use embedded annotations for tests
+  in the ``ieee`` directory, which should improve maintainability. search_context
+  returned: []'
 discussion_id_link: null
 bugzilla_pr: null
 series_id: null
@@ -33,4 +34,4 @@ url: https://github.com/gcc-mirror/gcc/commit/6d81aac02a9cd39a67c129054795f9626c
 date: '2026-04-11'
 ---
 
-This commit converts the IEEE floating-point tests in ``gcc.c-torture/execute/ieee`` to use the new test format with ``dg-*`` annotations.  This replaces the older system of separate test setup files (``.exp``) with inline directives, making the tests easier to read and maintain.
+The ieee test directory is updated to use dg-* annotations within the test files themselves, instead of relying on separate test setup files. This brings the ieee tests in line with the modern test format used by GCC, simplifying test maintenance.

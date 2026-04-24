@@ -5,24 +5,26 @@ patch_id: null
 tags:
 - testsuite
 - floating-point
+- portability
 commit_hash: 2dfe274f644292f59a224c4963f984ed9a2217e8
 source_type: github
 author: feedable
-headline: 'Testsuite: Fix Invalid Float Test by Moving Declaration'
-tldr: This commit fixes a floating-point test by moving a declaration to ensure compilation
-  on platforms without FE_UPWARD.
+headline: 'Testsuite: Fix floating-point test compilation on platforms without FE_UPWARD.'
+tldr: A floating-point test now compiles correctly on platforms lacking `FE_UPWARD`
+  by moving the declaration before the `#ifdef`.
 impact_score: 4
 performance_win: false
 breaking_change: false
 outcome: committed
-primer_expert: The patch rearranges code in ``gcc.dg/torture/fp-double-convert-float-1.c``
-  to ensure compilation on platforms lacking ``FE_UPWARD``. This involves moving a
-  declaration to precede a conditional compilation block.
-primer_general: This commit repairs a floating-point conversion test in GCC's testsuite.  The
-  C standard allows floating-point operations to be rounded in different ways, and
-  the ``FE_UPWARD`` macro indicates support for one particular rounding mode.  This
-  change ensures that the test compiles correctly regardless of whether the target
-  platform supports this feature.
+primer_expert: This commit addresses a conditional compilation issue in `gcc.dg/torture/fp-double-convert-float-1.c`.
+  The fix involves moving a declaration outside the scope of an `#ifdef FE_UPWARD`
+  block.  The macro `FE_UPWARD` relates to floating-point rounding modes. This ensures
+  the code compiles even when `FE_UPWARD` is not defined, improving testsuite portability.
+primer_general: This commit fixes a compilation error in a GCC test program. The test
+  involves floating-point number conversions. The error occurred because the test
+  used a feature (`FE_UPWARD`, related to floating-point rounding) that is not available
+  on all systems. The fix rearranges the code so that it compiles correctly even on
+  systems without this feature, making the test more portable.
 discussion_id_link: null
 bugzilla_pr: null
 series_id: null
@@ -31,4 +33,4 @@ url: https://github.com/gcc-mirror/gcc/commit/2dfe274f644292f59a224c4963f984ed9a
 date: '2026-02-24'
 ---
 
-This commit addresses a compilation issue in a floating-point test (``gcc.dg/torture/fp-double-convert-float-1.c``) by moving a declaration before the ``#ifdef`` directive. This ensures that the test compiles correctly on platforms that do not define ``FE_UPWARD``.
+A floating-point test, `gcc.dg/torture/fp-double-convert-float-1.c`, failed to compile on platforms that do not define `FE_UPWARD`. This commit fixes the issue by moving a declaration before the `#ifdef` directive, ensuring that the declaration is always visible regardless of whether `FE_UPWARD` is defined. This makes the test more portable.
