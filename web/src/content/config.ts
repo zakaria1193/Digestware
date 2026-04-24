@@ -12,6 +12,11 @@ const exchange = z.object({
   quote: z.string().nullable().optional(),
 });
 
+const glossaryEntry = z.object({
+  term: z.string(),
+  definition: z.string(),
+});
+
 const discussions = defineCollection({
   type: 'content',
   schema: z.object({
@@ -23,14 +28,15 @@ const discussions = defineCollection({
     title: z.string(),
     headline: z.string(),
     tldr: z.string(),
-    proposer: z.string().optional(),
-    consensus: z.string().optional(),
-    outcome: z.string().optional(),
+    proposer: z.string().nullable().optional(),
+    consensus: z.string().nullable().optional(),
+    outcome: z.string().nullable().optional(),
     sentiment_score: z.number().nullable().optional(),
     technical_tradeoffs: z.array(z.string()).optional(),
     exchanges: z.array(exchange).optional(),
     primer_expert: z.string().nullable().optional(),
     primer_general: z.string().nullable().optional(),
+    primer_glossary: z.array(glossaryEntry).optional(),
     series_id: z.string().nullable().optional(),
     series_role: z.string().nullable().optional(),
     series_parts: z.array(seriesPart).optional(),
@@ -51,13 +57,14 @@ const landings = defineCollection({
     source_type: z.string(),
     headline: z.string(),
     tldr: z.string(),
-    author: z.string().optional(),
-    impact_score: z.number().optional(),
-    outcome: z.string().optional(),
-    performance_win: z.boolean().optional(),
-    breaking_change: z.boolean().optional(),
+    author: z.string().nullable().optional(),
+    impact_score: z.number().nullable().optional(),
+    outcome: z.string().nullable().optional(),
+    performance_win: z.boolean().nullable().optional(),
+    breaking_change: z.boolean().nullable().optional(),
     primer_expert: z.string().nullable().optional(),
     primer_general: z.string().nullable().optional(),
+    primer_glossary: z.array(glossaryEntry).optional(),
     series_id: z.string().nullable().optional(),
     series_parts: z.array(seriesPart).optional(),
     tags: z.array(z.string()).optional(),

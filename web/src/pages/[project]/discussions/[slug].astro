@@ -114,6 +114,13 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
       </section>
     )}
 
+    {d.primer_expert && (
+      <section class="extra">
+        <h2>In Details</h2>
+        <p>{d.primer_expert}</p>
+      </section>
+    )}
+
     {(d.series_parts ?? []).length > 0 && (
       <section class="extra">
         <h2>Part of a Series</h2>
@@ -136,22 +143,21 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
       <a href={d.url} target="_blank" rel="noopener">View Original Thread &rarr;</a>
     </div>
 
-    {(d.primer_expert || d.primer_general) && (d.sentiment_score == null || d.sentiment_score > 3) && (
-      <aside class="primer">
-        <div class="primer-head">What is this even about?</div>
-        {d.primer_expert && (
-          <div class="primer-variant">
-            <div class="primer-audience">For toolchain folks</div>
-            <p>{d.primer_expert}</p>
-          </div>
-        )}
-        {d.primer_general && (
-          <div class="primer-variant">
-            <div class="primer-audience">For everyone else</div>
-            <p>{d.primer_general}</p>
-          </div>
-        )}
-      </aside>
+    {(d.primer_glossary ?? []).length > 0 && (
+      <section class="glossary">
+        <div class="glossary-head">
+          <span class="glossary-label">Glossary</span>
+          <span class="glossary-rule"></span>
+        </div>
+        <dl class="glossary-list">
+          {d.primer_glossary!.map((item: any) => (
+            <>
+              <dt class="glossary-term">{item.term}</dt>
+              <dd class="glossary-def">{item.definition}</dd>
+            </>
+          ))}
+        </dl>
+      </section>
     )}
 
     <nav class="prevnext">
@@ -414,6 +420,7 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
     line-height: 1.55;
   }
   .extra li { margin-bottom: 0.35em; }
+  .extra p { margin: 0; font-family: var(--font-serif); font-size: 0.95rem; line-height: 1.6; color: var(--color-ink); }
   .extra a { color: var(--color-accent); text-decoration: none; border-bottom: 1px solid var(--color-accent); }
 
   .tags {
@@ -453,42 +460,51 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
     font-weight: 700;
   }
 
-  .primer {
-    margin: 0 0 2rem;
-    padding: 1rem 0 0;
-    border-top: 1px dashed var(--color-rule);
-    opacity: 0.55;
+  .glossary {
+    margin: 2rem 0 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--color-rule);
   }
-  .primer-head {
+  .glossary-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  .glossary-label {
     font-family: var(--font-sans);
-    font-size: 0.62rem;
-    font-weight: 700;
-    letter-spacing: 0.24em;
-    text-transform: uppercase;
-    color: var(--color-muted);
-    margin-bottom: 0.6rem;
-  }
-  .primer-variant + .primer-variant {
-    margin-top: 0.9rem;
-    padding-top: 0.8rem;
-    border-top: 1px dotted var(--color-rule);
-  }
-  .primer-audience {
-    font-family: var(--font-sans);
-    font-size: 0.58rem;
+    font-size: 0.66rem;
     font-weight: 700;
     letter-spacing: 0.2em;
     text-transform: uppercase;
     color: var(--color-accent);
-    margin-bottom: 0.25rem;
+    white-space: nowrap;
   }
-  .primer p {
+  .glossary-rule {
+    flex: 1;
+    height: 1px;
+    background: var(--color-rule);
+  }
+  .glossary-list {
+    margin: 0;
+    padding: 0;
+  }
+  .glossary-term {
+    font-family: var(--font-serif-display);
+    font-weight: 700;
+    font-size: 0.95rem;
+    letter-spacing: -0.005em;
+    color: var(--color-ink);
+    margin: 0.8rem 0 0.15rem;
+  }
+  .glossary-term:first-child { margin-top: 0; }
+  .glossary-def {
     font-family: var(--font-serif);
-    font-style: italic;
     font-size: 0.9rem;
     line-height: 1.55;
     color: var(--color-muted);
-    margin: 0;
+    margin: 0 0 0 0;
+    padding: 0;
   }
 
   .prevnext {
