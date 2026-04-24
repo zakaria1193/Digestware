@@ -35,8 +35,8 @@ from agents.dedup import build_seen_index, filter_raw
 from agents.discussion_agent import run_discussion_agent
 from agents.ingestion.engine import IngestionEngine
 from agents.landing_agent import run_landing_agent
-from agents.tools.noise_filter import filter_noise
 from agents.tag_categorizer import run_tag_categorizer
+from agents.tools.noise_filter import filter_noise
 from agents.writer import write_discussion, write_landing
 
 logger = logging.getLogger("agents.main")

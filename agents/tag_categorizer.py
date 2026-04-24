@@ -27,7 +27,7 @@ import sys
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
@@ -275,11 +275,12 @@ def _load_previous(output_path: Path) -> dict[str, Category] | None:
     if not isinstance(prev, dict):
         return None
     valid: set[str] = set(CATEGORIES)
-    return {
-        t: (c if isinstance(c, str) and c in valid else "other")
-        for t, c in prev.items()
-        if isinstance(t, str)
-    }
+    out: dict[str, Category] = {}
+    for t, c in prev.items():
+        if not isinstance(t, str):
+            continue
+        out[t] = cast(Category, c) if isinstance(c, str) and c in valid else "other"
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -327,6 +328,7 @@ def run_tag_categorizer(
     handled = 0
     for project, tags in sorted(by_project.items()):
         output_path = output_root / f"{project}.json"
+        assignments: dict[str, Category]
 
         if dry_run or not tags:
             assignments = _fallback_assignments(tags)
@@ -344,7 +346,10 @@ def run_tag_categorizer(
                 )
                 prev = _load_previous(output_path)
                 if prev is not None:
-                    assignments = {t: prev.get(t, "other") for t in tags}
+                    assignments = {
+                        t: prev[t] if t in prev else _heuristic_category(t)
+                        for t in tags
+                    }
                     provenance = "fallback-previous"
                 else:
                     assignments = _fallback_assignments(tags)
