@@ -42,7 +42,7 @@ const outcomeColor = outcomeAccent[outcomeKey] ?? '#4a4a4a';
 const dateStr = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 ---
 
-<article class:list={["story", isHigh && "story-featured", isLow && "story-dim"]}>
+<article class:list={["story", isHigh && "story-featured", isLow && "story-dim"]} data-score={score} data-tags={(d.tags ?? []).join('|')}>
   <header class="story-head">
     <span class="story-kicker">{d.subsystem}</span>
     <span class="story-outcome" style={`color: ${outcomeColor};`}>

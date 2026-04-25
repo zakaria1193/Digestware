@@ -10,7 +10,9 @@ Steps:
 4. Batch-run discussion agent
 5. Batch-run landing agent
 6. write_discussion() / write_landing() for each result
-7. Print summary
+7. Tag categorizer → web/src/data/tag-categories/<project>.json
+   (skipped with --skip-categorize; the workflow runs it once at the end)
+8. Print summary
 """
 
 from __future__ import annotations
@@ -33,6 +35,7 @@ from agents.dedup import build_seen_index, filter_raw
 from agents.discussion_agent import run_discussion_agent
 from agents.ingestion.engine import IngestionEngine
 from agents.landing_agent import run_landing_agent
+from agents.tag_categorizer import run_tag_categorizer
 from agents.tools.noise_filter import filter_noise
 from agents.writer import write_discussion, write_landing
 
@@ -59,6 +62,7 @@ def _step_banner(title: str, color: str = "cyan") -> str:
 _SOURCES_YML = Path(__file__).parent / "sources.yml"
 _CACHE_DIR = Path(__file__).parent / "cache"
 _DEFAULT_CONTENT_ROOT = Path("web/src/content")
+_DEFAULT_TAG_CATEGORIES_DIR = Path("web/src/data/tag-categories")
 
 
 # ---------------------------------------------------------------------------
@@ -168,6 +172,19 @@ def main() -> int:
         type=int,
         default=None,
         help="Cap the number of commits kept after filtering (newest first).",
+    )
+    parser.add_argument(
+        "--skip-categorize",
+        action="store_true",
+        help="Skip the tag-categorizer step. Intended for the backfill loop "
+        "in daily-digest.yml where main.py is re-invoked across widening "
+        "windows; the workflow then runs categorization once at the end.",
+    )
+    parser.add_argument(
+        "--tag-categories-dir",
+        type=Path,
+        default=_DEFAULT_TAG_CATEGORIES_DIR,
+        help=f"Output dir for tag-category JSON (default: {_DEFAULT_TAG_CATEGORIES_DIR})",
     )
     args = parser.parse_args()
 
@@ -328,6 +345,22 @@ def main() -> int:
             logger.warning(
                 "Failed to write landing %s: %s", landing.commit_hash, exc
             )
+
+    # Tag categorizer — rescans the on-disk content and emits per-project
+    # category JSONs consumed by the filter bar. Best-effort: failures never
+    # fail the whole pipeline.
+    if args.skip_categorize:
+        logger.info("Skipping tag categorizer (--skip-categorize).")
+    else:
+        logger.info(_step_banner("STEP 5 — TAG CATEGORIZER", "yellow"))
+        try:
+            run_tag_categorizer(
+                args.content_root,
+                args.tag_categories_dir,
+                dry_run=args.dry_run,
+            )
+        except Exception as exc:
+            logger.warning("Tag categorizer raised (%s) — continuing.", exc)
 
     # Summary
     bento_worthy = sum(1 for landing in landings if landing.impact_score is not None and landing.impact_score >= 7)
