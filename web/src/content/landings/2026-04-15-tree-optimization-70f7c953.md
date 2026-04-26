@@ -6,28 +6,30 @@ tags:
 - tree-optimization
 - vectorization
 - optimization
-- boolean
-- performance
+- bool
 commit_hash: 70f7c95333a5bbb085e6ad666250e03e819d1297
 source_type: github
 author: Richard Biener
-headline: Enable vectorization of scalar bool inversions
-tldr: GCC now vectorizes the inversion of scalar boolean values by rewriting the operation
-  as a bitwise XOR.
+headline: Tree-optimization Vectorizes Inversion of Scalar Bools
+tldr: The tree-optimization pass now vectorizes the inversion of scalar bools by rewriting
+  it to a `BIT_XOR_EXPR` operation.
 impact_score: 7
 performance_win: true
 breaking_change: false
 outcome: committed
-primer_expert: The tree vectorizer transforms scalar operations into vector operations.  Scalar
-  bool inversions (`BIT_NOT_EXPR`) are now rewritten as `BIT_XOR_EXPR` to enable vectorization.
-  This involves adding a pattern recognition to `vect_recog_bool_pattern` in `tree-vect-patterns.cc`.  The
-  interaction with other tree-level optimizations should be considered.
-primer_general: Vectorization is a compiler optimization that transforms scalar operations
-  (operating on single values) into vector operations (operating on multiple values
-  simultaneously).  This commit improves GCC's ability to vectorize boolean logic
-  by rewriting boolean inversions.  The tree vectorizer operates on the compiler's
-  internal representation of the code (the "tree").  This optimization can improve
-  performance for code that performs many boolean operations.
+primer_expert: This commit addresses PR tree-optimization/124843 by enabling vectorization
+  of scalar bool inversions. The `vect_recog_bool_pattern` function in `tree-vect-patterns.cc`
+  is modified to recognize `BIT_NOT_EXPR` operations on scalar bools and rewrite them
+  as `BIT_XOR_EXPR`. The vectorizer can then process the latter. This transformation
+  is necessary because bools have bit precision, which prevents direct vectorization
+  of `BIT_NOT_EXPR`.
+primer_general: Compilers often include a tree-optimization phase. Vectorization is
+  a compiler optimization technique that transforms code to perform the same operation
+  on multiple data elements simultaneously, using vector instructions. A `BIT_NOT_EXPR`
+  represents a bitwise NOT operation. `BIT_XOR_EXPR` represents a bitwise XOR operation.
+  This commit enables the compiler to vectorize boolean inversions by transforming
+  the `BIT_NOT_EXPR` into a `BIT_XOR_EXPR`, which improves performance when working
+  with arrays of boolean values.
 discussion_id_link: null
 bugzilla_pr: null
 series_id: null
@@ -36,4 +38,4 @@ url: https://github.com/gcc-mirror/gcc/commit/70f7c95333a5bbb085e6ad666250e03e81
 date: '2026-04-15'
 ---
 
-GCC's tree vectorizer now transforms scalar boolean inversions (using `!`) into bitwise XOR operations, enabling vectorization. Boolean types in GCC have a bit precision, which previously prevented vectorization of inversions.  This change allows the compiler to generate more efficient vector code for boolean logic, potentially improving performance in code that uses boolean arrays or performs many boolean operations.
+The tree-optimization pass now vectorizes the inversion of scalar bools. Due to bools having bit precision, direct vectorization of the `BIT_NOT_EXPR` operation is not possible. This commit adds a pattern to rewrite the inversion of scalar bools to the corresponding `BIT_XOR_EXPR` operation, which can be vectorized effectively, leading to performance improvements in code that uses boolean arrays.

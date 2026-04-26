@@ -3,35 +3,40 @@ project: glibc
 subsystem: arm
 patch_id: null
 tags:
-- arm
-- static PIE
-- security
-- relocation
 - glibc
+- arm
+- static-pie
+- security
+- toolchain
 discussion_id: 20260424134932.1638126-1-adhemerval.zanella@linaro.org
 source_type: public_inbox
 title: '[PATCH] arm: Enable static-pie support (BZ 34098)'
-headline: 'Arm: Enable static-pie support (BZ 34098)'
-tldr: Enables static PIE support for arm-*-linux-gnueabi, requiring gcc support and
-  adjusting start.S to avoid loading main from the GOT.
+headline: 'arm: Enable static-pie support (BZ 34098)'
+tldr: This patch enables static-pie support for arm-*-linux-gnueabi, requiring proper
+  toolchain support to set the expected linker options.
 proposer: Adhemerval Zanella <adhemerval.zanella@linaro.org>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
 technical_tradeoffs:
-- Increased security due to position-independent execution vs. increased binary size.
-- Requires toolchain support (GCC) to correctly set linker options.
+- Requires a recent version of GCC with static PIE support for ARM.
+- Slightly increased binary size due to the position-independent code.
+- Improved security due to address space randomization.
+- Potential performance improvements in some cases due to reduced reliance on dynamic
+  linking.
 exchanges: []
-primer_expert: This patch enables static PIE support for ARM, requiring changes to
-  `sysdeps/arm/configure`, `sysdeps/arm/configure.ac`, and `sysdeps/arm/start.S`.
-  Static PIE binaries are fully position-independent, loaded at a random address by
-  the OS, and require no relocations.
-primer_general: Position Independent Executables (PIE) are a security feature that
-  allows the operating system to load a program at a random address in memory. This
-  makes it more difficult for attackers to exploit vulnerabilities in the code.  Static
-  PIE binaries include all the code needed to run, without relying on shared libraries,
-  and are loaded at a random address. This patch enables static PIE support for ARM
-  architectures in glibc.
+primer_expert: This patch enables static PIE for ARM targets in glibc. Static PIE
+  binaries are linked as position-independent executables, but without requiring dynamic
+  relocation at runtime, improving security and potentially startup time.  The configure
+  script and `start.S` are modified to accommodate this. This requires a sufficiently
+  recent GCC to provide the necessary linker support.
+primer_general: Position Independent Executables (PIE) improve security by allowing
+  the operating system to load a program at a random address, making it harder for
+  attackers to exploit vulnerabilities. Static PIE is a variation where the program
+  is built to be position-independent at compile time, rather than relying on dynamic
+  linking. This patch enables static PIE support for ARM processors in glibc, the
+  standard C library, provided that the toolchain (compiler and linker) also supports
+  it.
 series_id: null
 series_role: standalone
 series_parts: []
@@ -40,4 +45,4 @@ bugzilla_url: null
 date: '2026-04-24'
 ---
 
-This patch enables static PIE (Position Independent Executable) support for ARM architectures in glibc. It requires a corresponding GCC patch. The `start.S` file is adjusted to prevent loading `main` from the Global Offset Table (GOT).
+This patch enables static-pie (position independent executable) support for the arm architecture in glibc. It requires corresponding support in the toolchain (gcc) to correctly set the linker options. The `start.S` file is adjusted to avoid loading `main` from the GOT (Global Offset Table).

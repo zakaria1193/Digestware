@@ -1,35 +1,40 @@
 ---
 project: glibc
-subsystem: aarch64
+subsystem: glibc
 patch_id: null
 tags:
+- glibc
 - aarch64
 - memcmp
 - optimization
-- sve
-- kunpeng 950
+- SVE
 discussion_id: 20260424035025.574-1-yeweihong@huawei.com
 source_type: public_inbox
 title: 'Ping:[PATCH v2] aarch64: Optimize memcmp for Kunpeng 950 with SVE'
-headline: 'Ping:[PATCH v2] Aarch64: Optimize memcmp for Kunpeng 950 with SVE'
-tldr: Pings the list for feedback on a patch optimizing memcmp for Kunpeng 950 with
-  SVE.
+headline: 'Ping:[PATCH v2] aarch64: Optimize memcmp for Kunpeng 950 with SVE'
+tldr: The patch optimizes memcmp for the Kunpeng 950 processor using Scalable Vector
+  Extension (SVE).
 proposer: Weihong Ye <yeweihong@huawei.com>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
 technical_tradeoffs:
-- Increased code complexity vs. potential performance gains on specific hardware.
-- May require compiler support for SVE instructions.
+- Increased code complexity in `memcmp`.
+- Potential for increased binary size.
+- Optimization specific to Kunpeng 950, may not benefit other architectures.
 exchanges: []
-primer_expert: This patch optimizes `memcmp` for the aarch64 architecture, specifically
-  the Kunpeng 950 processor, by utilizing SVE instructions. SVE allows for vectorization
-  of the comparison, potentially improving performance when comparing large memory
-  regions.
-primer_general: '`memcmp` is a standard C library function used to compare two blocks
-  of memory. This patch aims to improve the performance of `memcmp` on a specific
-  ARM-based processor (Kunpeng 950) by using advanced CPU instructions (SVE) that
-  can process multiple data elements simultaneously.'
+primer_expert: The patch focuses on optimizing `memcmp` in `string/memcmp.c` for the
+  AArch64 architecture, utilizing SVE. This optimization is specific to the Kunpeng
+  950 processor, which may not be widely known outside of hardware-specific glibc
+  optimizations. The interaction with other parts of glibc is minimal, but the performance
+  impact on workloads using `memcmp` on Kunpeng 950 systems could be significant.
+primer_general: '`memcmp` is a fundamental C function used to compare two blocks of
+  memory. Glibc, the standard C library, provides optimized implementations of `memcmp`
+  for various architectures. This patch aims to improve `memcmp`''s performance on
+  the Kunpeng 950 processor by leveraging its Scalable Vector Extension. SVE allows
+  the processor to perform the same operation on multiple data elements simultaneously,
+  speeding up the comparison process. This optimization sits within the runtime library
+  and directly affects the performance of applications that rely heavily on `memcmp`.'
 series_id: null
 series_role: standalone
 series_parts: []
@@ -38,4 +43,4 @@ bugzilla_url: null
 date: '2026-04-24'
 ---
 
-Weihong Ye is requesting feedback on a patch that optimizes the `memcmp` function for the Kunpeng 950 processor using Scalable Vector Extension (SVE) instructions. The patch was originally posted on April 17th, and the author is seeking reviews and comments.
+This patch optimizes the `memcmp` function for AArch64 architecture, specifically targeting the Kunpeng 950 processor using Scalable Vector Extension (SVE). The patch is a re-ping of a previous submission, seeking feedback and comments.  The goal is to improve performance of memory comparison operations on this specific hardware.

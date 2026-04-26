@@ -4,30 +4,31 @@ subsystem: tree-optimization
 patch_id: null
 tags:
 - optimization
-- loop optimization
+- ivopts
 - ssa
+- uninitialized memory
 commit_hash: d84a91bbd60bfabc1cd2dac6aae10a427a770627
 source_type: github
 author: Richard Biener
-headline: IVOPT avoids uninitialized memory in loop comparisons
-tldr: GCC's IVOPT (loop optimization) pass will no longer use induction variables
-  that involve undefined SSA variables.
-impact_score: 6
-performance_win: false
+headline: Tree-optimization/124947 - IVOPTs emits uninit use
+tldr: GCC's IVOPTs pass now avoids using induction variables based on undefined SSA
+  variables, preventing uninitialized memory access.
+impact_score: 7
+performance_win: true
 breaking_change: false
 outcome: committed
-primer_expert: This commit modifies `tree-ssa-loop-ivopts.cc` to check for uses of
-  undefined SSA variables in induction variables before rewriting comparisons, by
-  adding a check to the `may_eliminate_iv` function. IVOPT operates on the SSA (Static
-  Single Assignment) form of the program's intermediate representation, and interacts
-  with other loop optimization passes.
-primer_general: Loop optimization is a crucial part of a compiler's job. One common
-  technique is induction variable optimization (IVOPT), which identifies variables
-  that change predictably with each loop iteration.  However, problems can arise if
-  these variables depend on uninitialized memory. This patch ensures that GCC's IVOPT
-  pass avoids using induction variables that rely on undefined SSA variables, preventing
-  the compiler from generating code that uses uninitialized memory, which could lead
-  to unpredictable program behavior.
+primer_expert: This commit fixes a bug in GCC's IVOPTs pass, specifically when dealing
+  with comparisons involving induction variables. The ``may_eliminate_iv`` function
+  is modified to ensure that the candidate induction variable does not involve undefined
+  SSA variables. This prevents the generation of code that could lead to undefined
+  behavior due to the use of uninitialized memory.
+primer_general: Compilers use various optimization techniques to improve the performance
+  of generated code.  Induction variable optimization is one such technique, where
+  the compiler identifies variables that change in a predictable way within a loop
+  and replaces them with more efficient calculations. This commit fixes a bug where
+  the optimization could lead to the use of uninitialized values. The fix ensures
+  that the compiler only uses valid, defined variable values during this optimization,
+  preventing potential issues.
 discussion_id_link: null
 bugzilla_pr: null
 series_id: null
@@ -36,4 +37,4 @@ url: https://github.com/gcc-mirror/gcc/commit/d84a91bbd60bfabc1cd2dac6aae10a427a
 date: '2026-04-21'
 ---
 
-The IVOPT (Induction Variable OPTimization) pass in GCC could previously rewrite comparisons using induction variables that involved undefined SSA variables, leading to the use of uninitialized memory. This commit prevents IVOPT from using candidate induction variables that involve undefs, avoiding potential crashes or unexpected behavior.
+The IVOPTs (Induction Variable Optimization) pass in GCC could previously generate code that used uninitialized SSA variables when rewriting a comparison using an induction variable. This commit prevents IVOPTs from using candidate induction variables that involve undefined SSA variables.  This avoids potential uninitialized memory access and improves code reliability.

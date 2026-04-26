@@ -3,38 +3,40 @@ project: glibc
 subsystem: misc
 patch_id: null
 tags:
-- memory footprint
-- performance
-- getusershell
 - glibc
-- shells
+- getusershell
+- optimization
 discussion_id: 70a7356a-43a5-41d2-af1b-c03a822b7b90@linaro.org
 source_type: public_inbox
 title: 'Re: [PATCH] misc: Optimize getusershell.c'
-headline: 'Misc: Optimize getusershell.c'
-tldr: Adhemerval Zanella Netto reviews Rocket Ma's patch to optimize getusershell.c
-  and provides minor style comments.
+headline: 'misc: Optimize getusershell.c'
+tldr: The patch seems ok with minor style comments
 proposer: Adhemerval Zanella Netto <adhemerval.zanella@linaro.org>
-consensus: Proposed
+consensus: Under Review
 outcome: proposed
 sentiment_score: null
-technical_tradeoffs:
-- Reduced memory footprint vs. increased complexity in iterating through shell names.
-- Single large buffer allocation vs. multiple smaller allocations.
+technical_tradeoffs: []
 exchanges:
-- author: Adhemerval Zanella Netto <adhemerval.zanella@linaro.org>
+- author: Rocket Ma
+  role: proposer
+  position: Rewrites the `getusershell.c` unit, allocating one big buffer for shell
+    names, and adds a missing unit test to improve performance and reduce memory footprint.
+  quote: The new implementation read the whole file into one buffer, and wipe out
+    every byte but shell names. Later when addressing shell names from first shell,
+    jump to next '\0' and then jump to next '/'. This could reduce memory footprint
+    and shall improve some performance.
+- author: Adhemerval Zanella Netto
   role: reviewer
-  position: Finds the patch OK but requests some style changes.
+  position: The patch seems ok, some minor comments (mostly style issues).
   quote: The patch seems ok, some minor comments (mostly style issues).
-primer_expert: '`getusershell.c` provides `getusershell()`, `setusershell()`, and
-  `endusershell()` which are used to iterate through valid login shells listed in
-  `/etc/shells`.  The original implementation allocated a file-size buffer to store
-  strings and (file size / 3 * 8) to store pointers. The patch replaces this with
-  a single large buffer.'
-primer_general: '`getusershell` is a function in glibc that iterates through the valid
-  shells listed in the `/etc/shells` file.  This file determines the list of approved
-  shells that a user can be assigned to on a Unix-like system. This patch optimizes
-  the memory allocation strategy of `getusershell` to improve performance.'
+primer_expert: The `getusershell` family of functions parses `/etc/shells`. The patch
+  in question rewrites the function to improve performance. Reviewers outside of glibc
+  might not be aware of internal glibc coding styles and best practices.
+primer_general: '`getusershell` is a function used to retrieve valid user shells from
+  a file, typically `/etc/shells`. This file lists the approved shells for user accounts
+  on a system. The patch aims to improve the efficiency of this function. Understanding
+  this requires knowing that `getusershell` is part of the standard C library and
+  is used for security and system administration purposes.'
 series_id: null
 series_role: standalone
 series_parts: []
@@ -43,4 +45,4 @@ bugzilla_url: null
 date: '2026-04-24'
 ---
 
-Adhemerval Zanella Netto reviewed Rocket Ma's patch which rewrites `getusershell.c` to allocate a single large buffer instead of multiple smaller ones, aiming to reduce memory footprint and improve performance. Adhemerval finds the patch to be generally OK, and offers style suggestions.
+Adhemerval reviewed Rocket Ma's patch to optimize getusershell.c and provided minor style comments.

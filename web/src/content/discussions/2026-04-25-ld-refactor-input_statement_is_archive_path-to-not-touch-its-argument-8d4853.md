@@ -5,41 +5,32 @@ patch_id: null
 tags:
 - binutils
 - ld
-- linker
 - refactoring
-- glibc
+- const correctness
 discussion_id: 91ef07eb095ae29ba9bc320ca057769231202eae.1777074100.git.calvin@wbinvd.org
 source_type: public_inbox
 title: '[PATCH 2/4] ld: Refactor input_statement_is_archive_path() to not touch its
   argument'
 headline: 'ld: Refactor input_statement_is_archive_path() to not touch its argument'
-tldr: This patch refactors `input_statement_is_archive_path()` in ldlang.c to avoid
-  modifying its input argument, as preparation for later patches.
+tldr: Refactors input_statement_is_archive_path() in ldlang.c to avoid modifying its
+  input argument, preparing for const-correctness fixes.
 proposer: Calvin Owens <calvin@wbinvd.org>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
 technical_tradeoffs:
-- Avoids modifying the input argument, improving code safety.
-- Introduces a temporary copy, potentially increasing memory usage slightly.
-- Prepares the code for upcoming changes related to `const` qualifiers.
-exchanges:
-- author: Calvin Owens <calvin@wbinvd.org>
-  role: proposer
-  position: Proposes refactoring `input_statement_is_archive_path()` to avoid modifying
-    its input argument as a preparatory step for subsequent patches.
-  quote: This is prep work for the next patch, no functional change intended.
-primer_expert: This patch modifies `ldlang.c` in the binutils linker, specifically
-  the `input_statement_is_archive_path()` function. The refactoring prepares the ground
-  for later patches that address issues arising from the new qualifier-preserving
-  behavior of `strchr()` in glibc 2.43 and GCC 15.2. `ldlang.c` handles the language-specific
-  aspects of the linker command language.
-primer_general: This patch prepares the binutils linker (`ld`) for upcoming changes
-  related to how strings are handled.  The patch modifies the `input_statement_is_archive_path()`
-  function in `ldlang.c`.  It changes the function to avoid directly modifying its
-  input string. Instead, it creates a temporary copy, works on the copy, and then
-  discards it. This change makes the code more robust and prepares it for future updates
-  to string handling in the GNU C Library (glibc) and GCC.
+- Slightly increased memory usage due to string duplication.
+- Improved code clarity and const-correctness.
+exchanges: []
+primer_expert: This patch refactors `input_statement_is_archive_path` in `ldlang.c`
+  to take a `const char*` instead of `char*` as input, and duplicates the string locally
+  before modification. This is in preparation for dealing with `strchr`'s new const-correctness.
+  `ldlang.c` contains the ld linker's input language parsing.
+primer_general: This patch modifies the binutils linker (`ld`) to prepare for changes
+  in how the C standard library handles constant strings. Specifically, the `input_statement_is_archive_path`
+  function is refactored to avoid modifying its input. This change is a necessary
+  step to ensure the linker remains compatible with newer versions of the C standard
+  library and avoids potential build errors.
 series_id: 'binutils:ld: refactor input_statement_is_archive_path() to not touch its
   argument'
 series_role: reply
@@ -49,4 +40,4 @@ bugzilla_url: null
 date: '2026-04-25'
 ---
 
-This patch refactors the `input_statement_is_archive_path()` function in `ldlang.c` within the binutils linker. The goal is to prevent the function from modifying its input argument.  It achieves this by creating a temporary copy of the input string, performing operations on the copy, and then freeing the copy. This change is a preparation step for subsequent patches that address `-Werror=discarded-qualifiers` warnings.
+This patch refactors the `input_statement_is_archive_path()` function in `ld/ldlang.c` to avoid modifying its input argument.  This is a preparatory step for subsequent patches that address `const` qualifier issues related to glibc 2.43's `strchr()` changes. The refactoring ensures that the function does not alter the input string, which is important for maintaining const-correctness.
