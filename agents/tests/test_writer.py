@@ -87,7 +87,7 @@ class TestWriteDiscussion:
         fm = yaml.safe_load(fm_text)
         required = {
             "project", "subsystem", "discussion_id", "source_type",
-            "title", "proposer", "consensus", "sentiment_score",
+            "title", "proposer", "consensus", "impact_score", "sentiment_score",
             "technical_tradeoffs", "url", "date",
         }
         assert required.issubset(fm.keys())

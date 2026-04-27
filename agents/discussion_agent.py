@@ -113,6 +113,11 @@ FIELDS (all required unless noted):
   in either primer; focus on background.
 - ``tags`` — up to 5 topic tags.
 - ``technical_tradeoffs`` — bullet list; never empty for a non-trivial RFC.
+- ``impact_score`` 1–10. How significant would this change be if it landed?
+  Rubric: 1–2 cosmetic/trivial, 3–4 minor improvement, 5–6 notable with
+  real-world effect, 7–8 significant (affects many users or system stability),
+  9–10 major (architectural, security, or widely-breaking). Set to ``null``
+  when there is not enough context to judge.
 - ``sentiment_score`` 1–10 (1=hostile/NACK storm, 5=neutral debate, 10=wide
   approval). Set ``sentiment_score`` to ``null`` when the discussion has no
   replies yet — never invent a neutral default; absence of community

@@ -157,6 +157,7 @@ def write_discussion(
         "proposer": d.proposer,
         "consensus": d.consensus.value,
         "outcome": d.outcome.value,
+        "impact_score": d.impact_score,
         "sentiment_score": d.sentiment_score,
         "technical_tradeoffs": d.technical_tradeoffs,
         "exchanges": [e.model_dump() for e in d.exchanges],
