@@ -121,6 +121,13 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
       </section>
     )}
 
+    {d.primer_general && (
+      <section class="extra">
+        <h2>For Context</h2>
+        <p>{d.primer_general}</p>
+      </section>
+    )}
+
     {(d.series_parts ?? []).length > 0 && (
       <section class="extra">
         <h2>Part of a Series</h2>
