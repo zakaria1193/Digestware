@@ -264,11 +264,6 @@ for (const cat of CATEGORY_ORDER) {
     );
   }
 
-  // Hover preview: while the cursor is over a specific chip, narrow the
-  // visible articles to that tag only — independent of the click-toggled
-  // persistent selection. Cleared on mouseleave from the chip / labels area.
-  let hoveredTag: string | null = null;
-
   function setFiltered(el: HTMLElement, filtered: boolean): void {
     el.classList.toggle('is-filtered', filtered);
     el.setAttribute('aria-hidden', filtered ? 'true' : 'false');
@@ -303,12 +298,6 @@ for (const cat of CATEGORY_ORDER) {
     selected: Set<string>,
     visibleCount: number,
   ): boolean {
-    // Hover preview short-circuits everything else: only items carrying the
-    // hovered tag pass.
-    if (hoveredTag !== null) {
-      const tags = (tagStr ?? '').split('|').filter(Boolean);
-      return tags.includes(hoveredTag);
-    }
     // All currently-visible chips selected → treat as filter-off so untagged items
     // (and items whose tags are themselves below the impact floor) still show.
     if (visibleCount === 0 || selected.size === visibleCount) return true;
@@ -379,34 +368,6 @@ for (const cat of CATEGORY_ORDER) {
         }
       }
     }
-    apply(parseInt(slider.value));
-  });
-
-  // mouseover/mouseout bubble (mouseenter/mouseleave don't), so a single
-  // delegated listener covers every chip, including ones added later.
-  labelsCell.addEventListener('mouseover', (ev) => {
-    const chip = (ev.target as HTMLElement).closest<HTMLButtonElement>('.chip');
-    if (!chip || chip.classList.contains('is-filtered')) return;
-    const tag = chip.dataset.tag ?? null;
-    if (hoveredTag === tag) return;
-    hoveredTag = tag;
-    apply(parseInt(slider.value));
-  });
-  labelsCell.addEventListener('mouseout', (ev) => {
-    const chip = (ev.target as HTMLElement).closest<HTMLButtonElement>('.chip');
-    if (!chip) return;
-    // Skip the clear when the cursor is moving directly to another chip —
-    // the next mouseover will set the new tag in the same frame.
-    const next = (ev.relatedTarget as HTMLElement | null)?.closest?.('.chip');
-    if (next) return;
-    if (hoveredTag === null) return;
-    hoveredTag = null;
-    apply(parseInt(slider.value));
-  });
-  // Catches fast pointer exits that skip the chip's mouseout.
-  labelsCell.addEventListener('pointerleave', () => {
-    if (hoveredTag === null) return;
-    hoveredTag = null;
     apply(parseInt(slider.value));
   });
 
