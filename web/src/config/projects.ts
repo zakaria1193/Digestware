@@ -29,15 +29,6 @@ export const PROJECTS: ProjectDef[] = [
     description: 'Daily digest of GCC mailing-list proposals and landed commits.',
   },
   {
-    slug: 'glibc',
-    name: 'glibc Digest',
-    short: 'glibc',
-    hostname: 'glibcdigest.dev',
-    tagline: '— A Daily Record of the GNU C Library —',
-    footerBlurb: 'Compiled daily · libc-alpha mailing list & glibc-cvs commits',
-    description: 'Daily digest of glibc mailing-list proposals and landed commits.',
-  },
-  {
     slug: 'binutils',
     name: 'binutils Digest',
     short: 'binutils',
@@ -45,15 +36,6 @@ export const PROJECTS: ProjectDef[] = [
     tagline: '— A Daily Record of the GNU Binary Utilities —',
     footerBlurb: 'Compiled daily · binutils mailing list & binutils-cvs commits',
     description: 'Daily digest of binutils mailing-list proposals and landed commits.',
-  },
-  {
-    slug: 'linux',
-    name: 'Linux Digest',
-    short: 'Linux',
-    hostname: 'linuxdigest.dev',
-    tagline: '— A Daily Record of the Linux Kernel —',
-    footerBlurb: 'Compiled daily · Linus\u2019s master branch',
-    description: 'Daily digest of Linux kernel commits on master.',
   },
 ];
 
