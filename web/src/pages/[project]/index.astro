@@ -185,12 +185,14 @@ for (const cat of CATEGORY_ORDER) {
   <div class="page-grid">
     <!-- Left: Commit Stream (sidebar) -->
     <aside class="commit-stream" id="stream">
-      <div class="stream-head">
-        <div class="stream-brand">Latest&nbsp;Merges</div>
-        <div class="stream-sub">Fresh commits, on the hour</div>
+      <div class="stream-sticky-head">
+        <div class="stream-head">
+          <div class="stream-brand">Latest&nbsp;Commits</div>
+          <div class="stream-sub">Fresh commits, on the hour</div>
+        </div>
+        <div class="stream-rule"></div>
+        <div class="stream-rule-thin"></div>
       </div>
-      <div class="stream-rule"></div>
-      <div class="stream-rule-thin"></div>
 
       <div class="stream-list" id="stream-list">
         {landings.length === 0 && (
@@ -385,9 +387,15 @@ for (const cat of CATEGORY_ORDER) {
 
   .commit-stream {
     font-family: var(--font-serif);
-    padding-top: 0.25rem;
   }
 
+  .stream-sticky-head {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--color-paper);
+    padding-top: 0.25rem;
+  }
   .stream-head { text-align: center; padding-bottom: 0.15rem; }
   .stream-brand {
     font-family: var(--font-serif-display);
