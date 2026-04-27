@@ -68,9 +68,10 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
       <div class="byline-row">
         {d.proposer && <span class="byline">By <em>{d.proposer}</em></span>}
         <span class="byline-date">{dateStr}</span>
-        {d.sentiment_score != null && (
-          <span class="byline-score">Community Sentiment {d.sentiment_score}&thinsp;/&thinsp;10</span>
-        )}
+        <span class="byline-score">
+          Community Sentiment&nbsp;
+          <strong>{d.sentiment_score != null ? `${d.sentiment_score} / 10` : '—'}</strong>
+        </span>
       </div>
     </header>
 

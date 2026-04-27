@@ -69,6 +69,9 @@ const dateStr = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numer
     <div class="story-meta">
       {d.proposer && <><span class="byline">{d.proposer}</span><span class="bullet">&middot;</span></>}
       <time>{dateStr}</time>
+      {score > 0 && (
+        <><span class="bullet">&middot;</span><span class="story-score">{score}&thinsp;/&thinsp;10</span></>
+      )}
     </div>
   </footer>
 </article>
@@ -215,4 +218,5 @@ const dateStr = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numer
 
   .byline { font-weight: 600; color: var(--color-ink); }
   .bullet { color: var(--color-rule); font-style: normal; }
+  .story-score { font-weight: 600; color: var(--color-ink); font-style: normal; letter-spacing: 0.01em; }
 </style>
