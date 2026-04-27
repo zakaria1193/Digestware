@@ -68,6 +68,22 @@ function scoreColor(n: number | null | undefined): string {
         <span class="wsj-kicker">{d.subsystem}</span>
         <span class="kicker-sep">&mdash;</span>
         <span class="outcome-pill">{outcomeLabel}</span>
+        {d.impact_score != null && (
+          <>
+            <span class="kicker-sep">&mdash;</span>
+            <span class="score-pill" style={`color: ${scoreColor(d.impact_score)}; border-bottom-color: ${scoreColor(d.impact_score)}`}>
+              Impact {d.impact_score}&thinsp;/&thinsp;10
+            </span>
+          </>
+        )}
+        {d.sentiment_score != null && (
+          <>
+            <span class="kicker-sep">&mdash;</span>
+            <span class="score-pill" style={`color: ${scoreColor(d.sentiment_score)}; border-bottom-color: ${scoreColor(d.sentiment_score)}`}>
+              Sentiment {d.sentiment_score}&thinsp;/&thinsp;10
+            </span>
+          </>
+        )}
       </div>
 
       <h1 class="head">{d.headline}</h1>
@@ -78,23 +94,6 @@ function scoreColor(n: number | null | undefined): string {
         {d.proposer && <span class="byline">By <em>{d.proposer}</em></span>}
         <span class="byline-date">{dateStr}</span>
       </div>
-      {(d.impact_score != null || d.sentiment_score != null) && (
-        <div class="score-row">
-          {d.impact_score != null && (
-            <span class="score-pill" style={`color: ${scoreColor(d.impact_score)}`}>
-              Impact <strong>{d.impact_score} / 10</strong>
-            </span>
-          )}
-          {d.impact_score != null && d.sentiment_score != null && (
-            <span class="score-sep">&middot;</span>
-          )}
-          {d.sentiment_score != null && (
-            <span class="score-pill" style={`color: ${scoreColor(d.sentiment_score)}`}>
-              Sentiment <strong>{d.sentiment_score} / 10</strong>
-            </span>
-          )}
-        </div>
-      )}
     </header>
 
     <div class="body wsj-dropcap">
@@ -296,20 +295,15 @@ function scoreColor(n: number | null | undefined): string {
   }
   .byline em { font-weight: 600; color: var(--color-ink); font-style: italic; }
 
-  .score-row {
-    display: flex;
-    gap: 0.6rem;
-    justify-content: center;
-    align-items: baseline;
-    margin-top: 0.6rem;
+  .score-pill {
     font-family: var(--font-sans);
-    font-size: 0.68rem;
-    letter-spacing: 0.12em;
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
-    font-style: normal;
+    padding-bottom: 1px;
+    border-bottom: 2px solid;
   }
-  .score-pill strong { font-weight: 800; }
-  .score-sep { color: var(--color-rule); font-style: normal; }
 
   .body {
     font-family: var(--font-serif);

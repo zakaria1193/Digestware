@@ -52,6 +52,15 @@ if (!linkedDiscussion && discussionIdLink) {
 
 const dateStr = d.date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase();
+
+function scoreColor(n: number | null | undefined): string {
+  if (n == null) return '#888';
+  if (n <= 2)  return '#5a5a5a';
+  if (n <= 4)  return '#2e6a8e';
+  if (n <= 6)  return '#1a4d8a';
+  if (n <= 8)  return '#7a1a2e';
+  return '#b80018';
+}
 ---
 
 <PublicLayout project={project} title={d.headline} description={d.tldr}>
@@ -72,7 +81,7 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
         {d.impact_score != null && (
           <>
             <span class="kicker-sep">&mdash;</span>
-            <span class="impact-pill">Impact {d.impact_score}&thinsp;/&thinsp;10</span>
+            <span class="impact-pill" style={`color: ${scoreColor(d.impact_score)}; border-bottom-color: ${scoreColor(d.impact_score)}`}>Impact {d.impact_score}&thinsp;/&thinsp;10</span>
           </>
         )}
         {d.performance_win && <span class="badge perf">Performance Win</span>}

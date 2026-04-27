@@ -12,6 +12,15 @@ const d = entry.data;
 const dateStr = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
 const isHigh = (d.impact_score ?? 0) >= 8;
 const isLow = (d.impact_score ?? 0) <= 2;
+
+function scoreColor(n: number | null | undefined): string {
+  if (n == null) return '#888';
+  if (n <= 2)  return '#5a5a5a';
+  if (n <= 4)  return '#2e6a8e';
+  if (n <= 6)  return '#1a4d8a';
+  if (n <= 8)  return '#7a1a2e';
+  return '#b80018';
+}
 ---
 
 <a href={`/${projectSlug}/landings/${entry.id}`} class:list={["wire", isHigh && "wire-starred", isLow && "wire-dim"]} data-score={d.impact_score ?? 0} data-tags={(d.tags ?? []).join('|')}>
@@ -19,6 +28,9 @@ const isLow = (d.impact_score ?? 0) <= 2;
     <span class="wire-date">{dateStr}</span>
     <span class="wire-sep">&mdash;</span>
     <span class="wire-sub">{d.subsystem}</span>
+    {d.impact_score != null && (
+      <span class="wire-score" style={`color: ${scoreColor(d.impact_score)}`}>{d.impact_score}&thinsp;/&thinsp;10</span>
+    )}
     {isHigh && <span class="wire-star" aria-label="High impact">&#9733;</span>}
   </div>
   <h4 class="wire-headline">{d.headline}</h4>
@@ -53,6 +65,13 @@ const isLow = (d.impact_score ?? 0) <= 2;
   }
 
   .wire-sep { color: var(--color-rule); }
+
+  .wire-score {
+    font-weight: 700;
+    margin-left: auto;
+    margin-right: 0.3rem;
+    letter-spacing: 0.05em;
+  }
 
   .wire-sub {
     color: var(--color-accent);
