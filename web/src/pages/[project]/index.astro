@@ -65,19 +65,21 @@ const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
   return latestB - latestA;
 });
 
-// Aggregate tag frequencies across both collections, rank by frequency.
-const tagCounts = new Map<string, number>();
+// Aggregate impact scores per tag across both collections. The full score list
+// (not just the count) is shipped to the client so each chip can recompute its
+// live count as the impact slider moves — chips with zero items at the current
+// threshold get hidden, and categories that empty out collapse with them.
+const scoresByTag = new Map<string, number[]>();
 for (const entry of [...allDiscussions, ...landings]) {
+  const score = entry.data.impact_score ?? entry.data.sentiment_score ?? 0;
   for (const tag of entry.data.tags ?? []) {
-    tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+    if (!scoresByTag.has(tag)) scoresByTag.set(tag, []);
+    scoresByTag.get(tag)!.push(score);
   }
 }
-const rankedTags = [...tagCounts.entries()]
-  .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-  .map(([name, count]) => ({ name, count }));
-const TOP_N = 6;
-const topTags = rankedTags.slice(0, TOP_N);
-const moreTags = rankedTags.slice(TOP_N);
+const rankedTags = [...scoresByTag.entries()]
+  .map(([name, scores]) => ({ name, count: scores.length, scores }))
+  .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 const totalItems = allDiscussions.length + landings.length;
 
 // Tag categories are produced at digest-generation time by
@@ -107,11 +109,11 @@ function categoryFor(tag: string): Category {
   return (CATEGORY_ORDER as readonly string[]).includes(raw) ? (raw as Category) : 'other';
 }
 
-type RankedTag = { name: string; count: number };
-const groupedMoreTags: Array<{ category: Category; tags: RankedTag[] }> = [];
+type RankedTag = { name: string; count: number; scores: number[] };
+const groupedTags: Array<{ category: Category; tags: RankedTag[] }> = [];
 for (const cat of CATEGORY_ORDER) {
-  const bucket = moreTags.filter(t => categoryFor(t.name) === cat);
-  if (bucket.length > 0) groupedMoreTags.push({ category: cat, tags: bucket });
+  const bucket = rankedTags.filter(t => categoryFor(t.name) === cat);
+  if (bucket.length > 0) groupedTags.push({ category: cat, tags: bucket });
 }
 
 ---
@@ -129,11 +131,10 @@ for (const cat of CATEGORY_ORDER) {
       <div class="filter-cell filter-cell-impact">
         <span class="filter-cell-label">Impact</span>
         <div class="filter-cell-control">
-          <input type="range" id="impact-filter" min="1" max="3" step="1" value="2" aria-label="Minimum impact level" />
+          <input type="range" id="impact-filter" min="1" max="5" step="1" value="2" aria-label="Minimum impact level" />
           <div class="filter-ticks">
-            <span>Low</span>
-            <span>Avg</span>
-            <span>High</span>
+            <span>Lowest</span>
+            <span>Highest</span>
           </div>
         </div>
       </div>
@@ -149,31 +150,25 @@ for (const cat of CATEGORY_ORDER) {
             </div>
           )}
         </div>
-        <div class="filter-chips" id="filter-chips">
-          {rankedTags.length === 0 && (
-            <span class="filter-empty">No labels in the current window.</span>
-          )}
-          {topTags.map(t => (
-            <button type="button" class="chip" data-tag={t.name} data-selected="true" aria-pressed="true">
-              <span class="chip-name">{t.name}</span>
-              <span class="chip-count">{t.count}</span>
-            </button>
-          ))}
-          {moreTags.length > 0 && (
-            <button type="button" class="filter-show-all" id="filter-show-all" aria-expanded="false">
-              Show&nbsp;all&nbsp;<span class="chip-count">+{moreTags.length}</span>
-            </button>
-          )}
-        </div>
+        {rankedTags.length === 0 && (
+          <span class="filter-empty">No labels in the current window.</span>
+        )}
 
-        {moreTags.length > 0 && (
-          <div class="filter-groups" id="filter-groups" hidden>
-            {groupedMoreTags.map(g => (
+        {rankedTags.length > 0 && (
+          <div class="filter-groups" id="filter-groups">
+            {groupedTags.map(g => (
               <section class="filter-group" data-group={g.category}>
                 <span class="filter-group-label">{CATEGORY_LABELS[g.category]}</span>
                 <div class="filter-group-chips">
                   {g.tags.map(t => (
-                    <button type="button" class="chip chip-extra" data-tag={t.name} data-selected="true" aria-pressed="true">
+                    <button
+                      type="button"
+                      class="chip"
+                      data-tag={t.name}
+                      data-selected="true"
+                      aria-pressed="true"
+                      data-scores={t.scores.join(',')}
+                    >
                       <span class="chip-name">{t.name}</span>
                       <span class="chip-count">{t.count}</span>
                     </button>
@@ -242,30 +237,59 @@ for (const cat of CATEGORY_ORDER) {
 <script>
   const slider = document.getElementById('impact-filter') as HTMLInputElement;
   const labelsCell = document.querySelector<HTMLElement>('.filter-cell-labels')!;
-  const groupsWrapper = document.getElementById('filter-groups') as HTMLElement | null;
-  const showAllBtn = document.getElementById('filter-show-all') as HTMLButtonElement | null;
   const visibleCounter = document.getElementById('filter-visible');
-  const thresholds = [0, 4, 8];
 
-  const chips = Array.from(labelsCell.querySelectorAll<HTMLButtonElement>('.chip'));
-  const allTagsCount = chips.length;
+  // Five slider stops map to minimum impact scores from lowest to highest.
+  const thresholds = [1, 3, 5, 8, 10];
+
+  const allChips = Array.from(labelsCell.querySelectorAll<HTMLButtonElement>('.chip'));
+  const groups = Array.from(labelsCell.querySelectorAll<HTMLElement>('.filter-group'));
   const wires = Array.from(document.querySelectorAll<HTMLElement>('.wire'));
   const stories = Array.from(document.querySelectorAll<HTMLElement>('.story'));
   const subsystemBlocks = Array.from(
     document.querySelectorAll<HTMLElement>('[data-subsystem-block]')
   );
 
-  function selectedSet(): Set<string> {
+  // Pre-parse `data-scores` once; chips never change identity, only visibility.
+  const scoresOf = new Map<HTMLButtonElement, number[]>();
+  for (const chip of allChips) {
+    scoresOf.set(
+      chip,
+      (chip.dataset.scores ?? '').split(',').filter(Boolean).map(s => parseInt(s)),
+    );
+  }
+
+  function updateChipsForLevel(min: number): HTMLButtonElement[] {
+    const visible: HTMLButtonElement[] = [];
+    for (const chip of allChips) {
+      const count = (scoresOf.get(chip) ?? []).reduce((n, s) => n + (s >= min ? 1 : 0), 0);
+      chip.hidden = count === 0;
+      const badge = chip.querySelector<HTMLElement>('.chip-count');
+      if (badge) badge.textContent = String(count);
+      if (count > 0) visible.push(chip);
+    }
+    for (const group of groups) {
+      group.hidden = !group.querySelector('.chip:not([hidden])');
+    }
+    return visible;
+  }
+
+  function selectedSet(visibleChips: HTMLButtonElement[]): Set<string> {
     const s = new Set<string>();
-    for (const c of chips) {
+    for (const c of visibleChips) {
       if (c.dataset.selected === 'true') s.add(c.dataset.tag ?? '');
     }
     return s;
   }
 
-  function passesLabels(tagStr: string | undefined, selected: Set<string>): boolean {
-    // "Mark All" (every chip selected) is treated as filter-off so no-tag items show too.
-    if (allTagsCount === 0 || selected.size === allTagsCount) return true;
+  function passesLabels(
+    tagStr: string | undefined,
+    selected: Set<string>,
+    visibleCount: number,
+  ): boolean {
+    // All currently-visible chips selected → treat as filter-off so untagged items
+    // (and items whose tags are themselves below the impact floor) still show.
+    if (visibleCount === 0 || selected.size === visibleCount) return true;
     if (selected.size === 0) return false;
     const tags = (tagStr ?? '').split('|').filter(Boolean);
     for (const t of tags) if (selected.has(t)) return true;
@@ -273,38 +297,32 @@ for (const cat of CATEGORY_ORDER) {
   }
 
   function apply(level: number): void {
-    const min = thresholds[Math.max(0, Math.min(2, level - 1))];
-    const selected = selectedSet();
+    const idx = Math.max(0, Math.min(thresholds.length - 1, level - 1));
+    const min = thresholds[idx];
+    const visibleChips = updateChipsForLevel(min);
+    const selected = selectedSet(visibleChips);
     let visible = 0;
 
-    for (const el of wires) {
+    for (const el of [...wires, ...stories]) {
       const score = parseInt(el.dataset.score ?? '0');
-      const show = score >= min && passesLabels(el.dataset.tags, selected);
-      el.hidden = !show;
-      if (show) visible++;
-    }
-    for (const el of stories) {
-      const score = parseInt(el.dataset.score ?? '0');
-      const show = score >= min && passesLabels(el.dataset.tags, selected);
+      const show = score >= min && passesLabels(el.dataset.tags, selected, visibleChips.length);
       el.hidden = !show;
       if (show) visible++;
     }
     for (const block of subsystemBlocks) {
-      const anyVisible = block.querySelector('.story:not([hidden])');
-      block.hidden = !anyVisible;
+      block.hidden = !block.querySelector('.story:not([hidden])');
     }
     if (visibleCounter) visibleCounter.textContent = String(visible);
   }
 
-  function setAllChips(selected: boolean): void {
-    for (const c of chips) {
+  function setVisibleChips(selected: boolean): void {
+    for (const c of allChips) {
+      if (c.hidden) continue;
       c.dataset.selected = selected ? 'true' : 'false';
       c.setAttribute('aria-pressed', selected ? 'true' : 'false');
     }
   }
 
-  // Chip click → toggle individual label (delegated across the whole Labels cell
-  // so it catches chips inside the collapsible category groups too)
   labelsCell.addEventListener('click', (ev) => {
     const target = (ev.target as HTMLElement).closest<HTMLButtonElement>('.chip');
     if (!target) return;
@@ -314,31 +332,16 @@ for (const cat of CATEGORY_ORDER) {
     apply(parseInt(slider.value));
   });
 
-  // Mark All / Unmark All
   document.querySelectorAll<HTMLButtonElement>('.filter-toggle').forEach(btn => {
     btn.addEventListener('click', () => {
-      setAllChips(btn.dataset.action === 'mark-all');
+      setVisibleChips(btn.dataset.action === 'mark-all');
       apply(parseInt(slider.value));
     });
   });
 
-  // Show All / Show Less — toggle the whole groups wrapper (chips inside stay
-  // in the DOM so they still contribute to selectedSet()/passesLabels()).
-  if (showAllBtn && groupsWrapper) {
-    const extraCount = groupsWrapper.querySelectorAll<HTMLElement>('.chip-extra').length;
-    showAllBtn.addEventListener('click', () => {
-      const expanded = showAllBtn.getAttribute('aria-expanded') === 'true';
-      groupsWrapper.hidden = expanded;
-      showAllBtn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
-      showAllBtn.innerHTML = expanded
-        ? `Show&nbsp;all&nbsp;<span class="chip-count">+${extraCount}</span>`
-        : `Show&nbsp;less`;
-    });
-  }
-
   slider.addEventListener('input', () => apply(parseInt(slider.value)));
 
-  // Default to Avg; fall back to Low if it would show nothing in the commit stream.
+  // Default to stop 2 (min 3); fall back to stop 1 if it hides every commit.
   apply(2);
   const anyWireVisible = wires.some(w => !w.hidden);
   if (!anyWireVisible && wires.length > 0) {
@@ -488,38 +491,45 @@ for (const cat of CATEGORY_ORDER) {
   .filter-cell-label-row {
     display: flex;
     align-items: baseline;
+    justify-content: space-between;
     gap: 0.75rem;
   }
+  /* The Mark/Unmark controls deliberately depart from the uppercase tracked
+     "LABELS" eyebrow: italic serif at link-text size, pushed to the opposite
+     edge of the row, with a faint underline that brightens on hover. */
   .filter-toggles {
     display: inline-flex;
     align-items: baseline;
-    gap: 0.35rem;
+    gap: 0.4rem;
   }
   .filter-toggle {
-    font-family: var(--font-sans);
-    font-size: 0.58rem;
-    font-weight: 700;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.78rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--color-muted);
     background: transparent;
     border: 0;
     padding: 0;
     cursor: pointer;
+    text-decoration: underline;
+    text-decoration-color: var(--color-rule);
+    text-underline-offset: 3px;
+    transition: color 0.12s ease, text-decoration-color 0.12s ease;
   }
-  .filter-toggle:hover { color: var(--color-accent); }
+  .filter-toggle:hover {
+    color: var(--color-accent);
+    text-decoration-color: var(--color-accent);
+  }
   .filter-toggle-sep {
     color: var(--color-rule);
-    font-family: var(--font-sans);
-    font-size: 0.58rem;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.78rem;
   }
 
-  .filter-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem 0.75rem;
-    align-items: baseline;
-  }
   .filter-empty {
     font-family: var(--font-serif);
     font-style: italic;
@@ -565,29 +575,11 @@ for (const cat of CATEGORY_ORDER) {
     color: var(--color-muted);
   }
 
-  .filter-show-all {
-    font-family: var(--font-sans);
-    font-size: 0.6rem;
-    font-weight: 700;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--color-accent);
-    background: transparent;
-    border: 0;
-    padding: 0.1rem 0 0.18rem;
-    cursor: pointer;
-    border-bottom: 1px solid var(--color-accent);
-  }
-  .filter-show-all:hover { opacity: 0.75; }
-
-  /* Expanded overflow chips, grouped by taxonomy category */
+  /* Category-grouped chips: a 2-column "label | chips" rail per category. */
   .filter-groups {
     display: flex;
     flex-direction: column;
     gap: 0.55rem;
-    margin-top: 0.55rem;
-    padding-top: 0.5rem;
-    border-top: 1px dotted var(--color-rule);
   }
   .filter-group {
     display: grid;
