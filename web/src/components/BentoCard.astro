@@ -97,9 +97,37 @@ const dateStr = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numer
     gap: 0.45rem;
     padding: 1rem 0;
     border-bottom: 1px solid var(--color-rule);
+    overflow: hidden;
+    max-height: 60rem;
+    transition:
+      opacity 0.36s cubic-bezier(0.4, 0, 0.2, 1),
+      max-height 0.36s cubic-bezier(0.4, 0, 0.2, 1),
+      padding 0.36s cubic-bezier(0.4, 0, 0.2, 1),
+      margin 0.36s cubic-bezier(0.4, 0, 0.2, 1),
+      border-bottom-width 0.36s cubic-bezier(0.4, 0, 0.2, 1),
+      transform 0.36s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .story:last-child { border-bottom: none; }
+
+  .story.is-filtered {
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin: 0;
+    border-bottom-width: 0;
+    pointer-events: none;
+    transform: translateY(-4px);
+  }
+
+  :global(html.filter-init) .story {
+    transition: none !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .story { transition: none; }
+  }
 
   .story-featured {
     padding: 1.1rem 0 1.25rem;

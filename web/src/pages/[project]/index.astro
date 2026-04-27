@@ -124,14 +124,13 @@ for (const cat of CATEGORY_ORDER) {
     <div class="filter-bar-head">
       <span class="wsj-section-label">Filters</span>
       <span class="wsj-section-rule"></span>
-      <span class="wsj-meta"><span id="filter-visible">{totalItems}</span> of {totalItems}</span>
     </div>
 
     <div class="filter-bar-body">
       <div class="filter-cell filter-cell-impact">
         <span class="filter-cell-label">Impact</span>
         <div class="filter-cell-control">
-          <input type="range" id="impact-filter" min="1" max="5" step="1" value="2" aria-label="Minimum impact level" />
+          <input type="range" id="impact-filter" min="10" max="100" step="1" value="30" aria-label="Minimum impact level" />
           <div class="filter-ticks">
             <span>Lowest</span>
             <span>Highest</span>
@@ -141,7 +140,13 @@ for (const cat of CATEGORY_ORDER) {
 
       <div class="filter-cell filter-cell-labels">
         <div class="filter-cell-label-row">
-          <span class="filter-cell-label">Labels</span>
+          <span class="filter-cell-label-eyebrow">
+            <span class="filter-cell-label">Labels</span>
+            <span class="filter-cell-chevron" aria-hidden="true">&#9662;</span>
+            <span class="filter-cell-meta">
+              <span id="filter-visible">{totalItems}</span> of {totalItems}
+            </span>
+          </span>
           {rankedTags.length > 0 && (
             <div class="filter-toggles">
               <button type="button" class="filter-toggle" data-action="mark-all">Mark&nbsp;All</button>
@@ -156,26 +161,28 @@ for (const cat of CATEGORY_ORDER) {
 
         {rankedTags.length > 0 && (
           <div class="filter-groups" id="filter-groups">
-            {groupedTags.map(g => (
-              <section class="filter-group" data-group={g.category}>
-                <span class="filter-group-label">{CATEGORY_LABELS[g.category]}</span>
-                <div class="filter-group-chips">
-                  {g.tags.map(t => (
-                    <button
-                      type="button"
-                      class="chip"
-                      data-tag={t.name}
-                      data-selected="true"
-                      aria-pressed="true"
-                      data-scores={t.scores.join(',')}
-                    >
-                      <span class="chip-name">{t.name}</span>
-                      <span class="chip-count">{t.count}</span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            ))}
+            <div class="filter-groups-inner">
+              {groupedTags.map(g => (
+                <section class="filter-group" data-group={g.category}>
+                  <span class="filter-group-label">{CATEGORY_LABELS[g.category]}</span>
+                  <div class="filter-group-chips">
+                    {g.tags.map(t => (
+                      <button
+                        type="button"
+                        class="chip"
+                        data-tag={t.name}
+                        data-selected="true"
+                        aria-pressed="true"
+                        data-scores={t.scores.join(',')}
+                      >
+                        <span class="chip-name">{t.name}</span>
+                        <span class="chip-count">{t.count}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -241,8 +248,11 @@ for (const cat of CATEGORY_ORDER) {
   const labelsCell = document.querySelector<HTMLElement>('.filter-cell-labels')!;
   const visibleCounter = document.getElementById('filter-visible');
 
-  // Five slider stops map to minimum impact scores from lowest to highest.
-  const thresholds = [1, 3, 5, 8, 10];
+  // Slider values are integers in [10, 100]; the live threshold is value/10
+  // so the impact floor moves continuously between 1.0 and 10.0.
+  function thresholdFromSlider(value: number): number {
+    return value / 10;
+  }
 
   const allChips = Array.from(labelsCell.querySelectorAll<HTMLButtonElement>('.chip'));
   const groups = Array.from(labelsCell.querySelectorAll<HTMLElement>('.filter-group'));
@@ -261,17 +271,23 @@ for (const cat of CATEGORY_ORDER) {
     );
   }
 
+  function setFiltered(el: HTMLElement, filtered: boolean): void {
+    el.classList.toggle('is-filtered', filtered);
+    el.setAttribute('aria-hidden', filtered ? 'true' : 'false');
+  }
+
   function updateChipsForLevel(min: number): HTMLButtonElement[] {
     const visible: HTMLButtonElement[] = [];
     for (const chip of allChips) {
       const count = (scoresOf.get(chip) ?? []).reduce((n, s) => n + (s >= min ? 1 : 0), 0);
-      chip.hidden = count === 0;
+      setFiltered(chip, count === 0);
       const badge = chip.querySelector<HTMLElement>('.chip-count');
       if (badge) badge.textContent = String(count);
       if (count > 0) visible.push(chip);
     }
     for (const group of groups) {
-      group.hidden = !group.querySelector('.chip:not([hidden])');
+      const anyVisible = !!group.querySelector('.chip:not(.is-filtered)');
+      setFiltered(group, !anyVisible);
     }
     return visible;
   }
@@ -298,28 +314,28 @@ for (const cat of CATEGORY_ORDER) {
     return false;
   }
 
-  function apply(level: number): void {
-    const idx = Math.max(0, Math.min(thresholds.length - 1, level - 1));
-    const min = thresholds[idx];
+  function apply(value: number): void {
+    const min = thresholdFromSlider(value);
     const visibleChips = updateChipsForLevel(min);
     const selected = selectedSet(visibleChips);
     let visible = 0;
 
     for (const el of [...wires, ...stories]) {
-      const score = parseInt(el.dataset.score ?? '0');
+      const score = parseFloat(el.dataset.score ?? '0');
       const show = score >= min && passesLabels(el.dataset.tags, selected, visibleChips.length);
-      el.hidden = !show;
+      setFiltered(el, !show);
       if (show) visible++;
     }
     for (const block of subsystemBlocks) {
-      block.hidden = !block.querySelector('.story:not([hidden])');
+      const anyVisible = !!block.querySelector('.story:not(.is-filtered)');
+      setFiltered(block, !anyVisible);
     }
     if (visibleCounter) visibleCounter.textContent = String(visible);
   }
 
   function setVisibleChips(selected: boolean): void {
     for (const c of allChips) {
-      if (c.hidden) continue;
+      if (c.classList.contains('is-filtered')) continue;
       c.dataset.selected = selected ? 'true' : 'false';
       c.setAttribute('aria-pressed', selected ? 'true' : 'false');
     }
@@ -328,9 +344,37 @@ for (const cat of CATEGORY_ORDER) {
   labelsCell.addEventListener('click', (ev) => {
     const target = (ev.target as HTMLElement).closest<HTMLButtonElement>('.chip');
     if (!target) return;
-    const on = target.dataset.selected !== 'true';
-    target.dataset.selected = on ? 'true' : 'false';
-    target.setAttribute('aria-pressed', on ? 'true' : 'false');
+
+    // If everything is currently selected, the click isolates the clicked
+    // chip (unselects all others) instead of just turning it off — that's
+    // the "show me only this tag" shortcut from the all-on starting state.
+    const visibleChips = allChips.filter(c => !c.classList.contains('is-filtered'));
+    const allSelected =
+      visibleChips.length > 0 &&
+      visibleChips.every(c => c.dataset.selected === 'true');
+
+    if (allSelected) {
+      for (const c of visibleChips) {
+        const isTarget = c === target;
+        c.dataset.selected = isTarget ? 'true' : 'false';
+        c.setAttribute('aria-pressed', isTarget ? 'true' : 'false');
+      }
+    } else {
+      const on = target.dataset.selected !== 'true';
+      target.dataset.selected = on ? 'true' : 'false';
+      target.setAttribute('aria-pressed', on ? 'true' : 'false');
+
+      // Unselecting the last selected chip drops the user into a "nothing
+      // visible" trap. Round-trip back to the all-on baseline instead so
+      // the next click is meaningful.
+      const anySelected = visibleChips.some(c => c.dataset.selected === 'true');
+      if (!anySelected) {
+        for (const c of visibleChips) {
+          c.dataset.selected = 'true';
+          c.setAttribute('aria-pressed', 'true');
+        }
+      }
+    }
     apply(parseInt(slider.value));
   });
 
@@ -343,13 +387,20 @@ for (const cat of CATEGORY_ORDER) {
 
   slider.addEventListener('input', () => apply(parseInt(slider.value)));
 
-  // Default to stop 2 (min 3); fall back to stop 1 if it hides every commit.
-  apply(2);
-  const anyWireVisible = wires.some(w => !w.hidden);
+  // Suppress the first paint's collapse animation: items below the default
+  // threshold would otherwise flash in fully expanded and then animate down.
+  document.documentElement.classList.add('filter-init');
+  apply(parseInt(slider.value));
+  const anyWireVisible = wires.some(w => !w.classList.contains('is-filtered'));
   if (!anyWireVisible && wires.length > 0) {
-    slider.value = '1';
-    apply(1);
+    slider.value = '10';
+    apply(10);
   }
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      document.documentElement.classList.remove('filter-init');
+    });
+  });
 </script>
 
 </PublicLayout>
@@ -495,12 +546,62 @@ for (const cat of CATEGORY_ORDER) {
     flex-direction: column;
     gap: 0.45rem;
     min-width: 0;
+    /* Faint dashed frame so the cell reads as a discrete, expandable region
+       rather than free-floating text. Brightens to solid on hover/focus. */
+    padding: 0.45rem 0.6rem 0.55rem;
+    border: 1px dashed var(--color-rule);
+    transition:
+      border-color 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+      border-style 0s;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .filter-cell-labels:hover,
+    .filter-cell-labels:focus-within {
+      border-color: var(--color-accent);
+      border-style: solid;
+    }
   }
   .filter-cell-label-row {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: 0.75rem;
+  }
+  .filter-cell-label-eyebrow {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    min-width: 0;
+  }
+  .filter-cell-chevron {
+    display: inline-block;
+    font-size: 0.65em;
+    line-height: 1;
+    color: var(--color-muted);
+    transform: rotate(0deg);
+    transition:
+      transform 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+      color 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .filter-cell-meta {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.7rem;
+    color: var(--color-muted);
+    white-space: nowrap;
+  }
+  /* Coarse-pointer / no-hover devices keep the chips always visible; the
+     chevron points down to match. On fine pointers the chevron sits sideways
+     when the cell is collapsed and rotates open on hover/focus. */
+  @media (hover: hover) and (pointer: fine) {
+    .filter-cell-chevron {
+      transform: rotate(-90deg);
+    }
+    .filter-cell-labels:hover .filter-cell-chevron,
+    .filter-cell-labels:focus-within .filter-cell-chevron {
+      transform: rotate(0deg);
+      color: var(--color-accent);
+    }
   }
   /* The Mark/Unmark controls deliberately depart from the uppercase tracked
      "LABELS" eyebrow: italic serif at link-text size, pushed to the opposite
@@ -560,17 +661,37 @@ for (const cat of CATEGORY_ORDER) {
     display: inline-flex;
     align-items: baseline;
     gap: 0.3rem;
-    transition: opacity 0.12s ease, color 0.12s ease;
+    transform-origin: left center;
+    transition:
+      opacity 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+      color 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+      border-bottom-color 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+      border-bottom-width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+      max-width 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+      padding 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+      margin 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+      transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  .chip:hover { opacity: 0.72; }
+  .chip:hover {
+    opacity: 0.78;
+    transform: translateY(-1px);
+  }
+  .chip:active { transform: translateY(0); }
   .chip[data-selected="false"] {
     color: var(--color-muted);
     border-bottom-color: var(--color-rule);
     border-bottom-style: dotted;
     opacity: 0.55;
   }
-  .chip[data-selected="false"] .chip-name {
+  /* Animate the strikethrough by fading its color rather than toggling
+     `text-decoration: line-through` (the line itself can't be transitioned). */
+  .chip .chip-name {
     text-decoration: line-through;
+    text-decoration-color: transparent;
+    text-decoration-thickness: 1px;
+    transition: text-decoration-color 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .chip[data-selected="false"] .chip-name {
     text-decoration-color: var(--color-rule);
   }
   .chip-count {
@@ -581,13 +702,113 @@ for (const cat of CATEGORY_ORDER) {
     letter-spacing: 0;
     text-transform: none;
     color: var(--color-muted);
+    transition: color 0.28s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  /* Category-grouped chips: a 2-column "label | chips" rail per category. */
+  /* ---------- Smooth filter-out states (slider + label filtering) ---------- */
+  /* Chips that drop to a count of zero collapse their width and fade. The
+     margin here pairs with the negative margin on `.filter-group-chips` to
+     reproduce the original `gap: 0.35rem 0.75rem` spacing while letting a
+     filtered chip's gap collapse alongside its width. */
+  .chip {
+    overflow: hidden;
+    max-width: 16rem;
+    margin: 0.175rem 0.375rem;
+  }
+  .chip.is-filtered {
+    opacity: 0;
+    max-width: 0;
+    padding-left: 0;
+    padding-right: 0;
+    margin: 0;
+    border-bottom-width: 0;
+    pointer-events: none;
+    transform: translateY(-2px);
+  }
+  .filter-group {
+    overflow: hidden;
+    max-height: 20rem;
+    transition:
+      opacity 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+      max-height 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+      margin 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .filter-group.is-filtered {
+    opacity: 0;
+    max-height: 0;
+    margin: 0;
+    pointer-events: none;
+  }
+
+  /* The subsystem section collapses its full vertical footprint when its only
+     visible card has been filtered away. */
+  .subsystem-block {
+    overflow: hidden;
+    max-height: 9999px;
+    transition:
+      opacity 0.36s cubic-bezier(0.4, 0, 0.2, 1),
+      max-height 0.36s cubic-bezier(0.4, 0, 0.2, 1),
+      margin 0.36s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .subsystem-block.is-filtered {
+    opacity: 0;
+    max-height: 0;
+    margin: 0;
+    pointer-events: none;
+  }
+
+  /* On first paint, run apply() without animation so the default-hidden
+     items don't flash in then collapse. The class is removed after one frame. */
+  :global(html.filter-init) .chip,
+  :global(html.filter-init) .filter-group,
+  :global(html.filter-init) .subsystem-block {
+    transition: none !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .chip,
+    .chip-count,
+    .filter-group,
+    .subsystem-block {
+      transition: none !important;
+    }
+  }
+
+  /* Category-grouped chips: a 2-column "label | chips" rail per category.
+     The outer `.filter-groups` is a single-row grid that animates its track
+     between `0fr` (collapsed) and `1fr` (revealed). The inner wrapper holds
+     the actual flex column of category rails — `min-height: 0; overflow:
+     hidden;` lets the grid track clip it during the transition. This
+     animates from 0 to the natural content height without a fragile
+     `max-height` value. */
   .filter-groups {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition:
+      grid-template-rows 0.36s cubic-bezier(0.4, 0, 0.2, 1),
+      opacity 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .filter-groups-inner {
+    min-height: 0;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     gap: 0.55rem;
+  }
+
+  /* Touch / coarse-pointer devices can't hover, so always show the chips. */
+  @media (hover: hover) and (pointer: fine) {
+    .filter-groups {
+      grid-template-rows: 0fr;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .filter-cell-labels:hover .filter-groups,
+    .filter-cell-labels:focus-within .filter-groups {
+      grid-template-rows: 1fr;
+      opacity: 1;
+      pointer-events: auto;
+    }
   }
   .filter-group {
     display: grid;
@@ -610,7 +831,10 @@ for (const cat of CATEGORY_ORDER) {
   .filter-group-chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem 0.75rem;
+    /* Use per-chip margins (set on `.chip` itself) instead of `gap` so a
+       chip that gets filtered out can collapse its trailing space along
+       with its width — `gap` would leave phantom slots behind. */
+    margin: -0.175rem -0.375rem;
     align-items: baseline;
   }
   @media (max-width: 700px) {
