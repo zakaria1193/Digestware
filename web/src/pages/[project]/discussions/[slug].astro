@@ -78,15 +78,23 @@ function scoreColor(n: number | null | undefined): string {
         {d.proposer && <span class="byline">By <em>{d.proposer}</em></span>}
         <span class="byline-date">{dateStr}</span>
       </div>
-      <div class="score-row">
-        <span class="score-pill" style={`color: ${scoreColor(d.impact_score)}`}>
-          Impact <strong>{d.impact_score != null ? `${d.impact_score} / 10` : '—'}</strong>
-        </span>
-        <span class="score-sep">&middot;</span>
-        <span class="score-pill" style={`color: ${scoreColor(d.sentiment_score)}`}>
-          Sentiment <strong>{d.sentiment_score != null ? `${d.sentiment_score} / 10` : '—'}</strong>
-        </span>
-      </div>
+      {(d.impact_score != null || d.sentiment_score != null) && (
+        <div class="score-row">
+          {d.impact_score != null && (
+            <span class="score-pill" style={`color: ${scoreColor(d.impact_score)}`}>
+              Impact <strong>{d.impact_score} / 10</strong>
+            </span>
+          )}
+          {d.impact_score != null && d.sentiment_score != null && (
+            <span class="score-sep">&middot;</span>
+          )}
+          {d.sentiment_score != null && (
+            <span class="score-pill" style={`color: ${scoreColor(d.sentiment_score)}`}>
+              Sentiment <strong>{d.sentiment_score} / 10</strong>
+            </span>
+          )}
+        </div>
+      )}
     </header>
 
     <div class="body wsj-dropcap">
