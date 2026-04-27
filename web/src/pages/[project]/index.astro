@@ -317,7 +317,7 @@ for (const cat of CATEGORY_ORDER) {
     return false;
   }
 
-  function apply(value: number): void {
+  function apply(value: number): number {
     const min = thresholdFromSlider(value);
     const visibleChips = updateChipsForLevel(min);
     const selected = selectedSet(visibleChips);
@@ -334,6 +334,21 @@ for (const cat of CATEGORY_ORDER) {
       setFiltered(block, !anyVisible);
     }
     if (visibleCounter) visibleCounter.textContent = String(visible);
+    return visible;
+  }
+
+  // Track manual slider changes so auto-adjust doesn't override user intent.
+  let userAdjusted = false;
+
+  function autoAdjust(): void {
+    if (userAdjusted) return;
+    let current = parseInt(slider.value);
+    let visible = parseInt(visibleCounter?.textContent ?? '0');
+    while (visible < 5 && current > 10) {
+      current--;
+      slider.value = String(current);
+      visible = apply(current);
+    }
   }
 
   function setVisibleChips(selected: boolean): void {
@@ -379,12 +394,14 @@ for (const cat of CATEGORY_ORDER) {
       }
     }
     apply(parseInt(slider.value));
+    autoAdjust();
   });
 
   document.querySelectorAll<HTMLButtonElement>('.filter-toggle').forEach(btn => {
     btn.addEventListener('click', () => {
       setVisibleChips(btn.dataset.action === 'mark-all');
       apply(parseInt(slider.value));
+      autoAdjust();
     });
   });
 
@@ -400,6 +417,7 @@ for (const cat of CATEGORY_ORDER) {
   }
 
   slider.addEventListener('input', () => {
+    userAdjusted = true;
     const level = parseInt(slider.value);
     updateTicks(level);
     apply(level);
@@ -422,6 +440,7 @@ for (const cat of CATEGORY_ORDER) {
     apply(10);
     updateTicks(parseInt(slider.value));
   }
+  autoAdjust();
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       document.documentElement.classList.remove('filter-init');
