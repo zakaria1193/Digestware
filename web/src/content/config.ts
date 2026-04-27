@@ -31,6 +31,7 @@ const discussions = defineCollection({
     proposer: z.string().nullable().optional(),
     consensus: z.string().nullable().optional(),
     outcome: z.string().nullable().optional(),
+    impact_score: z.number().nullable().optional(),
     sentiment_score: z.number().nullable().optional(),
     technical_tradeoffs: z.array(z.string()).optional(),
     exchanges: z.array(exchange).optional(),

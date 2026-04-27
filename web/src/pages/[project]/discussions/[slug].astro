@@ -42,6 +42,15 @@ const outcomeLabels: Record<string, string> = {
 const outcomeLabel = outcomeLabels[d.outcome ?? 'proposed'] ?? (d.outcome ?? 'proposed').replace(/_/g, ' ');
 const dateStr = d.date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase();
+
+function scoreColor(n: number | null | undefined): string {
+  if (n == null) return '#888';
+  if (n <= 2)  return '#5a5a5a';
+  if (n <= 4)  return '#2e6a8e';
+  if (n <= 6)  return '#1a4d8a';
+  if (n <= 8)  return '#7a1a2e';
+  return '#b80018';
+}
 ---
 
 <PublicLayout project={project} title={d.headline} description={d.tldr}>
@@ -59,6 +68,22 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
         <span class="wsj-kicker">{d.subsystem}</span>
         <span class="kicker-sep">&mdash;</span>
         <span class="outcome-pill">{outcomeLabel}</span>
+        {d.impact_score != null && (
+          <>
+            <span class="kicker-sep">&mdash;</span>
+            <span class="score-pill" style={`color: ${scoreColor(d.impact_score)}; border-bottom-color: ${scoreColor(d.impact_score)}`}>
+              Impact {d.impact_score}&thinsp;/&thinsp;10
+            </span>
+          </>
+        )}
+        {d.sentiment_score != null && (
+          <>
+            <span class="kicker-sep">&mdash;</span>
+            <span class="score-pill" style={`color: ${scoreColor(d.sentiment_score)}; border-bottom-color: ${scoreColor(d.sentiment_score)}`}>
+              Sentiment {d.sentiment_score}&thinsp;/&thinsp;10
+            </span>
+          </>
+        )}
       </div>
 
       <h1 class="head">{d.headline}</h1>
@@ -68,9 +93,6 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
       <div class="byline-row">
         {d.proposer && <span class="byline">By <em>{d.proposer}</em></span>}
         <span class="byline-date">{dateStr}</span>
-        {d.sentiment_score != null && (
-          <span class="byline-score">Community Sentiment {d.sentiment_score}&thinsp;/&thinsp;10</span>
-        )}
       </div>
     </header>
 
@@ -272,7 +294,16 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
     border-top: 1px solid var(--color-rule);
   }
   .byline em { font-weight: 600; color: var(--color-ink); font-style: italic; }
-  .byline-score { letter-spacing: 0.02em; }
+
+  .score-pill {
+    font-family: var(--font-sans);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding-bottom: 1px;
+    border-bottom: 2px solid;
+  }
 
   .body {
     font-family: var(--font-serif);

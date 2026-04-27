@@ -36,6 +36,10 @@ class DiscussionDigest(BimodalBase):
     proposer: str
     consensus: ConsensusStatus                 # legacy single status
     outcome: Outcome = Outcome.PROPOSED        # richer lifecycle state
+    # 1–10. Same rubric as LandingDigest.impact_score but applied to the
+    # *proposed* change: how significant would this be if it landed?
+    # Never guess — set null when there is not enough information.
+    impact_score: int | None = Field(default=None, ge=1, le=10)
     # None when the community has not responded yet — we must not fabricate a
     # sentiment when no one has weighed in. Only set 1..10 once there is at
     # least one reply to judge.

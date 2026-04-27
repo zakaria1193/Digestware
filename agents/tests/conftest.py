@@ -67,6 +67,7 @@ def sample_discussion_digest() -> DiscussionDigest:
         proposer="jane.doe@example.com",
         consensus=ConsensusStatus.UNDER_REVIEW,
         outcome=Outcome.UNDER_REVIEW,
+        impact_score=6,
         sentiment_score=7,
         technical_tradeoffs=["May increase code size", "Improves hot-path performance"],
         summary="This patch refines GCC's inliner to better handle hot functions "

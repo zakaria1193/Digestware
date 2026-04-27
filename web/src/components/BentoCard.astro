@@ -39,16 +39,33 @@ const outcomeKey = d.outcome ?? 'proposed';
 const outcomeLabel = outcomeLabels[outcomeKey] ?? outcomeKey.replace(/_/g, ' ');
 const outcomeColor = outcomeAccent[outcomeKey] ?? '#4a4a4a';
 
+function scoreColor(n: number | null | undefined): string {
+  if (n == null) return '#888';
+  if (n <= 2)  return '#5a5a5a';
+  if (n <= 4)  return '#2e6a8e';
+  if (n <= 6)  return '#1a4d8a';
+  if (n <= 8)  return '#7a1a2e';
+  return '#b80018';
+}
+
 const dateStr = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 ---
 
 <article class:list={["story", isHigh && "story-featured", isLow && "story-dim"]} data-score={score} data-tags={(d.tags ?? []).join('|')}>
   <header class="story-head">
     <span class="story-kicker">{d.subsystem}</span>
-    <span class="story-outcome" style={`color: ${outcomeColor};`}>
-      <span class="dot" style={`background: ${outcomeColor};`}></span>
-      {outcomeLabel}
-    </span>
+    <div class="story-head-right">
+      {d.impact_score != null && (
+        <span class="story-score" style={`color: ${scoreColor(d.impact_score)}`}>{d.impact_score}&thinsp;/&thinsp;10</span>
+      )}
+      {d.sentiment_score != null && (
+        <span class="story-score" style={`color: ${scoreColor(d.sentiment_score)}`}>{d.sentiment_score}&thinsp;/&thinsp;10</span>
+      )}
+      <span class="story-outcome" style={`color: ${outcomeColor};`}>
+        <span class="dot" style={`background: ${outcomeColor};`}></span>
+        {outcomeLabel}
+      </span>
+    </div>
   </header>
 
   <a href={`/${projectSlug}/discussions/${entry.id}`} class="story-link">
@@ -113,6 +130,13 @@ const dateStr = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numer
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .story-head-right {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
     flex-wrap: wrap;
   }
 
@@ -215,4 +239,11 @@ const dateStr = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numer
 
   .byline { font-weight: 600; color: var(--color-ink); }
   .bullet { color: var(--color-rule); font-style: normal; }
+  .story-score {
+    font-family: var(--font-sans);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
 </style>
