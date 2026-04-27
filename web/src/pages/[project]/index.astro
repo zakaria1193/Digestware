@@ -124,7 +124,6 @@ for (const cat of CATEGORY_ORDER) {
     <div class="filter-bar-head">
       <span class="wsj-section-label">Filters</span>
       <span class="wsj-section-rule"></span>
-      <span class="wsj-meta"><span id="filter-visible">{totalItems}</span> of {totalItems}</span>
     </div>
 
     <div class="filter-bar-body">
@@ -141,7 +140,13 @@ for (const cat of CATEGORY_ORDER) {
 
       <div class="filter-cell filter-cell-labels">
         <div class="filter-cell-label-row">
-          <span class="filter-cell-label">Labels</span>
+          <span class="filter-cell-label-eyebrow">
+            <span class="filter-cell-label">Labels</span>
+            <span class="filter-cell-chevron" aria-hidden="true">&#9662;</span>
+            <span class="filter-cell-meta">
+              <span id="filter-visible">{totalItems}</span> of {totalItems}
+            </span>
+          </span>
           {rankedTags.length > 0 && (
             <div class="filter-toggles">
               <button type="button" class="filter-toggle" data-action="mark-all">Mark&nbsp;All</button>
@@ -533,12 +538,62 @@ for (const cat of CATEGORY_ORDER) {
     flex-direction: column;
     gap: 0.45rem;
     min-width: 0;
+    /* Faint dashed frame so the cell reads as a discrete, expandable region
+       rather than free-floating text. Brightens to solid on hover/focus. */
+    padding: 0.45rem 0.6rem 0.55rem;
+    border: 1px dashed var(--color-rule);
+    transition:
+      border-color 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+      border-style 0s;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .filter-cell-labels:hover,
+    .filter-cell-labels:focus-within {
+      border-color: var(--color-accent);
+      border-style: solid;
+    }
   }
   .filter-cell-label-row {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: 0.75rem;
+  }
+  .filter-cell-label-eyebrow {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    min-width: 0;
+  }
+  .filter-cell-chevron {
+    display: inline-block;
+    font-size: 0.65em;
+    line-height: 1;
+    color: var(--color-muted);
+    transform: rotate(0deg);
+    transition:
+      transform 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+      color 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .filter-cell-meta {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.7rem;
+    color: var(--color-muted);
+    white-space: nowrap;
+  }
+  /* Coarse-pointer / no-hover devices keep the chips always visible; the
+     chevron points down to match. On fine pointers the chevron sits sideways
+     when the cell is collapsed and rotates open on hover/focus. */
+  @media (hover: hover) and (pointer: fine) {
+    .filter-cell-chevron {
+      transform: rotate(-90deg);
+    }
+    .filter-cell-labels:hover .filter-cell-chevron,
+    .filter-cell-labels:focus-within .filter-cell-chevron {
+      transform: rotate(0deg);
+      color: var(--color-accent);
+    }
   }
   /* The Mark/Unmark controls deliberately depart from the uppercase tracked
      "LABELS" eyebrow: italic serif at link-text size, pushed to the opposite
