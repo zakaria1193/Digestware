@@ -3,64 +3,44 @@ project: binutils
 subsystem: gprof
 patch_id: null
 tags:
-- binutils
 - gprof
-- glibc
+- profiler
+- const
 - strchr
-- const qualifier
+- build error
 discussion_id: 2f5264b0-9152-4085-8936-e476512557f9@polymtl.ca
 source_type: public_inbox
 title: 'Re: [PATCH 1/4] gprof: Fix discarded-qualifiers problems in source.c'
 headline: 'gprof: Fix discarded-qualifiers problems in source.c'
-tldr: Suggests removing a redundant cast and identifies another variable needing a
-  const qualifier fix in gprof/source.c for glibc 2.43 compatibility.
+tldr: Fixes discarded-qualifiers errors in gprof's source.c due to qualifier-preserving
+  strchr().
 proposer: Simon Marchi <simon.marchi@polymtl.ca>
 consensus: Proposed
 outcome: proposed
 sentiment_score: null
-technical_tradeoffs:
-- Ensuring compatibility with newer glibc versions.
-- Potential for introducing subtle regressions if the fixes are not carefully implemented.
+technical_tradeoffs: []
 exchanges:
-- author: Calvin Owens
-  role: proposer
-  position: Proposes a patch to fix discarded-qualifiers problems in gprof/source.c
-    related to the changed strchr() in glibc.
-  quote: null
-- author: Simon Marchi
-  role: other
-  position: Suggests removing a redundant cast and identifies another spot to change,
-    variable `bslash` at line 187.
-  quote: 'I think that you can just remove this cast to `const char *`, since
-
-    `sf->name` is already a `const char *`.
+- author: Simon Marchi <simon.marchi@polymtl.ca>
+  role: contributor
+  position: Suggests removing the cast to `const char *` and points out variable `bslash`
+    at line 187 also needs to be changed.
+  quote: 'I think that you can just remove this cast to `const char *`, since `sf->name`
+    is already a `const char *`.
 
 
-    There is another spot to change, variable `bslash` at line 187 of the
-
-    same file.  I found this by inverting all #if conditions just to
-
-    build-test.'
-primer_expert: This patch series addresses `const` qualifier issues in gprof due to
-  glibc 2.43's new `strchr` behavior. This specific patch modifies `gprof/source.c`.  The
-  discussion centers around ensuring correct type handling when assigning the result
-  of `strchr`.  Gprof is the GNU profiler.
-primer_general: This patch is part of a series to ensure the GNU profiler (`gprof`)
-  remains compatible with changes in the glibc C standard library. The core issue
-  stems from how the `strchr` function now handles the `const` qualifier, leading
-  to type mismatches in the profiler's source code. This change is necessary to avoid
-  build errors and ensure the profiler functions correctly with newer versions of
-  glibc.
+    There is another spot to change, variable `bslash` at line 187 of the same file.'
+primer_expert: '`gprof` is a performance analysis tool. This patch updates `gprof`
+  to accommodate changes in how `strchr()` handles `const` qualifiers, specifically
+  in `source.c` where source file names are manipulated.'
+primer_general: '`gprof` is a tool for profiling program execution, helping developers
+  identify performance bottlenecks.  This patch fixes compile errors caused by stricter
+  type checking in newer compiler versions when processing source file names.'
 series_id: 'binutils:gprof: fix discarded-qualifiers problems in source.c'
 series_role: reply
-series_parts:
-- title: 'gprof: Fix discarded-qualifiers problems in source.c'
-  url: https://inbox.sourceware.org/binutils/003fed7e07f6f9ed6a8c365e31325162a840fa03.1777074100.git.calvin@wbinvd.org
-  n: 1
-  total: 4
+series_parts: []
 url: https://inbox.sourceware.org/binutils/2f5264b0-9152-4085-8936-e476512557f9@polymtl.ca
 bugzilla_url: null
 date: '2026-04-26'
 ---
 
-Simon Marchi reviews a patch addressing `const` qualifier issues in `gprof/source.c` due to glibc 2.43's `strchr()` changes. Marchi suggests removing an unnecessary cast and identifies another variable (`bslash` at line 187) that requires a similar `const` qualifier fix.  This is part of an effort to maintain compatibility with the updated glibc.
+This patch addresses `-Wdiscarded-qualifiers` errors in `source.c` within the `gprof` profiler. The errors are caused by the qualifier-preserving behavior of `strchr()`. The patch declares local pointer variables as `const` to avoid discarding the `const` qualifier. Simon Marchi notes that the cast to `const char *` is unnecessary, and variable `bslash` at line 187 also needs to be changed.

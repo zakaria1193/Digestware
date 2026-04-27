@@ -4,30 +4,30 @@ subsystem: risc-v
 patch_id: null
 tags:
 - risc-v
-- rvv
 - vectorization
+- rvv
 - optimization
 commit_hash: 2aa3beeb892ac38ca5a7ca9e3a25b0eaab567cd5
 source_type: github
 author: Pan Li
-headline: 'RISC-V: Combine vec_duplicate + vmsle.vv to vmsle.vx based on GR2VR costs.'
-tldr: The RISC-V backend can now combine vec_duplicate and vmsle.vv instructions into
-  a single vmsle.vx instruction, depending on GR2VR cost.
+headline: 'RISC-V: Combine vec_duplicate + vmsle.vv to vmsle.vx based on GR2VR cost'
+tldr: GCC now combines RISC-V ``vec_duplicate`` and ``vmsle.vv`` instructions into
+  ``vmsle.vx`` when the cost of moving data to vector registers is low enough.
 impact_score: 7
 performance_win: true
 breaking_change: false
 outcome: committed
-primer_expert: This commit modifies ``config/riscv/riscv-v.cc`` to combine `vec_duplicate`
-  and `vmsle.vv` into `vmsle.vx` when the GR2VR cost is zero. The predicate `ge` is
-  added to the swappable cmp operator iterator in ``predicates.md``.  The `get_swapped_cmp_rtx_code`
-  function is updated to handle swapped rtx codes.
-primer_general: The RISC-V vector extension (RVV) adds support for vector operations,
-  improving performance on data-parallel workloads. Compilers can often combine multiple
-  instructions into a single instruction to improve efficiency. This commit enables
-  the compiler to combine two vector instructions (`vec_duplicate` and `vmsle.vv`)
-  into a single instruction (`vmsle.vx`) on RISC-V processors, provided that the cost
-  of moving data between general-purpose and vector registers is low enough to make
-  the optimization worthwhile.
+primer_expert: This change modifies ``config/riscv/predicates.md`` and ``config/riscv/riscv-v.cc``
+  to enable the combination of ``vec_duplicate`` and ``vmsle.vv`` into ``vmsle.vx``
+  when the GR2VR cost is zero.  The patch ensures that the swapped RTX code is handled
+  correctly.  The optimization is a late-combine that depends on the cost model.
+primer_general: Vectorization is a compiler optimization technique that allows performing
+  the same operation on multiple data elements simultaneously using vector instructions.  RISC-V
+  is a modern instruction set architecture that includes vector extensions (RVV).
+  This commit optimizes code generation for RISC-V by combining two vector instructions
+  (``vec_duplicate`` and ``vmsle.vv``) into a single, more efficient instruction (``vmsle.vx``).  The
+  compiler only performs this optimization when it determines that the cost of moving
+  data into vector registers is low enough to make it worthwhile.
 discussion_id_link: null
 bugzilla_pr: null
 series_id: null
@@ -36,4 +36,4 @@ url: https://github.com/gcc-mirror/gcc/commit/2aa3beeb892ac38ca5a7ca9e3a25b0eaab
 date: '2026-01-13'
 ---
 
-The RISC-V backend now combines `vec_duplicate` and `vmsle.vv` instructions into `vmsle.vx` under certain conditions. This optimization depends on the cost of moving data from general-purpose registers to vector registers (GR2VR). When the GR2VR cost is zero, the combination occurs; otherwise, it's rejected.  This reduces the number of instructions, improving performance.
+GCC now combines the ``vec_duplicate`` and ``vmsle.vv`` RISC-V vector instructions into a single ``vmsle.vx`` instruction when the cost of transferring data from general-purpose registers to vector registers (GR2VR) is sufficiently low (zero). This optimization reduces the number of instructions executed and improves performance. The compiler makes this decision based on the GR2VR cost, performing the late-combine optimization only when it's beneficial.
