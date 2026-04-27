@@ -5,19 +5,12 @@ sources:
     repo: gcc
 
   - type: public_inbox
-    discussion_lists: [gcc, libc-alpha, binutils]
-    cvs_lists: [gcc-cvs, glibc-cvs, binutils-cvs]
+    discussion_lists: [gcc, binutils]
+    cvs_lists: [gcc-cvs, binutils-cvs]
     use_nntp: true
     # Per-list project override — each mailing list belongs to a different project
     list_projects:
       gcc: gcc
       gcc-cvs: gcc
-      libc-alpha: glibc
-      glibc-cvs: glibc
       binutils: binutils
       binutils-cvs: binutils
-
-  - type: plain_git
-    project: linux
-    url: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
-    branch: master
