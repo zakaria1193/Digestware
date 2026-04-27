@@ -4,8 +4,6 @@ import { getCollection } from 'astro:content';
 
 const landings = (await getCollection('landings'))
   .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
-
-const projects = [...new Set(landings.map(e => e.data.project))].sort();
 ---
 
 <AdminLayout title="Landings" section="landings">

@@ -77,10 +77,6 @@ a { color: inherit; }
   border-top: 1px solid var(--color-rule);
 }
 
-.wsj-rule-heavy {
-  border-top: 2px solid var(--color-rule-strong);
-}
-
 .wsj-kicker {
   font-family: var(--font-sans);
   font-size: 0.68rem;
@@ -88,15 +84,6 @@ a { color: inherit; }
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--color-accent);
-}
-
-.wsj-kicker-ink {
-  font-family: var(--font-sans);
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--color-ink);
 }
 
 .wsj-byline {
@@ -165,8 +152,7 @@ a { color: inherit; }
    whether they appear in articles, decks, or bento cards.
    ============================================================ */
 
-:is(p, li, h1, h2, h3, h4, h5, h6, td, th, dd, dt, blockquote, figcaption, .wsj-inline-md) > code,
-.wsj-inline-md code {
+:is(p, li, h1, h2, h3, h4, h5, h6, td, th, dd, dt, blockquote, figcaption) > code {
   font-family: var(--font-mono);
   font-size: 0.88em;
   background: rgba(175, 184, 193, 0.2);

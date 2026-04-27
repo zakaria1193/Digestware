@@ -33,17 +33,11 @@ const nav = [
         {nav.map(({ href, label, key }) => (
           <a
             href={href}
-            class={`flex items-center px-3 py-2 rounded text-sm transition-colors ${
-              section === key
-                ? ''
-                : ''
-            }`}
+            class="flex items-center px-3 py-2 rounded text-sm transition-colors"
             style={section === key
               ? `background: var(--color-card); color: var(--color-ink);`
               : `color: var(--color-muted);`
             }
-            onmouseover={section !== key ? "this.style.color = 'var(--color-ink)'; this.style.background = 'rgba(var(--color-card), 0.5)'" : ""}
-            onmouseout={section !== key ? "this.style.color = 'var(--color-muted)'; this.style.background = 'transparent'" : ""}
           >
             {label}
           </a>
@@ -66,6 +60,9 @@ const nav = [
     <style>
       a:hover {
         color: var(--color-ink);
+      }
+      nav a:hover {
+        background: rgba(0, 0, 0, 0.05);
       }
     </style>
   </body>
