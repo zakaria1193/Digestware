@@ -613,10 +613,14 @@ for (const cat of CATEGORY_ORDER) {
   }
 
   /* ---------- Smooth filter-out states (slider + label filtering) ---------- */
-  /* Chips that drop to a count of zero collapse their width and fade. */
+  /* Chips that drop to a count of zero collapse their width and fade. The
+     margin here pairs with the negative margin on `.filter-group-chips` to
+     reproduce the original `gap: 0.35rem 0.75rem` spacing while letting a
+     filtered chip's gap collapse alongside its width. */
   .chip {
     overflow: hidden;
     max-width: 16rem;
+    margin: 0.175rem 0.375rem;
   }
   .chip.is-filtered {
     opacity: 0;
@@ -704,7 +708,10 @@ for (const cat of CATEGORY_ORDER) {
   .filter-group-chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem 0.75rem;
+    /* Use per-chip margins (set on `.chip` itself) instead of `gap` so a
+       chip that gets filtered out can collapse its trailing space along
+       with its width — `gap` would leave phantom slots behind. */
+    margin: -0.175rem -0.375rem;
     align-items: baseline;
   }
   @media (max-width: 700px) {
