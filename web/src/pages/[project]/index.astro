@@ -348,9 +348,26 @@ for (const cat of CATEGORY_ORDER) {
   labelsCell.addEventListener('click', (ev) => {
     const target = (ev.target as HTMLElement).closest<HTMLButtonElement>('.chip');
     if (!target) return;
-    const on = target.dataset.selected !== 'true';
-    target.dataset.selected = on ? 'true' : 'false';
-    target.setAttribute('aria-pressed', on ? 'true' : 'false');
+
+    // If everything is currently selected, the click isolates the clicked
+    // chip (unselects all others) instead of just turning it off — that's
+    // the "show me only this tag" shortcut from the all-on starting state.
+    const visibleChips = allChips.filter(c => !c.classList.contains('is-filtered'));
+    const allSelected =
+      visibleChips.length > 0 &&
+      visibleChips.every(c => c.dataset.selected === 'true');
+
+    if (allSelected) {
+      for (const c of visibleChips) {
+        const isTarget = c === target;
+        c.dataset.selected = isTarget ? 'true' : 'false';
+        c.setAttribute('aria-pressed', isTarget ? 'true' : 'false');
+      }
+    } else {
+      const on = target.dataset.selected !== 'true';
+      target.dataset.selected = on ? 'true' : 'false';
+      target.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
     apply(parseInt(slider.value));
   });
 
