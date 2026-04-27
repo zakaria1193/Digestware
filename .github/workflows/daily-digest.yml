@@ -12,6 +12,10 @@ on:
         description: 'Run the digest pipeline with DEBUG-level logging'
         type: boolean
         default: false
+      archive:
+        description: 'Archive existing content under .old/ before running'
+        type: boolean
+        default: false
       purge:
         description: 'Purge existing content before running (no archive kept)'
         type: boolean
@@ -52,10 +56,10 @@ jobs:
             exit 1
           fi
 
-      # Scheduled runs (and manual runs without purge) archive previous output
-      # under .old/<UTC-timestamp>/ so history is preserved for debugging.
+      # Optional: archive previous output under .old/<UTC-timestamp>/
+      # Only runs when explicitly requested via workflow_dispatch with archive=true.
       - name: Archive previous generated content
-        if: ${{ !inputs.purge }}
+        if: ${{ inputs.archive && !inputs.purge }}
         run: |
           set -euo pipefail
           TS="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
@@ -139,4 +143,4 @@ jobs:
           git add web/src/content/ web/src/data/tag-categories/
           [ -d .old ] && git add -f .old/ || true
           git diff --cached --quiet && echo "No content change." || \
-            git commit -m "chore(digest): nightly purge+refresh $(date -u +%Y-%m-%d)" && git push
+            git commit -m "chore(digest): nightly refresh $(date -u +%Y-%m-%d)" && git push
