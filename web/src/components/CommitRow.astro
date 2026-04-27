@@ -44,9 +44,37 @@ function scoreColor(n: number | null | undefined): string {
     color: inherit;
     padding: 0.7rem 0;
     border-bottom: 1px solid var(--color-rule);
+    overflow: hidden;
+    max-height: 30rem;
+    transition:
+      opacity 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+      max-height 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+      padding 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+      margin 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+      border-bottom-width 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+      transform 0.32s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .wire:last-child { border-bottom: none; }
+
+  .wire.is-filtered {
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin: 0;
+    border-bottom-width: 0;
+    pointer-events: none;
+    transform: translateY(-3px);
+  }
+
+  :global(html.filter-init) .wire {
+    transition: none !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .wire { transition: none; }
+  }
 
   .wire-top {
     display: flex;

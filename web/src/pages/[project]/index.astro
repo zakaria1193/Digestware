@@ -131,7 +131,7 @@ for (const cat of CATEGORY_ORDER) {
       <div class="filter-cell filter-cell-impact">
         <span class="filter-cell-label">Impact</span>
         <div class="filter-cell-control">
-          <input type="range" id="impact-filter" min="1" max="5" step="1" value="2" aria-label="Minimum impact level" />
+          <input type="range" id="impact-filter" min="10" max="100" step="1" value="30" aria-label="Minimum impact level" />
           <div class="filter-ticks">
             <span>Lowest</span>
             <span>Highest</span>
@@ -239,8 +239,11 @@ for (const cat of CATEGORY_ORDER) {
   const labelsCell = document.querySelector<HTMLElement>('.filter-cell-labels')!;
   const visibleCounter = document.getElementById('filter-visible');
 
-  // Five slider stops map to minimum impact scores from lowest to highest.
-  const thresholds = [1, 3, 5, 8, 10];
+  // Slider values are integers in [10, 100]; the live threshold is value/10
+  // so the impact floor moves continuously between 1.0 and 10.0.
+  function thresholdFromSlider(value: number): number {
+    return value / 10;
+  }
 
   const allChips = Array.from(labelsCell.querySelectorAll<HTMLButtonElement>('.chip'));
   const groups = Array.from(labelsCell.querySelectorAll<HTMLElement>('.filter-group'));
@@ -259,17 +262,23 @@ for (const cat of CATEGORY_ORDER) {
     );
   }
 
+  function setFiltered(el: HTMLElement, filtered: boolean): void {
+    el.classList.toggle('is-filtered', filtered);
+    el.setAttribute('aria-hidden', filtered ? 'true' : 'false');
+  }
+
   function updateChipsForLevel(min: number): HTMLButtonElement[] {
     const visible: HTMLButtonElement[] = [];
     for (const chip of allChips) {
       const count = (scoresOf.get(chip) ?? []).reduce((n, s) => n + (s >= min ? 1 : 0), 0);
-      chip.hidden = count === 0;
+      setFiltered(chip, count === 0);
       const badge = chip.querySelector<HTMLElement>('.chip-count');
       if (badge) badge.textContent = String(count);
       if (count > 0) visible.push(chip);
     }
     for (const group of groups) {
-      group.hidden = !group.querySelector('.chip:not([hidden])');
+      const anyVisible = !!group.querySelector('.chip:not(.is-filtered)');
+      setFiltered(group, !anyVisible);
     }
     return visible;
   }
@@ -296,28 +305,28 @@ for (const cat of CATEGORY_ORDER) {
     return false;
   }
 
-  function apply(level: number): void {
-    const idx = Math.max(0, Math.min(thresholds.length - 1, level - 1));
-    const min = thresholds[idx];
+  function apply(value: number): void {
+    const min = thresholdFromSlider(value);
     const visibleChips = updateChipsForLevel(min);
     const selected = selectedSet(visibleChips);
     let visible = 0;
 
     for (const el of [...wires, ...stories]) {
-      const score = parseInt(el.dataset.score ?? '0');
+      const score = parseFloat(el.dataset.score ?? '0');
       const show = score >= min && passesLabels(el.dataset.tags, selected, visibleChips.length);
-      el.hidden = !show;
+      setFiltered(el, !show);
       if (show) visible++;
     }
     for (const block of subsystemBlocks) {
-      block.hidden = !block.querySelector('.story:not([hidden])');
+      const anyVisible = !!block.querySelector('.story:not(.is-filtered)');
+      setFiltered(block, !anyVisible);
     }
     if (visibleCounter) visibleCounter.textContent = String(visible);
   }
 
   function setVisibleChips(selected: boolean): void {
     for (const c of allChips) {
-      if (c.hidden) continue;
+      if (c.classList.contains('is-filtered')) continue;
       c.dataset.selected = selected ? 'true' : 'false';
       c.setAttribute('aria-pressed', selected ? 'true' : 'false');
     }
@@ -341,13 +350,20 @@ for (const cat of CATEGORY_ORDER) {
 
   slider.addEventListener('input', () => apply(parseInt(slider.value)));
 
-  // Default to stop 2 (min 3); fall back to stop 1 if it hides every commit.
-  apply(2);
-  const anyWireVisible = wires.some(w => !w.hidden);
+  // Suppress the first paint's collapse animation: items below the default
+  // threshold would otherwise flash in fully expanded and then animate down.
+  document.documentElement.classList.add('filter-init');
+  apply(parseInt(slider.value));
+  const anyWireVisible = wires.some(w => !w.classList.contains('is-filtered'));
   if (!anyWireVisible && wires.length > 0) {
-    slider.value = '1';
-    apply(1);
+    slider.value = '10';
+    apply(10);
   }
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      document.documentElement.classList.remove('filter-init');
+    });
+  });
 </script>
 
 </PublicLayout>
@@ -552,17 +568,37 @@ for (const cat of CATEGORY_ORDER) {
     display: inline-flex;
     align-items: baseline;
     gap: 0.3rem;
-    transition: opacity 0.12s ease, color 0.12s ease;
+    transform-origin: left center;
+    transition:
+      opacity 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+      color 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+      border-bottom-color 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+      border-bottom-width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+      max-width 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+      padding 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+      margin 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+      transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  .chip:hover { opacity: 0.72; }
+  .chip:hover {
+    opacity: 0.78;
+    transform: translateY(-1px);
+  }
+  .chip:active { transform: translateY(0); }
   .chip[data-selected="false"] {
     color: var(--color-muted);
     border-bottom-color: var(--color-rule);
     border-bottom-style: dotted;
     opacity: 0.55;
   }
-  .chip[data-selected="false"] .chip-name {
+  /* Animate the strikethrough by fading its color rather than toggling
+     `text-decoration: line-through` (the line itself can't be transitioned). */
+  .chip .chip-name {
     text-decoration: line-through;
+    text-decoration-color: transparent;
+    text-decoration-thickness: 1px;
+    transition: text-decoration-color 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .chip[data-selected="false"] .chip-name {
     text-decoration-color: var(--color-rule);
   }
   .chip-count {
@@ -573,6 +609,72 @@ for (const cat of CATEGORY_ORDER) {
     letter-spacing: 0;
     text-transform: none;
     color: var(--color-muted);
+    transition: color 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* ---------- Smooth filter-out states (slider + label filtering) ---------- */
+  /* Chips that drop to a count of zero collapse their width and fade. */
+  .chip {
+    overflow: hidden;
+    max-width: 16rem;
+  }
+  .chip.is-filtered {
+    opacity: 0;
+    max-width: 0;
+    padding-left: 0;
+    padding-right: 0;
+    margin: 0;
+    border-bottom-width: 0;
+    pointer-events: none;
+    transform: translateY(-2px);
+  }
+  .filter-group {
+    overflow: hidden;
+    max-height: 20rem;
+    transition:
+      opacity 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+      max-height 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+      margin 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .filter-group.is-filtered {
+    opacity: 0;
+    max-height: 0;
+    margin: 0;
+    pointer-events: none;
+  }
+
+  /* The subsystem section collapses its full vertical footprint when its only
+     visible card has been filtered away. */
+  .subsystem-block {
+    overflow: hidden;
+    max-height: 9999px;
+    transition:
+      opacity 0.36s cubic-bezier(0.4, 0, 0.2, 1),
+      max-height 0.36s cubic-bezier(0.4, 0, 0.2, 1),
+      margin 0.36s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .subsystem-block.is-filtered {
+    opacity: 0;
+    max-height: 0;
+    margin: 0;
+    pointer-events: none;
+  }
+
+  /* On first paint, run apply() without animation so the default-hidden
+     items don't flash in then collapse. The class is removed after one frame. */
+  :global(html.filter-init) .chip,
+  :global(html.filter-init) .filter-group,
+  :global(html.filter-init) .subsystem-block {
+    transition: none !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .chip,
+    .chip-count,
+    .filter-group,
+    .subsystem-block {
+      transition: none !important;
+    }
   }
 
   /* Category-grouped chips: a 2-column "label | chips" rail per category. */
