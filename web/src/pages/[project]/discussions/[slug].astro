@@ -127,7 +127,7 @@ function scoreColor(n: number | null | undefined): string {
       </section>
     )}
 
-    {(d.technical_tradeoffs ?? []).length > 0 && (
+    {(d.technical_tradeoffs ?? []).length > 0 && (d.exchanges ?? []).length > 1 && (
       <section class="extra">
         <h2>Technical Tradeoffs</h2>
         <ul>
