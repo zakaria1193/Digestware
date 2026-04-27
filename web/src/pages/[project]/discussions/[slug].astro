@@ -42,6 +42,15 @@ const outcomeLabels: Record<string, string> = {
 const outcomeLabel = outcomeLabels[d.outcome ?? 'proposed'] ?? (d.outcome ?? 'proposed').replace(/_/g, ' ');
 const dateStr = d.date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase();
+
+function scoreColor(n: number | null | undefined): string {
+  if (n == null) return '#888';
+  if (n <= 2)  return '#5a5a5a';
+  if (n <= 4)  return '#2e6a8e';
+  if (n <= 6)  return '#1a4d8a';
+  if (n <= 8)  return '#7a1a2e';
+  return '#b80018';
+}
 ---
 
 <PublicLayout project={project} title={d.headline} description={d.tldr}>
@@ -68,11 +77,14 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
       <div class="byline-row">
         {d.proposer && <span class="byline">By <em>{d.proposer}</em></span>}
         <span class="byline-date">{dateStr}</span>
-        <span class="byline-score">
-          Impact&nbsp;<strong>{d.impact_score != null ? `${d.impact_score} / 10` : '—'}</strong>
+      </div>
+      <div class="score-row">
+        <span class="score-pill" style={`color: ${scoreColor(d.impact_score)}`}>
+          Impact <strong>{d.impact_score != null ? `${d.impact_score} / 10` : '—'}</strong>
         </span>
-        <span class="byline-score">
-          Community Sentiment&nbsp;<strong>{d.sentiment_score != null ? `${d.sentiment_score} / 10` : '—'}</strong>
+        <span class="score-sep">&middot;</span>
+        <span class="score-pill" style={`color: ${scoreColor(d.sentiment_score)}`}>
+          Sentiment <strong>{d.sentiment_score != null ? `${d.sentiment_score} / 10` : '—'}</strong>
         </span>
       </div>
     </header>
@@ -275,7 +287,21 @@ const dateStrShort = d.date.toLocaleDateString('en-US', { weekday: 'long', month
     border-top: 1px solid var(--color-rule);
   }
   .byline em { font-weight: 600; color: var(--color-ink); font-style: italic; }
-  .byline-score { letter-spacing: 0.02em; }
+
+  .score-row {
+    display: flex;
+    gap: 0.6rem;
+    justify-content: center;
+    align-items: baseline;
+    margin-top: 0.6rem;
+    font-family: var(--font-sans);
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-style: normal;
+  }
+  .score-pill strong { font-weight: 800; }
+  .score-sep { color: var(--color-rule); font-style: normal; }
 
   .body {
     font-family: var(--font-serif);

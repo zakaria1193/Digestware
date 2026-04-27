@@ -39,6 +39,15 @@ const outcomeKey = d.outcome ?? 'proposed';
 const outcomeLabel = outcomeLabels[outcomeKey] ?? outcomeKey.replace(/_/g, ' ');
 const outcomeColor = outcomeAccent[outcomeKey] ?? '#4a4a4a';
 
+function scoreColor(n: number | null | undefined): string {
+  if (n == null) return '#888';
+  if (n <= 2)  return '#5a5a5a';
+  if (n <= 4)  return '#2e6a8e';
+  if (n <= 6)  return '#1a4d8a';
+  if (n <= 8)  return '#7a1a2e';
+  return '#b80018';
+}
+
 const dateStr = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 ---
 
@@ -70,10 +79,10 @@ const dateStr = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numer
       {d.proposer && <><span class="byline">{d.proposer}</span><span class="bullet">&middot;</span></>}
       <time>{dateStr}</time>
       {d.impact_score != null && (
-        <><span class="bullet">&middot;</span><span class="story-score">Impact&nbsp;{d.impact_score}&thinsp;/&thinsp;10</span></>
+        <><span class="bullet">&middot;</span><span class="story-score" style={`color: ${scoreColor(d.impact_score)}`}>Impact&nbsp;{d.impact_score}&thinsp;/&thinsp;10</span></>
       )}
       {d.sentiment_score != null && (
-        <><span class="bullet">&middot;</span><span class="story-score">Sentiment&nbsp;{d.sentiment_score}&thinsp;/&thinsp;10</span></>
+        <><span class="bullet">&middot;</span><span class="story-score" style={`color: ${scoreColor(d.sentiment_score)}`}>Sentiment&nbsp;{d.sentiment_score}&thinsp;/&thinsp;10</span></>
       )}
     </div>
   </footer>
