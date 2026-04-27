@@ -108,11 +108,12 @@ const dateStr = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numer
   }
 
   .story-dim {
-    opacity: 0.45;
+    opacity: 0.7;
   }
   .story-dim .story-headline {
     font-size: 0.85rem;
     font-weight: 500;
+    color: #7a1a2e;
   }
   .story-dim .story-deck {
     font-size: 0.72rem;
@@ -120,9 +121,16 @@ const dateStr = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numer
     -webkit-line-clamp: 1;
     -webkit-box-orient: vertical;
     overflow: hidden;
+    color: #9a3a4e;
   }
   .story-dim .story-kicker {
     font-size: 0.56rem;
+    color: #9a3a4e;
+  }
+  .story-dim .story-tag,
+  .story-dim .story-meta,
+  .story-dim .byline {
+    color: #9a3a4e;
   }
 
   .story-head {
