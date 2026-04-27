@@ -367,6 +367,17 @@ for (const cat of CATEGORY_ORDER) {
       const on = target.dataset.selected !== 'true';
       target.dataset.selected = on ? 'true' : 'false';
       target.setAttribute('aria-pressed', on ? 'true' : 'false');
+
+      // Unselecting the last selected chip drops the user into a "nothing
+      // visible" trap. Round-trip back to the all-on baseline instead so
+      // the next click is meaningful.
+      const anySelected = visibleChips.some(c => c.dataset.selected === 'true');
+      if (!anySelected) {
+        for (const c of visibleChips) {
+          c.dataset.selected = 'true';
+          c.setAttribute('aria-pressed', 'true');
+        }
+      }
     }
     apply(parseInt(slider.value));
   });
