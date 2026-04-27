@@ -156,26 +156,28 @@ for (const cat of CATEGORY_ORDER) {
 
         {rankedTags.length > 0 && (
           <div class="filter-groups" id="filter-groups">
-            {groupedTags.map(g => (
-              <section class="filter-group" data-group={g.category}>
-                <span class="filter-group-label">{CATEGORY_LABELS[g.category]}</span>
-                <div class="filter-group-chips">
-                  {g.tags.map(t => (
-                    <button
-                      type="button"
-                      class="chip"
-                      data-tag={t.name}
-                      data-selected="true"
-                      aria-pressed="true"
-                      data-scores={t.scores.join(',')}
-                    >
-                      <span class="chip-name">{t.name}</span>
-                      <span class="chip-count">{t.count}</span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            ))}
+            <div class="filter-groups-inner">
+              {groupedTags.map(g => (
+                <section class="filter-group" data-group={g.category}>
+                  <span class="filter-group-label">{CATEGORY_LABELS[g.category]}</span>
+                  <div class="filter-group-chips">
+                    {g.tags.map(t => (
+                      <button
+                        type="button"
+                        class="chip"
+                        data-tag={t.name}
+                        data-selected="true"
+                        aria-pressed="true"
+                        data-scores={t.scores.join(',')}
+                      >
+                        <span class="chip-name">{t.name}</span>
+                        <span class="chip-count">{t.count}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -262,6 +264,11 @@ for (const cat of CATEGORY_ORDER) {
     );
   }
 
+  // Hover preview: while the cursor is over a specific chip, narrow the
+  // visible articles to that tag only — independent of the click-toggled
+  // persistent selection. Cleared on mouseleave from the chip / labels area.
+  let hoveredTag: string | null = null;
+
   function setFiltered(el: HTMLElement, filtered: boolean): void {
     el.classList.toggle('is-filtered', filtered);
     el.setAttribute('aria-hidden', filtered ? 'true' : 'false');
@@ -296,6 +303,12 @@ for (const cat of CATEGORY_ORDER) {
     selected: Set<string>,
     visibleCount: number,
   ): boolean {
+    // Hover preview short-circuits everything else: only items carrying the
+    // hovered tag pass.
+    if (hoveredTag !== null) {
+      const tags = (tagStr ?? '').split('|').filter(Boolean);
+      return tags.includes(hoveredTag);
+    }
     // All currently-visible chips selected → treat as filter-off so untagged items
     // (and items whose tags are themselves below the impact floor) still show.
     if (visibleCount === 0 || selected.size === visibleCount) return true;
@@ -338,6 +351,34 @@ for (const cat of CATEGORY_ORDER) {
     const on = target.dataset.selected !== 'true';
     target.dataset.selected = on ? 'true' : 'false';
     target.setAttribute('aria-pressed', on ? 'true' : 'false');
+    apply(parseInt(slider.value));
+  });
+
+  // mouseover/mouseout bubble (mouseenter/mouseleave don't), so a single
+  // delegated listener covers every chip, including ones added later.
+  labelsCell.addEventListener('mouseover', (ev) => {
+    const chip = (ev.target as HTMLElement).closest<HTMLButtonElement>('.chip');
+    if (!chip || chip.classList.contains('is-filtered')) return;
+    const tag = chip.dataset.tag ?? null;
+    if (hoveredTag === tag) return;
+    hoveredTag = tag;
+    apply(parseInt(slider.value));
+  });
+  labelsCell.addEventListener('mouseout', (ev) => {
+    const chip = (ev.target as HTMLElement).closest<HTMLButtonElement>('.chip');
+    if (!chip) return;
+    // Skip the clear when the cursor is moving directly to another chip —
+    // the next mouseover will set the new tag in the same frame.
+    const next = (ev.relatedTarget as HTMLElement | null)?.closest?.('.chip');
+    if (next) return;
+    if (hoveredTag === null) return;
+    hoveredTag = null;
+    apply(parseInt(slider.value));
+  });
+  // Catches fast pointer exits that skip the chip's mouseout.
+  labelsCell.addEventListener('pointerleave', () => {
+    if (hoveredTag === null) return;
+    hoveredTag = null;
     apply(parseInt(slider.value));
   });
 
@@ -681,11 +722,41 @@ for (const cat of CATEGORY_ORDER) {
     }
   }
 
-  /* Category-grouped chips: a 2-column "label | chips" rail per category. */
+  /* Category-grouped chips: a 2-column "label | chips" rail per category.
+     The outer `.filter-groups` is a single-row grid that animates its track
+     between `0fr` (collapsed) and `1fr` (revealed). The inner wrapper holds
+     the actual flex column of category rails — `min-height: 0; overflow:
+     hidden;` lets the grid track clip it during the transition. This
+     animates from 0 to the natural content height without a fragile
+     `max-height` value. */
   .filter-groups {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition:
+      grid-template-rows 0.36s cubic-bezier(0.4, 0, 0.2, 1),
+      opacity 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .filter-groups-inner {
+    min-height: 0;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     gap: 0.55rem;
+  }
+
+  /* Touch / coarse-pointer devices can't hover, so always show the chips. */
+  @media (hover: hover) and (pointer: fine) {
+    .filter-groups {
+      grid-template-rows: 0fr;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .filter-cell-labels:hover .filter-groups,
+    .filter-cell-labels:focus-within .filter-groups {
+      grid-template-rows: 1fr;
+      opacity: 1;
+      pointer-events: auto;
+    }
   }
   .filter-group {
     display: grid;
