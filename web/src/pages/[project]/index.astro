@@ -132,11 +132,11 @@ for (const cat of CATEGORY_ORDER) {
         <div class="filter-cell-control">
           <input type="range" id="impact-filter" min="10" max="100" step="1" value="30" aria-label="Minimum impact level" />
           <div class="filter-ticks">
-            <span data-stop="1">Any</span>
+            <span data-stop="1">Lowest</span>
             <span data-stop="2">Low</span>
             <span data-stop="3">Mid</span>
             <span data-stop="4">High</span>
-            <span data-stop="5">Max</span>
+            <span data-stop="5">Highest</span>
           </div>
         </div>
       </div>
@@ -388,6 +388,7 @@ for (const cat of CATEGORY_ORDER) {
     });
   });
 
+  const impactCell = document.querySelector<HTMLElement>('.filter-cell-impact')!;
   const ticks = Array.from(document.querySelectorAll<HTMLElement>('.filter-ticks span'));
   function updateTicks(level: number): void {
     for (const t of ticks) t.dataset.active = t.dataset.stop === String(level) ? 'true' : 'false';
@@ -398,6 +399,12 @@ for (const cat of CATEGORY_ORDER) {
     updateTicks(level);
     apply(level);
   });
+  // Touch drags don't trigger :hover; mark the cell as in-use while the
+  // pointer is pressed so the intermediate ticks stay expanded.
+  slider.addEventListener('pointerdown', () => { impactCell.dataset.using = 'true'; });
+  const clearUsing = () => { impactCell.dataset.using = 'false'; };
+  slider.addEventListener('pointerup', clearUsing);
+  slider.addEventListener('pointercancel', clearUsing);
 
   // Suppress the first paint's collapse animation: items below the default
   // threshold would otherwise flash in fully expanded and then animate down.
@@ -555,7 +562,19 @@ for (const cat of CATEGORY_ORDER) {
     color: var(--color-muted);
   }
   .filter-ticks span {
-    transition: color 0.1s, font-weight 0.1s;
+    transition: color 0.12s ease, font-weight 0.12s ease, opacity 0.18s ease;
+  }
+  /* Intermediate stops stay hidden until the user hovers or interacts with
+     the slider, keeping the resting state minimal (Lowest / Highest only). */
+  .filter-ticks span[data-stop="2"],
+  .filter-ticks span[data-stop="3"],
+  .filter-ticks span[data-stop="4"] {
+    opacity: 0;
+  }
+  .filter-cell-impact:hover .filter-ticks span,
+  .filter-cell-impact:focus-within .filter-ticks span,
+  .filter-cell-impact[data-using="true"] .filter-ticks span {
+    opacity: 1;
   }
   .filter-ticks span[data-active="true"] {
     color: var(--color-accent);
