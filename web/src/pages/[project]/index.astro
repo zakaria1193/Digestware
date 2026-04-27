@@ -132,8 +132,11 @@ for (const cat of CATEGORY_ORDER) {
         <div class="filter-cell-control">
           <input type="range" id="impact-filter" min="10" max="100" step="1" value="30" aria-label="Minimum impact level" />
           <div class="filter-ticks">
-            <span>Lowest</span>
-            <span>Highest</span>
+            <span data-stop="1">Any</span>
+            <span data-stop="2">Low</span>
+            <span data-stop="3">Mid</span>
+            <span data-stop="4">High</span>
+            <span data-stop="5">Max</span>
           </div>
         </div>
       </div>
@@ -385,16 +388,27 @@ for (const cat of CATEGORY_ORDER) {
     });
   });
 
-  slider.addEventListener('input', () => apply(parseInt(slider.value)));
+  const ticks = Array.from(document.querySelectorAll<HTMLElement>('.filter-ticks span'));
+  function updateTicks(level: number): void {
+    for (const t of ticks) t.dataset.active = t.dataset.stop === String(level) ? 'true' : 'false';
+  }
+
+  slider.addEventListener('input', () => {
+    const level = parseInt(slider.value);
+    updateTicks(level);
+    apply(level);
+  });
 
   // Suppress the first paint's collapse animation: items below the default
   // threshold would otherwise flash in fully expanded and then animate down.
   document.documentElement.classList.add('filter-init');
   apply(parseInt(slider.value));
+  updateTicks(parseInt(slider.value));
   const anyWireVisible = wires.some(w => !w.classList.contains('is-filtered'));
   if (!anyWireVisible && wires.length > 0) {
     slider.value = '10';
     apply(10);
+    updateTicks(parseInt(slider.value));
   }
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
@@ -539,6 +553,13 @@ for (const cat of CATEGORY_ORDER) {
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--color-muted);
+  }
+  .filter-ticks span {
+    transition: color 0.1s, font-weight 0.1s;
+  }
+  .filter-ticks span[data-active="true"] {
+    color: var(--color-accent);
+    font-weight: 900;
   }
 
   .filter-cell-labels {
