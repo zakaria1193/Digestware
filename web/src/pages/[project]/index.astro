@@ -510,6 +510,32 @@ for (const cat of CATEGORY_ORDER) {
       document.documentElement.classList.remove('filter-init');
     });
   });
+
+  // Carry the current filter state to landing (commit detail) pages so the
+  // sidebar filter selection is not lost when clicking a commit from here.
+  function buildLandingQueryString(): string {
+    const params = new URLSearchParams();
+    const iv = parseInt(slider.value);
+    if (iv !== 10) params.set('i', String(iv));
+    const visibleChips = allChips.filter(c => !c.classList.contains('is-filtered'));
+    const allSelected = visibleChips.every(c => c.dataset.selected === 'true');
+    if (!allSelected) {
+      const selected = visibleChips
+        .filter(c => c.dataset.selected === 'true')
+        .map(c => c.dataset.tag ?? '');
+      if (selected.length) params.set('t', selected.join('|'));
+    }
+    return params.toString();
+  }
+
+  document.querySelector('.commit-stream')?.addEventListener('click', ev => {
+    const link = (ev.target as HTMLElement).closest<HTMLAnchorElement>('a[href]');
+    if (!link) return;
+    const qs = buildLandingQueryString();
+    if (!qs) return;
+    ev.preventDefault();
+    window.location.href = link.href.split('?')[0] + '?' + qs;
+  });
 </script>
 
 </PublicLayout>
