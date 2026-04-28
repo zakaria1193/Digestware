@@ -349,6 +349,63 @@ for (const cat of CATEGORY_ORDER) {
       slider.value = String(current);
       visible = apply(current);
     }
+    updateTicks(current);
+  }
+
+  // After a manual move that hides everything, give the user 1s of quiet
+  // before easing the slider back down to the highest threshold that still
+  // shows ≥1 item. Any further input cancels both the wait and the animation.
+  let tooHighTimer: ReturnType<typeof setTimeout> | null = null;
+  let tooHighRAF: number | null = null;
+
+  function cancelTooHighAdjust(): void {
+    if (tooHighTimer !== null) {
+      clearTimeout(tooHighTimer);
+      tooHighTimer = null;
+    }
+    if (tooHighRAF !== null) {
+      cancelAnimationFrame(tooHighRAF);
+      tooHighRAF = null;
+    }
+  }
+
+  function smoothAdjustToShowSomething(): void {
+    const startValue = parseInt(slider.value);
+    let target = 10;
+    for (let v = startValue - 1; v >= 10; v--) {
+      if (apply(v) > 0) {
+        target = v;
+        break;
+      }
+    }
+    apply(startValue);
+    if (target >= startValue) return;
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) {
+      slider.value = String(target);
+      updateTicks(target);
+      apply(target);
+      return;
+    }
+
+    const duration = 400;
+    const startTime = performance.now();
+    const step = (now: number) => {
+      const elapsed = now - startTime;
+      const t = Math.min(1, elapsed / duration);
+      const eased = 1 - Math.pow(1 - t, 2);
+      const current = Math.round(startValue - (startValue - target) * eased);
+      slider.value = String(current);
+      updateTicks(current);
+      apply(current);
+      if (t < 1) {
+        tooHighRAF = requestAnimationFrame(step);
+      } else {
+        tooHighRAF = null;
+      }
+    };
+    tooHighRAF = requestAnimationFrame(step);
   }
 
   function setVisibleChips(selected: boolean): void {
@@ -418,9 +475,16 @@ for (const cat of CATEGORY_ORDER) {
 
   slider.addEventListener('input', () => {
     userAdjusted = true;
+    cancelTooHighAdjust();
     const level = parseInt(slider.value);
     updateTicks(level);
-    apply(level);
+    const visible = apply(level);
+    if (visible === 0) {
+      tooHighTimer = setTimeout(() => {
+        tooHighTimer = null;
+        smoothAdjustToShowSomething();
+      }, 1000);
+    }
   });
   // Touch drags don't trigger :hover; mark the cell as in-use while the
   // pointer is pressed so the intermediate ticks stay expanded.
