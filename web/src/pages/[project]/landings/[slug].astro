@@ -449,6 +449,8 @@ for (const cat of CATEGORY_ORDER) {
       }
     }
     if (visibleCounter) visibleCounter.textContent = String(visible);
+    const anyDeselected = visibleChips.some(c => c.dataset.selected !== 'true');
+    labelsCell.classList.toggle('tags-active', anyDeselected);
     syncUrl();
   }
 
@@ -727,6 +729,7 @@ for (const cat of CATEGORY_ORDER) {
     .filter-groups { grid-template-rows: 0fr; opacity: 0; pointer-events: none; }
     .filter-cell-labels:hover .filter-groups,
     .filter-cell-labels:focus-within .filter-groups,
+    .filter-cell-labels.tags-active .filter-groups,
     .filter-cell-impact:hover ~ .filter-cell-labels .filter-groups,
     .filter-cell-impact:focus-within ~ .filter-cell-labels .filter-groups,
     .filter-cell-impact[data-using="true"] ~ .filter-cell-labels .filter-groups {
