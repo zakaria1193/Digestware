@@ -339,15 +339,63 @@ for (const cat of CATEGORY_ORDER) {
 
   const allChips = Array.from(labelsCell.querySelectorAll<HTMLButtonElement>('.chip'));
   const groups = Array.from(labelsCell.querySelectorAll<HTMLElement>('.filter-group'));
-  // Only target wires inside the sidebar list
   const wires = Array.from(document.querySelectorAll<HTMLElement>('.sidebar-list .wire'));
-  // The current commit's wire — pinned: never hidden, but may appear dimmed
   const currentWire = document.querySelector<HTMLElement>('[data-current="true"] .wire');
 
   const scoresOf = new Map<HTMLButtonElement, number[]>();
   for (const chip of allChips) {
     scoresOf.set(chip, (chip.dataset.scores ?? '').split(',').filter(Boolean).map(Number));
   }
+
+  // ── URL persistence ──────────────────────────────────────────────
+  // Serialise the current non-default filter state into a query string.
+  // Returns '' when everything is at the default (slider=10, all selected)
+  // so we don't litter clean URLs with params.
+  function buildQueryString(): string {
+    const params = new URLSearchParams();
+    const iv = parseInt(slider.value);
+    if (iv !== 10) params.set('i', String(iv));
+    const visibleChips = allChips.filter(c => !c.classList.contains('is-filtered'));
+    const allSelected = visibleChips.every(c => c.dataset.selected === 'true');
+    if (!allSelected) {
+      const selected = visibleChips.filter(c => c.dataset.selected === 'true').map(c => c.dataset.tag ?? '');
+      if (selected.length) params.set('t', selected.join('|'));
+    }
+    return params.toString();
+  }
+
+  function syncUrl(): void {
+    const qs = buildQueryString();
+    const base = window.location.pathname;
+    history.replaceState(null, '', qs ? `${base}?${qs}` : base);
+  }
+
+  // Restore state from URL params before first paint.
+  function restoreFromUrl(): void {
+    const params = new URLSearchParams(window.location.search);
+    const iv = params.get('i');
+    if (iv) slider.value = iv;
+    const t = params.get('t');
+    if (t) {
+      const saved = new Set(t.split('|').filter(Boolean));
+      for (const chip of allChips) {
+        const on = saved.has(chip.dataset.tag ?? '');
+        chip.dataset.selected = on ? 'true' : 'false';
+        chip.setAttribute('aria-pressed', on ? 'true' : 'false');
+      }
+    }
+  }
+
+  // Intercept sidebar link clicks and carry the current filter state forward.
+  document.querySelector('.sidebar-list')?.addEventListener('click', ev => {
+    const link = (ev.target as HTMLElement).closest<HTMLAnchorElement>('a[href]');
+    if (!link) return;
+    const qs = buildQueryString();
+    if (!qs) return; // default state — let the native navigation proceed as-is
+    ev.preventDefault();
+    window.location.href = link.href.split('?')[0] + '?' + qs;
+  });
+  // ────────────────────────────────────────────────────────────────
 
   function setFiltered(el: HTMLElement, filtered: boolean): void {
     el.classList.toggle('is-filtered', filtered);
@@ -378,8 +426,7 @@ for (const cat of CATEGORY_ORDER) {
   function passesLabels(tagStr: string | undefined, selected: Set<string>, visibleCount: number): boolean {
     if (visibleCount === 0 || selected.size === visibleCount) return true;
     if (selected.size === 0) return false;
-    const tags = (tagStr ?? '').split('|').filter(Boolean);
-    return tags.some(t => selected.has(t));
+    return (tagStr ?? '').split('|').filter(Boolean).some(t => selected.has(t));
   }
 
   function apply(value: number): void {
@@ -393,7 +440,6 @@ for (const cat of CATEGORY_ORDER) {
       const score = parseFloat(el.dataset.score ?? '0');
       const passes = score >= min && passesLabels(el.dataset.tags, selected, visibleChips.length);
       if (isCurrent) {
-        // Always keep the current commit visible; mark it as pinned when filtered
         setFiltered(el, false);
         el.classList.toggle('wire-pinned', !passes);
         visible++;
@@ -403,6 +449,7 @@ for (const cat of CATEGORY_ORDER) {
       }
     }
     if (visibleCounter) visibleCounter.textContent = String(visible);
+    syncUrl();
   }
 
   function setVisibleChips(selected: boolean): void {
@@ -454,11 +501,11 @@ for (const cat of CATEGORY_ORDER) {
   slider.addEventListener('pointercancel', clearUsing);
 
   document.documentElement.classList.add('filter-init');
+  restoreFromUrl();
   apply(parseInt(slider.value));
   updateTicks(parseInt(slider.value));
   requestAnimationFrame(() => requestAnimationFrame(() => document.documentElement.classList.remove('filter-init')));
 
-  // Scroll the current commit into view in the sidebar
   if (currentWire) {
     currentWire.scrollIntoView({ block: 'nearest', behavior: 'instant' });
   }
