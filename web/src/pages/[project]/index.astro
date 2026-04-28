@@ -132,8 +132,11 @@ for (const cat of CATEGORY_ORDER) {
         <div class="filter-cell-control">
           <input type="range" id="impact-filter" min="10" max="100" step="1" value="30" aria-label="Minimum impact level" />
           <div class="filter-ticks">
-            <span>Lowest</span>
-            <span>Highest</span>
+            <span data-stop="1">Lowest</span>
+            <span data-stop="2">Low</span>
+            <span data-stop="3">Mid</span>
+            <span data-stop="4">High</span>
+            <span data-stop="5">Highest</span>
           </div>
         </div>
       </div>
@@ -385,16 +388,39 @@ for (const cat of CATEGORY_ORDER) {
     });
   });
 
-  slider.addEventListener('input', () => apply(parseInt(slider.value)));
+  const impactCell = document.querySelector<HTMLElement>('.filter-cell-impact')!;
+  const ticks = Array.from(document.querySelectorAll<HTMLElement>('.filter-ticks span'));
+  // Slider is 10–100; map to 5 equal zones (each 18 wide) → stop label 1–5.
+  function stopFromValue(v: number): number {
+    return Math.min(5, Math.floor((v - 10) / 18) + 1);
+  }
+  function updateTicks(sliderValue: number): void {
+    const stop = stopFromValue(sliderValue);
+    for (const t of ticks) t.dataset.active = t.dataset.stop === String(stop) ? 'true' : 'false';
+  }
+
+  slider.addEventListener('input', () => {
+    const level = parseInt(slider.value);
+    updateTicks(level);
+    apply(level);
+  });
+  // Touch drags don't trigger :hover; mark the cell as in-use while the
+  // pointer is pressed so the intermediate ticks stay expanded.
+  slider.addEventListener('pointerdown', () => { impactCell.dataset.using = 'true'; });
+  const clearUsing = () => { impactCell.dataset.using = 'false'; };
+  slider.addEventListener('pointerup', clearUsing);
+  slider.addEventListener('pointercancel', clearUsing);
 
   // Suppress the first paint's collapse animation: items below the default
   // threshold would otherwise flash in fully expanded and then animate down.
   document.documentElement.classList.add('filter-init');
   apply(parseInt(slider.value));
+  updateTicks(parseInt(slider.value));
   const anyWireVisible = wires.some(w => !w.classList.contains('is-filtered'));
   if (!anyWireVisible && wires.length > 0) {
     slider.value = '10';
     apply(10);
+    updateTicks(parseInt(slider.value));
   }
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
@@ -540,6 +566,25 @@ for (const cat of CATEGORY_ORDER) {
     text-transform: uppercase;
     color: var(--color-muted);
   }
+  .filter-ticks span {
+    transition: color 0.12s ease, font-weight 0.12s ease, opacity 0.18s ease;
+  }
+  /* Intermediate stops stay hidden until the user hovers or interacts with
+     the slider, keeping the resting state minimal (Lowest / Highest only). */
+  .filter-ticks span[data-stop="2"],
+  .filter-ticks span[data-stop="3"],
+  .filter-ticks span[data-stop="4"] {
+    opacity: 0;
+  }
+  .filter-cell-impact:hover .filter-ticks span,
+  .filter-cell-impact:focus-within .filter-ticks span,
+  .filter-cell-impact[data-using="true"] .filter-ticks span {
+    opacity: 1;
+  }
+  .filter-ticks span[data-active="true"] {
+    color: var(--color-accent);
+    font-weight: 900;
+  }
 
   .filter-cell-labels {
     display: flex;
@@ -556,7 +601,10 @@ for (const cat of CATEGORY_ORDER) {
   }
   @media (hover: hover) and (pointer: fine) {
     .filter-cell-labels:hover,
-    .filter-cell-labels:focus-within {
+    .filter-cell-labels:focus-within,
+    .filter-cell-impact:hover ~ .filter-cell-labels,
+    .filter-cell-impact:focus-within ~ .filter-cell-labels,
+    .filter-cell-impact[data-using="true"] ~ .filter-cell-labels {
       border-color: var(--color-accent);
       border-style: solid;
     }
@@ -598,7 +646,10 @@ for (const cat of CATEGORY_ORDER) {
       transform: rotate(-90deg);
     }
     .filter-cell-labels:hover .filter-cell-chevron,
-    .filter-cell-labels:focus-within .filter-cell-chevron {
+    .filter-cell-labels:focus-within .filter-cell-chevron,
+    .filter-cell-impact:hover ~ .filter-cell-labels .filter-cell-chevron,
+    .filter-cell-impact:focus-within ~ .filter-cell-labels .filter-cell-chevron,
+    .filter-cell-impact[data-using="true"] ~ .filter-cell-labels .filter-cell-chevron {
       transform: rotate(0deg);
       color: var(--color-accent);
     }
@@ -804,7 +855,10 @@ for (const cat of CATEGORY_ORDER) {
       pointer-events: none;
     }
     .filter-cell-labels:hover .filter-groups,
-    .filter-cell-labels:focus-within .filter-groups {
+    .filter-cell-labels:focus-within .filter-groups,
+    .filter-cell-impact:hover ~ .filter-cell-labels .filter-groups,
+    .filter-cell-impact:focus-within ~ .filter-cell-labels .filter-groups,
+    .filter-cell-impact[data-using="true"] ~ .filter-cell-labels .filter-groups {
       grid-template-rows: 1fr;
       opacity: 1;
       pointer-events: auto;
