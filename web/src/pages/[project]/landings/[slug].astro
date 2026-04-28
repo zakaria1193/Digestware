@@ -62,9 +62,122 @@ function scoreColor(n: number | null | undefined): string {
   if (n <= 8)  return '#7a1a2e';
   return '#b80018';
 }
+
+// ── Filter bar data (same logic as index.astro, landings-only) ──
+const scoresByTag = new Map<string, number[]>();
+for (const e of all) {
+  const score = e.data.impact_score ?? 0;
+  for (const tag of e.data.tags ?? []) {
+    if (!scoresByTag.has(tag)) scoresByTag.set(tag, []);
+    scoresByTag.get(tag)!.push(score);
+  }
+}
+const rankedTags = [...scoresByTag.entries()]
+  .map(([name, scores]) => ({ name, count: scores.length, scores }))
+  .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+
+type TagCategoryFile = { assignments: Record<string, string> };
+const tagCategoryModules = import.meta.glob<TagCategoryFile>(
+  '../../../data/tag-categories/*.json',
+  { eager: true },
+);
+const tagCategoryFile = tagCategoryModules[`../../../data/tag-categories/${projectSlug}.json`];
+const tagAssignments: Record<string, string> = tagCategoryFile?.assignments ?? {};
+
+const CATEGORY_ORDER = ['architectures', 'components', 'topics', 'news', 'other'] as const;
+type Category = typeof CATEGORY_ORDER[number];
+const CATEGORY_LABELS: Record<Category, string> = {
+  architectures: 'Architectures',
+  components: 'Components',
+  topics: 'Topics',
+  news: 'News & Policy',
+  other: 'Other',
+};
+function categoryFor(tag: string): Category {
+  const raw = tagAssignments[tag];
+  return (CATEGORY_ORDER as readonly string[]).includes(raw) ? (raw as Category) : 'other';
+}
+type RankedTag = { name: string; count: number; scores: number[] };
+const groupedTags: Array<{ category: Category; tags: RankedTag[] }> = [];
+for (const cat of CATEGORY_ORDER) {
+  const bucket = rankedTags.filter(t => categoryFor(t.name) === cat);
+  if (bucket.length > 0) groupedTags.push({ category: cat, tags: bucket });
+}
 ---
 
 <PublicLayout project={project} title={d.headline} description={d.tldr}>
+
+  <!-- Filter bar: scoped to sidebar commits only on this page -->
+  <section class="filter-bar" aria-label="Commit filters">
+    <div class="filter-bar-head">
+      <span class="wsj-section-label">Filters</span>
+      <span class="wsj-section-rule"></span>
+    </div>
+    <div class="filter-bar-body">
+      <div class="filter-cell filter-cell-impact">
+        <span class="filter-cell-label">Impact</span>
+        <div class="filter-cell-control">
+          <input type="range" id="impact-filter" min="10" max="100" step="1" value="10" aria-label="Minimum impact level" />
+          <div class="filter-ticks">
+            <span data-stop="1">Lowest</span>
+            <span data-stop="2">Low</span>
+            <span data-stop="3">Mid</span>
+            <span data-stop="4">High</span>
+            <span data-stop="5">Highest</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="filter-cell filter-cell-labels">
+        <div class="filter-cell-label-row">
+          <span class="filter-cell-label-eyebrow">
+            <span class="filter-cell-label">Labels</span>
+            <span class="filter-cell-chevron" aria-hidden="true">&#9662;</span>
+            <span class="filter-cell-meta">
+              <span id="filter-visible">{all.length}</span> of {all.length}
+            </span>
+          </span>
+          {rankedTags.length > 0 && (
+            <div class="filter-toggles">
+              <button type="button" class="filter-toggle" data-action="mark-all">Mark&nbsp;All</button>
+              <span class="filter-toggle-sep">/</span>
+              <button type="button" class="filter-toggle" data-action="unmark-all">Unmark&nbsp;All</button>
+            </div>
+          )}
+        </div>
+        {rankedTags.length === 0 && (
+          <span class="filter-empty">No labels in the current window.</span>
+        )}
+        {rankedTags.length > 0 && (
+          <div class="filter-groups" id="filter-groups">
+            <div class="filter-groups-inner">
+              {groupedTags.map(g => (
+                <section class="filter-group" data-group={g.category}>
+                  <span class="filter-group-label">{CATEGORY_LABELS[g.category]}</span>
+                  <div class="filter-group-chips">
+                    {g.tags.map(t => (
+                      <button
+                        type="button"
+                        class="chip"
+                        data-tag={t.name}
+                        data-selected="true"
+                        aria-pressed="true"
+                        data-scores={t.scores.join(',')}
+                      >
+                        <span class="chip-name">{t.name}</span>
+                        <span class="chip-count">{t.count}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  </section>
+
   <div class="landing-layout">
     <aside class="commits-sidebar">
       <div class="sidebar-sticky-head">
@@ -75,7 +188,10 @@ function scoreColor(n: number | null | undefined): string {
       </div>
       <div class="sidebar-list">
         {all.map(e => (
-          <div class:list={["sidebar-item", e.id === entry.id && "sidebar-item-current"]}>
+          <div
+            class:list={["sidebar-item", e.id === entry.id && "sidebar-item-current"]}
+            data-current={e.id === entry.id ? "true" : undefined}
+          >
             <CommitRow entry={e} projectSlug={projectSlug} />
           </div>
         ))}
@@ -213,9 +329,376 @@ function scoreColor(n: number | null | undefined): string {
     </nav>
   </article>
   </div>
+
+<script>
+  const slider = document.getElementById('impact-filter') as HTMLInputElement;
+  const labelsCell = document.querySelector<HTMLElement>('.filter-cell-labels')!;
+  const visibleCounter = document.getElementById('filter-visible');
+
+  function thresholdFromSlider(v: number): number { return v / 10; }
+
+  const allChips = Array.from(labelsCell.querySelectorAll<HTMLButtonElement>('.chip'));
+  const groups = Array.from(labelsCell.querySelectorAll<HTMLElement>('.filter-group'));
+  // Only target wires inside the sidebar list
+  const wires = Array.from(document.querySelectorAll<HTMLElement>('.sidebar-list .wire'));
+  // The current commit's wire — pinned: never hidden, but may appear dimmed
+  const currentWire = document.querySelector<HTMLElement>('[data-current="true"] .wire');
+
+  const scoresOf = new Map<HTMLButtonElement, number[]>();
+  for (const chip of allChips) {
+    scoresOf.set(chip, (chip.dataset.scores ?? '').split(',').filter(Boolean).map(Number));
+  }
+
+  function setFiltered(el: HTMLElement, filtered: boolean): void {
+    el.classList.toggle('is-filtered', filtered);
+    el.setAttribute('aria-hidden', filtered ? 'true' : 'false');
+  }
+
+  function updateChipsForLevel(min: number): HTMLButtonElement[] {
+    const visible: HTMLButtonElement[] = [];
+    for (const chip of allChips) {
+      const count = (scoresOf.get(chip) ?? []).reduce((n, s) => n + (s >= min ? 1 : 0), 0);
+      setFiltered(chip, count === 0);
+      const badge = chip.querySelector<HTMLElement>('.chip-count');
+      if (badge) badge.textContent = String(count);
+      if (count > 0) visible.push(chip);
+    }
+    for (const group of groups) {
+      setFiltered(group, !group.querySelector('.chip:not(.is-filtered)'));
+    }
+    return visible;
+  }
+
+  function selectedSet(visibleChips: HTMLButtonElement[]): Set<string> {
+    const s = new Set<string>();
+    for (const c of visibleChips) if (c.dataset.selected === 'true') s.add(c.dataset.tag ?? '');
+    return s;
+  }
+
+  function passesLabels(tagStr: string | undefined, selected: Set<string>, visibleCount: number): boolean {
+    if (visibleCount === 0 || selected.size === visibleCount) return true;
+    if (selected.size === 0) return false;
+    const tags = (tagStr ?? '').split('|').filter(Boolean);
+    return tags.some(t => selected.has(t));
+  }
+
+  function apply(value: number): void {
+    const min = thresholdFromSlider(value);
+    const visibleChips = updateChipsForLevel(min);
+    const selected = selectedSet(visibleChips);
+    let visible = 0;
+
+    for (const el of wires) {
+      const isCurrent = el === currentWire;
+      const score = parseFloat(el.dataset.score ?? '0');
+      const passes = score >= min && passesLabels(el.dataset.tags, selected, visibleChips.length);
+      if (isCurrent) {
+        // Always keep the current commit visible; mark it as pinned when filtered
+        setFiltered(el, false);
+        el.classList.toggle('wire-pinned', !passes);
+        visible++;
+      } else {
+        setFiltered(el, !passes);
+        if (passes) visible++;
+      }
+    }
+    if (visibleCounter) visibleCounter.textContent = String(visible);
+  }
+
+  function setVisibleChips(selected: boolean): void {
+    for (const c of allChips) {
+      if (c.classList.contains('is-filtered')) continue;
+      c.dataset.selected = selected ? 'true' : 'false';
+      c.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    }
+  }
+
+  labelsCell.addEventListener('click', ev => {
+    const target = (ev.target as HTMLElement).closest<HTMLButtonElement>('.chip');
+    if (!target) return;
+    const visibleChips = allChips.filter(c => !c.classList.contains('is-filtered'));
+    const allSelected = visibleChips.length > 0 && visibleChips.every(c => c.dataset.selected === 'true');
+    if (allSelected) {
+      for (const c of visibleChips) {
+        c.dataset.selected = c === target ? 'true' : 'false';
+        c.setAttribute('aria-pressed', c === target ? 'true' : 'false');
+      }
+    } else {
+      const on = target.dataset.selected !== 'true';
+      target.dataset.selected = on ? 'true' : 'false';
+      target.setAttribute('aria-pressed', on ? 'true' : 'false');
+      const anySelected = visibleChips.some(c => c.dataset.selected === 'true');
+      if (!anySelected) {
+        for (const c of visibleChips) { c.dataset.selected = 'true'; c.setAttribute('aria-pressed', 'true'); }
+      }
+    }
+    apply(parseInt(slider.value));
+  });
+
+  document.querySelectorAll<HTMLButtonElement>('.filter-toggle').forEach(btn => {
+    btn.addEventListener('click', () => { setVisibleChips(btn.dataset.action === 'mark-all'); apply(parseInt(slider.value)); });
+  });
+
+  const impactCell = document.querySelector<HTMLElement>('.filter-cell-impact')!;
+  const ticks = Array.from(document.querySelectorAll<HTMLElement>('.filter-ticks span'));
+  function stopFromValue(v: number): number { return Math.min(5, Math.floor((v - 10) / 18) + 1); }
+  function updateTicks(v: number): void {
+    const stop = stopFromValue(v);
+    for (const t of ticks) t.dataset.active = t.dataset.stop === String(stop) ? 'true' : 'false';
+  }
+
+  slider.addEventListener('input', () => { const v = parseInt(slider.value); updateTicks(v); apply(v); });
+  slider.addEventListener('pointerdown', () => { impactCell.dataset.using = 'true'; });
+  const clearUsing = () => { impactCell.dataset.using = 'false'; };
+  slider.addEventListener('pointerup', clearUsing);
+  slider.addEventListener('pointercancel', clearUsing);
+
+  document.documentElement.classList.add('filter-init');
+  apply(parseInt(slider.value));
+  updateTicks(parseInt(slider.value));
+  requestAnimationFrame(() => requestAnimationFrame(() => document.documentElement.classList.remove('filter-init')));
+
+  // Scroll the current commit into view in the sidebar
+  if (currentWire) {
+    currentWire.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+  }
+</script>
+
 </PublicLayout>
 
 <style>
+  /* ── Filter bar (mirrors index.astro, scoped to sidebar commits) ── */
+  .filter-bar {
+    margin: 0 0 1.4rem;
+    padding: 0.1rem 0 0.9rem;
+    border-top: 3px double var(--color-rule-strong);
+    border-bottom: 1px solid var(--color-rule-strong);
+  }
+  .filter-bar-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.4rem 0 0.6rem;
+  }
+  .filter-bar-body {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.9rem 2rem;
+    align-items: start;
+  }
+  @media (min-width: 900px) {
+    .filter-bar-body { grid-template-columns: minmax(220px, 1fr) minmax(0, 3fr); }
+  }
+  .filter-cell-label {
+    display: inline-block;
+    font-family: var(--font-sans);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+  }
+  .filter-cell-impact {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.6rem 0.9rem;
+    align-items: center;
+  }
+  .filter-cell-impact .filter-cell-control {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+  }
+  #impact-filter { width: 100%; accent-color: var(--color-accent); cursor: pointer; }
+  .filter-ticks {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-sans);
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .filter-ticks span { transition: color 0.12s ease, font-weight 0.12s ease, opacity 0.18s ease; }
+  .filter-ticks span[data-stop="2"],
+  .filter-ticks span[data-stop="3"],
+  .filter-ticks span[data-stop="4"] { opacity: 0; }
+  .filter-cell-impact:hover .filter-ticks span,
+  .filter-cell-impact:focus-within .filter-ticks span,
+  .filter-cell-impact[data-using="true"] .filter-ticks span { opacity: 1; }
+  .filter-ticks span[data-active="true"] { color: var(--color-accent); font-weight: 900; }
+
+  .filter-cell-labels {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    min-width: 0;
+    padding: 0.45rem 0.6rem 0.55rem;
+    border: 1px dashed var(--color-rule);
+    transition: border-color 0.32s cubic-bezier(0.4,0,0.2,1), border-style 0s;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .filter-cell-labels:hover,
+    .filter-cell-labels:focus-within,
+    .filter-cell-impact:hover ~ .filter-cell-labels,
+    .filter-cell-impact:focus-within ~ .filter-cell-labels,
+    .filter-cell-impact[data-using="true"] ~ .filter-cell-labels {
+      border-color: var(--color-accent);
+      border-style: solid;
+    }
+  }
+  .filter-cell-label-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .filter-cell-label-eyebrow {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    min-width: 0;
+  }
+  .filter-cell-chevron {
+    display: inline-block;
+    font-size: 0.65em;
+    line-height: 1;
+    color: var(--color-muted);
+    transform: rotate(0deg);
+    transition: transform 0.32s cubic-bezier(0.4,0,0.2,1), color 0.28s cubic-bezier(0.4,0,0.2,1);
+  }
+  .filter-cell-meta {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.7rem;
+    color: var(--color-muted);
+    white-space: nowrap;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .filter-cell-chevron { transform: rotate(-90deg); }
+    .filter-cell-labels:hover .filter-cell-chevron,
+    .filter-cell-labels:focus-within .filter-cell-chevron,
+    .filter-cell-impact:hover ~ .filter-cell-labels .filter-cell-chevron,
+    .filter-cell-impact:focus-within ~ .filter-cell-labels .filter-cell-chevron,
+    .filter-cell-impact[data-using="true"] ~ .filter-cell-labels .filter-cell-chevron {
+      transform: rotate(0deg);
+      color: var(--color-accent);
+    }
+  }
+  .filter-toggles { display: inline-flex; align-items: baseline; gap: 0.4rem; }
+  .filter-toggle {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.78rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--color-muted);
+    background: transparent;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-color: var(--color-rule);
+    text-underline-offset: 3px;
+    transition: color 0.12s ease, text-decoration-color 0.12s ease;
+  }
+  .filter-toggle:hover { color: var(--color-accent); text-decoration-color: var(--color-accent); }
+  .filter-toggle-sep { color: var(--color-rule); font-family: var(--font-serif); font-style: italic; font-size: 0.78rem; }
+  .filter-empty { font-family: var(--font-serif); font-style: italic; font-size: 0.78rem; color: var(--color-muted); }
+
+  .chip {
+    font-family: var(--font-sans);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-ink);
+    background: transparent;
+    border: 0;
+    padding: 0.1rem 0 0.18rem;
+    cursor: pointer;
+    border-bottom: 2px solid var(--color-accent);
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.3rem;
+    overflow: hidden;
+    max-width: 16rem;
+    margin: 0.175rem 0.375rem;
+    transform-origin: left center;
+    transition:
+      opacity 0.28s cubic-bezier(0.4,0,0.2,1),
+      color 0.28s cubic-bezier(0.4,0,0.2,1),
+      border-bottom-color 0.28s cubic-bezier(0.4,0,0.2,1),
+      border-bottom-width 0.28s cubic-bezier(0.4,0,0.2,1),
+      max-width 0.32s cubic-bezier(0.4,0,0.2,1),
+      padding 0.28s cubic-bezier(0.4,0,0.2,1),
+      margin 0.28s cubic-bezier(0.4,0,0.2,1),
+      transform 0.22s cubic-bezier(0.4,0,0.2,1);
+  }
+  .chip:hover { opacity: 0.78; transform: translateY(-1px); }
+  .chip:active { transform: translateY(0); }
+  .chip[data-selected="false"] { color: var(--color-muted); border-bottom-color: var(--color-rule); border-bottom-style: dotted; opacity: 0.55; }
+  .chip .chip-name { text-decoration: line-through; text-decoration-color: transparent; text-decoration-thickness: 1px; transition: text-decoration-color 0.28s cubic-bezier(0.4,0,0.2,1); }
+  .chip[data-selected="false"] .chip-name { text-decoration-color: var(--color-rule); }
+  .chip-count { font-family: var(--font-serif); font-style: italic; font-size: 0.7rem; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--color-muted); transition: color 0.28s cubic-bezier(0.4,0,0.2,1); }
+  .chip.is-filtered { opacity: 0; max-width: 0; padding-left: 0; padding-right: 0; margin: 0; border-bottom-width: 0; pointer-events: none; transform: translateY(-2px); }
+
+  .filter-group {
+    display: grid;
+    grid-template-columns: minmax(7.5rem, auto) 1fr;
+    gap: 0.3rem 0.9rem;
+    align-items: baseline;
+    overflow: hidden;
+    max-height: 20rem;
+    transition: opacity 0.32s cubic-bezier(0.4,0,0.2,1), max-height 0.32s cubic-bezier(0.4,0,0.2,1), margin 0.32s cubic-bezier(0.4,0,0.2,1);
+  }
+  .filter-group.is-filtered { opacity: 0; max-height: 0; margin: 0; pointer-events: none; }
+  .filter-group-label {
+    font-family: var(--font-sans);
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    padding-top: 0.18rem;
+    border-right: 1px solid var(--color-rule);
+    padding-right: 0.75rem;
+    text-align: right;
+  }
+  .filter-group-chips { display: flex; flex-wrap: wrap; margin: -0.175rem -0.375rem; align-items: baseline; }
+
+  .filter-groups {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows 0.36s cubic-bezier(0.4,0,0.2,1), opacity 0.28s cubic-bezier(0.4,0,0.2,1);
+  }
+  .filter-groups-inner { min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 0.55rem; }
+  @media (hover: hover) and (pointer: fine) {
+    .filter-groups { grid-template-rows: 0fr; opacity: 0; pointer-events: none; }
+    .filter-cell-labels:hover .filter-groups,
+    .filter-cell-labels:focus-within .filter-groups,
+    .filter-cell-impact:hover ~ .filter-cell-labels .filter-groups,
+    .filter-cell-impact:focus-within ~ .filter-cell-labels .filter-groups,
+    .filter-cell-impact[data-using="true"] ~ .filter-cell-labels .filter-groups {
+      grid-template-rows: 1fr;
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+  @media (max-width: 700px) {
+    .filter-group { grid-template-columns: 1fr; }
+    .filter-group-label { border-right: 0; border-bottom: 1px solid var(--color-rule); padding: 0 0 0.2rem; text-align: left; }
+  }
+
+  :global(html.filter-init) .chip,
+  :global(html.filter-init) .filter-group { transition: none !important; }
+  @media (prefers-reduced-motion: reduce) {
+    .chip, .chip-count, .filter-group { transition: none !important; }
+  }
+
   /* ── Two-column layout: sidebar + article ── */
   .landing-layout {
     display: grid;
@@ -226,14 +709,8 @@ function scoreColor(n: number | null | undefined): string {
 
   @media (min-width: 900px) {
     .landing-layout {
-      grid-template-columns: 240px 1fr;
-      gap: 0 2rem;
-    }
-  }
-
-  @media (min-width: 1100px) {
-    .landing-layout {
-      grid-template-columns: 270px 1fr;
+      grid-template-columns: minmax(260px, 1fr) minmax(0, 3fr);
+      gap: 2rem;
     }
   }
 
@@ -246,15 +723,17 @@ function scoreColor(n: number | null | undefined): string {
     .commits-sidebar {
       display: block;
       position: sticky;
-      top: 1rem;
-      max-height: calc(100vh - 2rem);
+      top: 0.75rem;
+      max-height: calc(100vh - 1.5rem);
       overflow-y: auto;
       overflow-x: hidden;
       scrollbar-width: thin;
       scrollbar-color: var(--color-rule) transparent;
-      border-right: 1px solid var(--color-rule);
-      padding-right: 1.25rem;
+      border-right: 1px solid var(--color-rule-strong);
+      padding-right: 1.5rem;
     }
+    .commits-sidebar::-webkit-scrollbar { width: 6px; }
+    .commits-sidebar::-webkit-scrollbar-thumb { background: var(--color-rule); }
   }
 
   .sidebar-sticky-head {
@@ -314,16 +793,28 @@ function scoreColor(n: number | null | undefined): string {
     color: var(--color-accent);
   }
 
+  /* Current commit stays visible even when filters would hide it;
+     a subtle "viewing" label signals it's pinned. */
+  .sidebar-item-current :global(.wire.wire-pinned) {
+    opacity: 0.45;
+    border-left-style: dashed;
+  }
+  .sidebar-item-current :global(.wire.wire-pinned::after) {
+    content: 'viewing';
+    display: block;
+    font-family: var(--font-sans);
+    font-size: 0.52rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    margin-top: 0.15rem;
+  }
+
   /* ── Article column ── */
   .article {
     max-width: 680px;
     padding: 0.5rem 0 2rem;
-  }
-
-  @media (min-width: 900px) {
-    .article {
-      min-width: 0;
-    }
+    min-width: 0;
   }
 
   .crumb {
