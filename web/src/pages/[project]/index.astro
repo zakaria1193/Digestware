@@ -71,7 +71,7 @@ const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
 // threshold get hidden, and categories that empty out collapse with them.
 const scoresByTag = new Map<string, number[]>();
 for (const entry of [...allDiscussions, ...landings]) {
-  const score = entry.data.impact_score ?? entry.data.sentiment_score ?? 0;
+  const score = entry.data.impact_score ?? entry.data.sentiment_score ?? -1;
   for (const tag of entry.data.tags ?? []) {
     if (!scoresByTag.has(tag)) scoresByTag.set(tag, []);
     scoresByTag.get(tag)!.push(score);
@@ -282,7 +282,7 @@ for (const cat of CATEGORY_ORDER) {
   function updateChipsForLevel(min: number): HTMLButtonElement[] {
     const visible: HTMLButtonElement[] = [];
     for (const chip of allChips) {
-      const count = (scoresOf.get(chip) ?? []).reduce((n, s) => n + (s >= min ? 1 : 0), 0);
+      const count = (scoresOf.get(chip) ?? []).reduce((n, s) => n + (s < 0 || s >= min ? 1 : 0), 0);
       setFiltered(chip, count === 0);
       const badge = chip.querySelector<HTMLElement>('.chip-count');
       if (badge) badge.textContent = String(count);
@@ -324,8 +324,8 @@ for (const cat of CATEGORY_ORDER) {
     let visible = 0;
 
     for (const el of [...wires, ...stories]) {
-      const score = parseFloat(el.dataset.score ?? '0');
-      const show = score >= min && passesLabels(el.dataset.tags, selected, visibleChips.length);
+      const score = parseFloat(el.dataset.score ?? '-1');
+      const show = (score < 0 || score >= min) && passesLabels(el.dataset.tags, selected, visibleChips.length);
       setFiltered(el, !show);
       if (show) visible++;
     }

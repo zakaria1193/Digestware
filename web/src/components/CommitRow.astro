@@ -11,7 +11,7 @@ const d = entry.data;
 
 const dateStr = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
 const isHigh = (d.impact_score ?? 0) >= 8;
-const isLow = (d.impact_score ?? 0) <= 2;
+const isLow = d.impact_score != null && d.impact_score <= 2;
 
 function scoreColor(n: number | null | undefined): string {
   if (n == null) return '#888';
@@ -23,7 +23,7 @@ function scoreColor(n: number | null | undefined): string {
 }
 ---
 
-<a href={`/${projectSlug}/landings/${entry.id}`} class:list={["wire", isHigh && "wire-starred", isLow && "wire-dim"]} data-score={d.impact_score ?? 0} data-tags={(d.tags ?? []).join('|')}>
+<a href={`/${projectSlug}/landings/${entry.id}`} class:list={["wire", isHigh && "wire-starred", isLow && "wire-dim"]} data-score={d.impact_score ?? -1} data-tags={(d.tags ?? []).join('|')}>
   <div class="wire-top">
     <span class="wire-date">{dateStr}</span>
     <span class="wire-sep">&mdash;</span>
