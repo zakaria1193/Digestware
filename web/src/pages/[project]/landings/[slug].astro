@@ -390,6 +390,7 @@ for (const cat of CATEGORY_ORDER) {
   document.querySelector('.sidebar-list')?.addEventListener('click', ev => {
     const link = (ev.target as HTMLElement).closest<HTMLAnchorElement>('a[href]');
     if (!link) return;
+    sessionStorage.setItem('commit-scroll-y', String(window.scrollY));
     const qs = buildQueryString();
     if (!qs) return; // default state — let the native navigation proceed as-is
     ev.preventDefault();
@@ -510,6 +511,12 @@ for (const cat of CATEGORY_ORDER) {
 
   if (currentWire) {
     currentWire.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+  }
+
+  const savedScrollY = sessionStorage.getItem('commit-scroll-y');
+  if (savedScrollY !== null) {
+    sessionStorage.removeItem('commit-scroll-y');
+    window.scrollTo({ top: parseInt(savedScrollY), behavior: 'instant' });
   }
 </script>
 
