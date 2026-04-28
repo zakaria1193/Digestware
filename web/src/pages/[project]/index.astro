@@ -601,7 +601,10 @@ for (const cat of CATEGORY_ORDER) {
   }
   @media (hover: hover) and (pointer: fine) {
     .filter-cell-labels:hover,
-    .filter-cell-labels:focus-within {
+    .filter-cell-labels:focus-within,
+    .filter-cell-impact:hover ~ .filter-cell-labels,
+    .filter-cell-impact:focus-within ~ .filter-cell-labels,
+    .filter-cell-impact[data-using="true"] ~ .filter-cell-labels {
       border-color: var(--color-accent);
       border-style: solid;
     }
@@ -643,7 +646,10 @@ for (const cat of CATEGORY_ORDER) {
       transform: rotate(-90deg);
     }
     .filter-cell-labels:hover .filter-cell-chevron,
-    .filter-cell-labels:focus-within .filter-cell-chevron {
+    .filter-cell-labels:focus-within .filter-cell-chevron,
+    .filter-cell-impact:hover ~ .filter-cell-labels .filter-cell-chevron,
+    .filter-cell-impact:focus-within ~ .filter-cell-labels .filter-cell-chevron,
+    .filter-cell-impact[data-using="true"] ~ .filter-cell-labels .filter-cell-chevron {
       transform: rotate(0deg);
       color: var(--color-accent);
     }
@@ -849,7 +855,10 @@ for (const cat of CATEGORY_ORDER) {
       pointer-events: none;
     }
     .filter-cell-labels:hover .filter-groups,
-    .filter-cell-labels:focus-within .filter-groups {
+    .filter-cell-labels:focus-within .filter-groups,
+    .filter-cell-impact:hover ~ .filter-cell-labels .filter-groups,
+    .filter-cell-impact:focus-within ~ .filter-cell-labels .filter-groups,
+    .filter-cell-impact[data-using="true"] ~ .filter-cell-labels .filter-groups {
       grid-template-rows: 1fr;
       opacity: 1;
       pointer-events: auto;
