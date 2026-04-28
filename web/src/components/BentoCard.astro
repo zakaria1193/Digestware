@@ -10,7 +10,7 @@ interface Props {
 const { entry, projectSlug, clusterCount = 1 } = Astro.props;
 const d = entry.data;
 
-const score = d.impact_score ?? d.sentiment_score ?? 0;
+const score = d.impact_score ?? d.sentiment_score ?? -1;
 const isHigh = score >= 7;
 const isLow = score > 0 && score <= 3;
 
