@@ -107,6 +107,19 @@ for (const cat of CATEGORY_ORDER) {
 
 <PublicLayout project={project} title={d.headline} description={d.tldr}>
 
+  <script is:inline>
+    // Pre-paint scroll-restore setup. When the previous page stashed a
+    // scroll position in sessionStorage (sidebar commit-switch flow), tell
+    // the browser to skip its own restoration and hide the page until our
+    // main script can place us at the saved Y. Avoids the top→Y flash.
+    if (sessionStorage.getItem('commit-scroll-y') !== null) {
+      try { history.scrollRestoration = 'manual'; } catch (e) {}
+      document.documentElement.classList.add('scroll-restoring');
+      // Safety: never leave the page permanently hidden if something fails.
+      setTimeout(() => document.documentElement.classList.remove('scroll-restoring'), 800);
+    }
+  </script>
+
   <!-- Filter bar: scoped to sidebar commits only on this page -->
   <section class="filter-bar" aria-label="Commit filters">
     <div class="filter-bar-head">
@@ -509,14 +522,35 @@ for (const cat of CATEGORY_ORDER) {
   updateTicks(parseInt(slider.value));
   requestAnimationFrame(() => requestAnimationFrame(() => document.documentElement.classList.remove('filter-init')));
 
-  if (currentWire) {
-    currentWire.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+  // Bring the current commit into view inside the sidebar's own scroll
+  // container. Walk up to the nearest ancestor that actually scrolls and
+  // adjust *its* scrollTop directly — using element.scrollIntoView() here
+  // would also scroll the window, which would fight the restoration below.
+  function revealCurrentInSidebar(): void {
+    if (!currentWire) return;
+    let scroller: HTMLElement | null = currentWire.parentElement;
+    while (scroller && scroller !== document.body) {
+      const cs = getComputedStyle(scroller);
+      if ((cs.overflowY === 'auto' || cs.overflowY === 'scroll') &&
+          scroller.scrollHeight > scroller.clientHeight) break;
+      scroller = scroller.parentElement;
+    }
+    if (!scroller || scroller === document.body) return;
+    const wireRect = currentWire.getBoundingClientRect();
+    const scrollerRect = scroller.getBoundingClientRect();
+    const offsetWithin = wireRect.top - scrollerRect.top + scroller.scrollTop;
+    const target = offsetWithin - (scroller.clientHeight - currentWire.clientHeight) / 2;
+    scroller.scrollTop = Math.max(0, target);
   }
 
   const savedScrollY = sessionStorage.getItem('commit-scroll-y');
   if (savedScrollY !== null) {
     sessionStorage.removeItem('commit-scroll-y');
     window.scrollTo({ top: parseInt(savedScrollY), behavior: 'instant' });
+    revealCurrentInSidebar();
+    document.documentElement.classList.remove('scroll-restoring');
+  } else {
+    revealCurrentInSidebar();
   }
 </script>
 
@@ -753,6 +787,10 @@ for (const cat of CATEGORY_ORDER) {
   :global(html.filter-init) .chip,
   :global(html.filter-init) .filter-group,
   :global(html.filter-init) .filter-groups { transition: none !important; }
+
+  /* Hide the page until the inline scroll-restore script places us at the
+     saved Y, so users don't see a top→Y flash when switching commits. */
+  :global(html.scroll-restoring) body { visibility: hidden; }
   @media (prefers-reduced-motion: reduce) {
     .chip, .chip-count, .filter-group { transition: none !important; }
   }
