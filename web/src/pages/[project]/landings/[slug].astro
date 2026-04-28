@@ -744,7 +744,8 @@ for (const cat of CATEGORY_ORDER) {
   }
 
   :global(html.filter-init) .chip,
-  :global(html.filter-init) .filter-group { transition: none !important; }
+  :global(html.filter-init) .filter-group,
+  :global(html.filter-init) .filter-groups { transition: none !important; }
   @media (prefers-reduced-motion: reduce) {
     .chip, .chip-count, .filter-group { transition: none !important; }
   }
