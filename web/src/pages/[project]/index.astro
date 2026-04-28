@@ -390,8 +390,13 @@ for (const cat of CATEGORY_ORDER) {
 
   const impactCell = document.querySelector<HTMLElement>('.filter-cell-impact')!;
   const ticks = Array.from(document.querySelectorAll<HTMLElement>('.filter-ticks span'));
-  function updateTicks(level: number): void {
-    for (const t of ticks) t.dataset.active = t.dataset.stop === String(level) ? 'true' : 'false';
+  // Slider is 10–100; map to 5 equal zones (each 18 wide) → stop label 1–5.
+  function stopFromValue(v: number): number {
+    return Math.min(5, Math.floor((v - 10) / 18) + 1);
+  }
+  function updateTicks(sliderValue: number): void {
+    const stop = stopFromValue(sliderValue);
+    for (const t of ticks) t.dataset.active = t.dataset.stop === String(stop) ? 'true' : 'false';
   }
 
   slider.addEventListener('input', () => {
