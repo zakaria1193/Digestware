@@ -197,8 +197,8 @@ for (const cat of CATEGORY_ORDER) {
     <aside class="commit-stream" id="stream">
       <div class="stream-sticky-head">
         <div class="stream-head">
-          <div class="stream-brand">Latest&nbsp;Commits</div>
-          <div class="stream-sub">Fresh commits, on the hour</div>
+          <div class="stream-brand">Latest Commits</div>
+          <div class="stream-sub">{landings.length} commit{landings.length !== 1 ? 's' : ''}</div>
         </div>
         <div class="stream-rule"></div>
         <div class="stream-rule-thin"></div>
@@ -334,6 +334,9 @@ for (const cat of CATEGORY_ORDER) {
       setFiltered(block, !anyVisible);
     }
     if (visibleCounter) visibleCounter.textContent = String(visible);
+    // Keep the tag panel open whenever a filter is actively applied.
+    const anyDeselected = visibleChips.some(c => c.dataset.selected !== 'true');
+    labelsCell.classList.toggle('tags-active', anyDeselected);
     return visible;
   }
 
@@ -510,6 +513,32 @@ for (const cat of CATEGORY_ORDER) {
       document.documentElement.classList.remove('filter-init');
     });
   });
+
+  // Carry the current filter state to landing (commit detail) pages so the
+  // sidebar filter selection is not lost when clicking a commit from here.
+  function buildLandingQueryString(): string {
+    const params = new URLSearchParams();
+    const iv = parseInt(slider.value);
+    if (iv !== 10) params.set('i', String(iv));
+    const visibleChips = allChips.filter(c => !c.classList.contains('is-filtered'));
+    const allSelected = visibleChips.every(c => c.dataset.selected === 'true');
+    if (!allSelected) {
+      const selected = visibleChips
+        .filter(c => c.dataset.selected === 'true')
+        .map(c => c.dataset.tag ?? '');
+      if (selected.length) params.set('t', selected.join('|'));
+    }
+    return params.toString();
+  }
+
+  document.querySelector('.commit-stream')?.addEventListener('click', ev => {
+    const link = (ev.target as HTMLElement).closest<HTMLAnchorElement>('a[href]');
+    if (!link) return;
+    const qs = buildLandingQueryString();
+    if (!qs) return;
+    ev.preventDefault();
+    window.location.href = link.href.split('?')[0] + '?' + qs;
+  });
 </script>
 
 </PublicLayout>
@@ -556,20 +585,24 @@ for (const cat of CATEGORY_ORDER) {
     background: var(--color-paper);
     padding-top: 0.25rem;
   }
-  .stream-head { text-align: center; padding-bottom: 0.15rem; }
+  .stream-head { padding-bottom: 0.15rem; }
   .stream-brand {
     font-family: var(--font-serif-display);
     font-weight: 900;
-    font-size: 1.9rem;
+    font-size: 1.15rem;
     letter-spacing: -0.01em;
-    line-height: 1;
+    line-height: 1.1;
+    color: var(--color-ink);
+    padding-top: 0.5rem;
   }
   .stream-sub {
-    font-family: var(--font-serif);
-    font-style: italic;
-    font-size: 0.78rem;
+    font-family: var(--font-sans);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
     color: var(--color-muted);
-    margin-top: 0.15rem;
+    margin-bottom: 0.5rem;
   }
   .stream-rule {
     border-top: 3px double var(--color-rule-strong);
@@ -939,6 +972,7 @@ for (const cat of CATEGORY_ORDER) {
     }
     .filter-cell-labels:hover .filter-groups,
     .filter-cell-labels:focus-within .filter-groups,
+    .filter-cell-labels.tags-active .filter-groups,
     .filter-cell-impact:hover ~ .filter-cell-labels .filter-groups,
     .filter-cell-impact:focus-within ~ .filter-cell-labels .filter-groups,
     .filter-cell-impact[data-using="true"] ~ .filter-cell-labels .filter-groups {
