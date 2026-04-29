@@ -497,7 +497,14 @@ for (const cat of CATEGORY_ORDER) {
   // Touch drags don't trigger :hover; mark the cell as in-use while the
   // pointer is pressed so the intermediate ticks stay expanded.
   slider.addEventListener('pointerdown', () => { impactCell.dataset.using = 'true'; });
-  const clearUsing = () => { impactCell.dataset.using = 'false'; };
+  const clearUsing = () => {
+    impactCell.dataset.using = 'false';
+    // The slider retains focus after mouse release, which keeps the labels
+    // panel open via .filter-cell-impact:focus-within ~ .filter-cell-labels.
+    // Blur it (mouse-only: pointer events don't fire for keyboard) so the
+    // panel collapses on mouse-leave when no active filter is applied.
+    if (!labelsCell.classList.contains('tags-active')) slider.blur();
+  };
   slider.addEventListener('pointerup', clearUsing);
   slider.addEventListener('pointercancel', clearUsing);
 
