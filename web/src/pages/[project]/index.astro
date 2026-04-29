@@ -337,6 +337,11 @@ for (const cat of CATEGORY_ORDER) {
     // Keep the tag panel open whenever a filter is actively applied.
     const anyDeselected = visibleChips.some(c => c.dataset.selected !== 'true');
     labelsCell.classList.toggle('tags-active', anyDeselected);
+    // When returning to the all-selected state, blur any focused chip so that
+    // :focus-within doesn't keep the panel expanded until the user clicks away.
+    if (!anyDeselected) {
+      (labelsCell.querySelector<HTMLElement>(':focus'))?.blur();
+    }
     return visible;
   }
 
