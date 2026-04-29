@@ -23,7 +23,7 @@ function scoreColor(n: number | null | undefined): string {
 }
 ---
 
-<a href={`/${projectSlug}/landings/${entry.id}`} class:list={["wire", isHigh && "wire-starred", isLow && "wire-dim"]} data-score={d.impact_score ?? -1} data-tags={(d.tags ?? []).join('|')}>
+<a href={`/${projectSlug}/landings/${entry.id}`} class:list={["wire", isHigh && "wire-starred", isLow && "wire-dim"]} data-score={d.impact_score ?? -1} data-tags={(d.tags ?? []).join('|')} data-date={d.date.getTime()}>
   <div class="wire-top">
     <span class="wire-date">{dateStr}</span>
     <span class="wire-sep">&mdash;</span>

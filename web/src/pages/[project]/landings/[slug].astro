@@ -65,15 +65,19 @@ function scoreColor(n: number | null | undefined): string {
 
 // ── Filter bar data (same logic as index.astro, landings-only) ──
 const scoresByTag = new Map<string, number[]>();
+const datesByTag = new Map<string, number[]>();
 for (const e of all) {
   const score = e.data.impact_score ?? 0;
+  const ts = e.data.date.getTime();
   for (const tag of e.data.tags ?? []) {
     if (!scoresByTag.has(tag)) scoresByTag.set(tag, []);
     scoresByTag.get(tag)!.push(score);
+    if (!datesByTag.has(tag)) datesByTag.set(tag, []);
+    datesByTag.get(tag)!.push(ts);
   }
 }
 const rankedTags = [...scoresByTag.entries()]
-  .map(([name, scores]) => ({ name, count: scores.length, scores }))
+  .map(([name, scores]) => ({ name, count: scores.length, scores, dates: datesByTag.get(name) ?? [] }))
   .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 
 type TagCategoryFile = { assignments: Record<string, string> };
@@ -110,7 +114,7 @@ function inlineCode(text: string | null | undefined): string {
     .replace(/`([^`\n]+)`/g, '<code>$1</code>');
 }
 
-type RankedTag = { name: string; count: number; scores: number[] };
+type RankedTag = { name: string; count: number; scores: number[]; dates: number[] };
 const groupedTags: Array<{ category: Category; tags: RankedTag[] }> = [];
 for (const cat of CATEGORY_ORDER) {
   const bucket = rankedTags.filter(t => categoryFor(t.name) === cat);
@@ -154,6 +158,19 @@ for (const cat of CATEGORY_ORDER) {
         </div>
       </div>
 
+      <div class="filter-cell filter-cell-date">
+        <span class="filter-cell-label">Date</span>
+        <div class="filter-cell-control">
+          <div class="date-pills">
+            <button type="button" class="date-pill" data-days="" data-active="true">All time</button>
+            <button type="button" class="date-pill" data-days="1">Today</button>
+            <button type="button" class="date-pill" data-days="3">Last 3 days</button>
+            <button type="button" class="date-pill" data-days="7">Last week</button>
+            <button type="button" class="date-pill" data-days="30">Last month</button>
+          </div>
+        </div>
+      </div>
+
       <div class="filter-cell filter-cell-labels">
         <div class="filter-cell-label-row">
           <span class="filter-cell-label-eyebrow">
@@ -189,6 +206,7 @@ for (const cat of CATEGORY_ORDER) {
                         data-selected="true"
                         aria-pressed="true"
                         data-scores={t.scores.join(',')}
+                        data-dates={t.dates.join(',')}
                       >
                         <span class="chip-name">{t.name}</span>
                         <span class="chip-count">{t.count}</span>
@@ -361,6 +379,13 @@ for (const cat of CATEGORY_ORDER) {
   const labelsCell = document.querySelector<HTMLElement>('.filter-cell-labels')!;
   const visibleCounter = document.getElementById('filter-visible');
 
+  const datePills = Array.from(document.querySelectorAll<HTMLButtonElement>('.date-pill'));
+  let selectedDays: number | null = null;
+  const NOW = Date.now();
+  function dateFloorTs(): number {
+    return selectedDays === null ? -Infinity : NOW - selectedDays * 86400000;
+  }
+
   function thresholdFromSlider(v: number): number { return v / 10; }
 
   const allChips = Array.from(labelsCell.querySelectorAll<HTMLButtonElement>('.chip'));
@@ -369,8 +394,10 @@ for (const cat of CATEGORY_ORDER) {
   const currentWire = document.querySelector<HTMLElement>('[data-current="true"] .wire');
 
   const scoresOf = new Map<HTMLButtonElement, number[]>();
+  const datesOf = new Map<HTMLButtonElement, number[]>();
   for (const chip of allChips) {
     scoresOf.set(chip, (chip.dataset.scores ?? '').split(',').filter(Boolean).map(Number));
+    datesOf.set(chip, (chip.dataset.dates ?? '').split(',').filter(Boolean).map(Number));
   }
 
   // ── URL persistence ──────────────────────────────────────────────
@@ -386,6 +413,10 @@ for (const cat of CATEGORY_ORDER) {
     if (!allSelected) {
       const selected = visibleChips.filter(c => c.dataset.selected === 'true').map(c => c.dataset.tag ?? '');
       if (selected.length) params.set('t', selected.join('|'));
+    }
+    if (selectedDays !== null) {
+      const dMap: Record<number, string> = { 1: 'today', 3: '3d', 7: '7d', 30: '30d' };
+      if (dMap[selectedDays]) params.set('d', dMap[selectedDays]);
     }
     return params.toString();
   }
@@ -410,6 +441,14 @@ for (const cat of CATEGORY_ORDER) {
         chip.setAttribute('aria-pressed', on ? 'true' : 'false');
       }
     }
+    const d = params.get('d');
+    if (d) {
+      const reverseMap: Record<string, number> = { today: 1, '3d': 3, '7d': 7, '30d': 30 };
+      if (reverseMap[d] !== undefined) {
+        selectedDays = reverseMap[d];
+        for (const p of datePills) p.dataset.active = p.dataset.days === String(selectedDays) ? 'true' : 'false';
+      }
+    }
   }
 
   // Intercept sidebar link clicks and carry the current filter state forward.
@@ -429,10 +468,13 @@ for (const cat of CATEGORY_ORDER) {
     el.setAttribute('aria-hidden', filtered ? 'true' : 'false');
   }
 
-  function updateChipsForLevel(min: number): HTMLButtonElement[] {
+  function updateChipsForLevel(min: number, floor: number): HTMLButtonElement[] {
     const visible: HTMLButtonElement[] = [];
     for (const chip of allChips) {
-      const count = (scoresOf.get(chip) ?? []).reduce((n, s) => n + (s >= min ? 1 : 0), 0);
+      const scores = scoresOf.get(chip) ?? [];
+      const dates = datesOf.get(chip) ?? [];
+      const count = scores.reduce((n, s, i) =>
+        n + ((s >= min) && (dates[i] ?? 0) >= floor ? 1 : 0), 0);
       setFiltered(chip, count === 0);
       const badge = chip.querySelector<HTMLElement>('.chip-count');
       if (badge) badge.textContent = String(count);
@@ -458,14 +500,16 @@ for (const cat of CATEGORY_ORDER) {
 
   function apply(value: number): void {
     const min = thresholdFromSlider(value);
-    const visibleChips = updateChipsForLevel(min);
+    const floor = dateFloorTs();
+    const visibleChips = updateChipsForLevel(min, floor);
     const selected = selectedSet(visibleChips);
     let visible = 0;
 
     for (const el of wires) {
       const isCurrent = el === currentWire;
       const score = parseFloat(el.dataset.score ?? '0');
-      const passes = score >= min && passesLabels(el.dataset.tags, selected, visibleChips.length);
+      const ts = parseFloat(el.dataset.date ?? '0');
+      const passes = score >= min && ts >= floor && passesLabels(el.dataset.tags, selected, visibleChips.length);
       if (isCurrent) {
         setFiltered(el, false);
         el.classList.toggle('wire-pinned', !passes);
@@ -514,6 +558,15 @@ for (const cat of CATEGORY_ORDER) {
   document.querySelectorAll<HTMLButtonElement>('.filter-toggle').forEach(btn => {
     btn.addEventListener('click', () => { setVisibleChips(btn.dataset.action === 'mark-all'); apply(parseInt(slider.value)); });
   });
+
+  for (const pill of datePills) {
+    pill.addEventListener('click', () => {
+      const v = pill.dataset.days ?? '';
+      selectedDays = v === '' ? null : parseInt(v);
+      for (const p of datePills) p.dataset.active = p === pill ? 'true' : 'false';
+      apply(parseInt(slider.value));
+    });
+  }
 
   const impactCell = document.querySelector<HTMLElement>('.filter-cell-impact')!;
   const ticks = Array.from(document.querySelectorAll<HTMLElement>('.filter-ticks span'));
@@ -590,7 +643,41 @@ for (const cat of CATEGORY_ORDER) {
     align-items: start;
   }
   @media (min-width: 900px) {
-    .filter-bar-body { grid-template-columns: minmax(220px, 1fr) minmax(0, 3fr); }
+    .filter-bar-body { grid-template-columns: auto minmax(220px, 1fr) minmax(0, 3fr); }
+  }
+  .filter-cell-date {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.6rem 0.9rem;
+    align-items: center;
+  }
+  .filter-cell-date .filter-cell-control { display: flex; align-items: center; }
+  .date-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+  }
+  .date-pill {
+    font-family: var(--font-sans);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    background: transparent;
+    border: 1px solid var(--color-rule);
+    padding: 0.22rem 0.55rem;
+    cursor: pointer;
+    transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+  }
+  .date-pill:hover {
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+  }
+  .date-pill[data-active="true"] {
+    color: var(--color-paper);
+    background: var(--color-accent);
+    border-color: var(--color-accent);
   }
   .filter-cell-label {
     display: inline-block;
@@ -647,7 +734,9 @@ for (const cat of CATEGORY_ORDER) {
     .filter-cell-labels:focus-within,
     .filter-cell-impact:hover ~ .filter-cell-labels,
     .filter-cell-impact:focus-within ~ .filter-cell-labels,
-    .filter-cell-impact[data-using="true"] ~ .filter-cell-labels {
+    .filter-cell-impact[data-using="true"] ~ .filter-cell-labels,
+    .filter-cell-date:hover ~ .filter-cell-labels,
+    .filter-cell-date:focus-within ~ .filter-cell-labels {
       border-color: var(--color-accent);
       border-style: solid;
     }
@@ -685,7 +774,9 @@ for (const cat of CATEGORY_ORDER) {
     .filter-cell-labels:focus-within .filter-cell-chevron,
     .filter-cell-impact:hover ~ .filter-cell-labels .filter-cell-chevron,
     .filter-cell-impact:focus-within ~ .filter-cell-labels .filter-cell-chevron,
-    .filter-cell-impact[data-using="true"] ~ .filter-cell-labels .filter-cell-chevron {
+    .filter-cell-impact[data-using="true"] ~ .filter-cell-labels .filter-cell-chevron,
+    .filter-cell-date:hover ~ .filter-cell-labels .filter-cell-chevron,
+    .filter-cell-date:focus-within ~ .filter-cell-labels .filter-cell-chevron {
       transform: rotate(0deg);
       color: var(--color-accent);
     }
@@ -786,7 +877,9 @@ for (const cat of CATEGORY_ORDER) {
     .filter-cell-labels.tags-active .filter-groups,
     .filter-cell-impact:hover ~ .filter-cell-labels .filter-groups,
     .filter-cell-impact:focus-within ~ .filter-cell-labels .filter-groups,
-    .filter-cell-impact[data-using="true"] ~ .filter-cell-labels .filter-groups {
+    .filter-cell-impact[data-using="true"] ~ .filter-cell-labels .filter-groups,
+    .filter-cell-date:hover ~ .filter-cell-labels .filter-groups,
+    .filter-cell-date:focus-within ~ .filter-cell-labels .filter-groups {
       grid-template-rows: 1fr;
       opacity: 1;
       pointer-events: auto;
