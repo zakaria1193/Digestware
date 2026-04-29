@@ -22,7 +22,7 @@
     "haiku": "other",
     "i18n": "topics",
     "instruction matching": "components",
-    "isort": "topics",
+    "isort": "other",
     "l10n": "topics",
     "ld": "components",
     "ldscripts": "components",
@@ -41,6 +41,6 @@
     "version": "other",
     "versioning": "other"
   },
-  "generated_at": "2026-04-28T03:05:45.879899Z",
+  "generated_at": "2026-04-29T03:08:44.264650Z",
   "model": "google/gemini-2.0-flash-001"
 }
