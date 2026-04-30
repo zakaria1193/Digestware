@@ -730,12 +730,9 @@ for (const cat of CATEGORY_ORDER) {
     transition: border-color 0.32s cubic-bezier(0.4,0,0.2,1), border-style 0s;
   }
   @media (hover: hover) and (pointer: fine) {
-    .filter-cell-labels:hover,
     .filter-cell-labels:focus-within,
-    .filter-cell-impact:hover ~ .filter-cell-labels,
     .filter-cell-impact:focus-within ~ .filter-cell-labels,
     .filter-cell-impact[data-using="true"] ~ .filter-cell-labels,
-    .filter-cell-date:hover ~ .filter-cell-labels,
     .filter-cell-date:focus-within ~ .filter-cell-labels {
       border-color: var(--color-accent);
       border-style: solid;
@@ -770,12 +767,9 @@ for (const cat of CATEGORY_ORDER) {
   }
   @media (hover: hover) and (pointer: fine) {
     .filter-cell-chevron { transform: rotate(-90deg); }
-    .filter-cell-labels:hover .filter-cell-chevron,
     .filter-cell-labels:focus-within .filter-cell-chevron,
-    .filter-cell-impact:hover ~ .filter-cell-labels .filter-cell-chevron,
     .filter-cell-impact:focus-within ~ .filter-cell-labels .filter-cell-chevron,
     .filter-cell-impact[data-using="true"] ~ .filter-cell-labels .filter-cell-chevron,
-    .filter-cell-date:hover ~ .filter-cell-labels .filter-cell-chevron,
     .filter-cell-date:focus-within ~ .filter-cell-labels .filter-cell-chevron {
       transform: rotate(0deg);
       color: var(--color-accent);
@@ -872,13 +866,10 @@ for (const cat of CATEGORY_ORDER) {
   .filter-groups-inner { min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 0.55rem; }
   @media (hover: hover) and (pointer: fine) {
     .filter-groups { grid-template-rows: 0fr; opacity: 0; pointer-events: none; }
-    .filter-cell-labels:hover .filter-groups,
     .filter-cell-labels:focus-within .filter-groups,
     .filter-cell-labels.tags-active .filter-groups,
-    .filter-cell-impact:hover ~ .filter-cell-labels .filter-groups,
     .filter-cell-impact:focus-within ~ .filter-cell-labels .filter-groups,
     .filter-cell-impact[data-using="true"] ~ .filter-cell-labels .filter-groups,
-    .filter-cell-date:hover ~ .filter-cell-labels .filter-groups,
     .filter-cell-date:focus-within ~ .filter-cell-labels .filter-groups {
       grid-template-rows: 1fr;
       opacity: 1;
