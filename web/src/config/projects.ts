@@ -21,21 +21,21 @@ export interface ProjectDef {
 export const PROJECTS: ProjectDef[] = [
   {
     slug: 'gcc',
-    name: 'GCC Digest',
+    name: 'GCC Newspaper',
     short: 'GCC',
     hostname: 'gccdigest.dev',
     tagline: '— A Daily Record of the GNU Compiler Collection —',
     footerBlurb: 'Compiled daily · GCC mailing list & gcc-mirror commits',
-    description: 'Daily digest of GCC mailing-list proposals and landed commits.',
+    description: 'Daily newspaper of GCC mailing-list proposals and landed commits.',
   },
   {
     slug: 'binutils',
-    name: 'binutils Digest',
+    name: 'binutils Newspaper',
     short: 'binutils',
     hostname: 'binutilsdigest.dev',
     tagline: '— A Daily Record of the GNU Binary Utilities —',
     footerBlurb: 'Compiled daily · binutils mailing list & binutils-cvs commits',
-    description: 'Daily digest of binutils mailing-list proposals and landed commits.',
+    description: 'Daily newspaper of binutils mailing-list proposals and landed commits.',
   },
 ];
 

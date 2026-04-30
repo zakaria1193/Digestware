@@ -31,16 +31,14 @@ const longDate = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric'
     <div class="paper">
       <header class="masthead">
         <div class="masthead-rule-top"></div>
-        <div class="masthead-meta">
-          <span>{longDate}</span>
-        </div>
         <a href={`/${project.slug}/`} class="wordmark-link">
           <div class="wordmark">
-            <span class="the">The</span>
             <span class="pulse">{project.name}</span>
           </div>
         </a>
-        <div class="tagline">{project.tagline}</div>
+        <div class="masthead-meta">
+          <span>{longDate}</span>
+        </div>
         <div class="masthead-rule-bottom"></div>
       </header>
 
@@ -88,19 +86,19 @@ const longDate = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric'
 
       .masthead {
         text-align: center;
-        padding: 1.1rem 0 0.75rem;
+        padding: 0.6rem 0 0.4rem;
       }
       .masthead-rule-top {
         border-top: 1px solid var(--color-rule-strong);
         border-bottom: 3px double var(--color-rule-strong);
         height: 6px;
-        margin-bottom: 0.65rem;
+        margin-bottom: 0.4rem;
       }
       .masthead-rule-bottom {
         border-top: 3px double var(--color-rule-strong);
         border-bottom: 1px solid var(--color-rule-strong);
         height: 6px;
-        margin-top: 0.65rem;
+        margin-top: 0.4rem;
       }
       .masthead-meta {
         font-family: var(--font-sans);
@@ -108,7 +106,7 @@ const longDate = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric'
         letter-spacing: 0.18em;
         text-transform: uppercase;
         color: var(--color-muted);
-        margin-bottom: 0.4rem;
+        margin-top: 0.2rem;
       }
       .masthead-meta .divider { margin: 0 0.5rem; color: var(--color-rule); }
 
@@ -117,28 +115,12 @@ const longDate = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric'
         font-family: var(--font-serif-display);
         font-weight: 900;
         color: var(--color-ink);
-        line-height: 0.92;
+        line-height: 0.95;
         letter-spacing: -0.02em;
-      }
-      .wordmark .the {
-        display: block;
-        font-style: italic;
-        font-weight: 400;
-        font-size: clamp(1.25rem, 2.5vw, 1.8rem);
-        letter-spacing: 0.02em;
-        margin-bottom: 0.1rem;
       }
       .wordmark .pulse {
         display: block;
-        font-size: clamp(2.25rem, 7vw, 4.75rem);
-      }
-      .tagline {
-        margin-top: 0.35rem;
-        font-family: var(--font-serif);
-        font-style: italic;
-        font-size: 0.85rem;
-        color: var(--color-muted);
-        letter-spacing: 0.02em;
+        font-size: clamp(1.75rem, 4.5vw, 3rem);
       }
 
       /* -------- Project tabs -------- */
