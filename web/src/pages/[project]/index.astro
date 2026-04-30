@@ -141,15 +141,20 @@ for (const cat of CATEGORY_ORDER) {
         </div>
       </div>
 
-      <div class="filter-cell filter-cell-labels">
+      <div class="filter-cell filter-cell-labels" data-expanded="false">
         <div class="filter-cell-label-row">
-          <span class="filter-cell-label-eyebrow">
+          <button
+            type="button"
+            class="filter-cell-label-eyebrow"
+            aria-expanded="false"
+            aria-controls="filter-groups"
+          >
             <span class="filter-cell-label">Labels</span>
             <span class="filter-cell-chevron" aria-hidden="true">&#9662;</span>
             <span class="filter-cell-meta">
               <span id="filter-visible">{totalItems}</span> of {totalItems}
             </span>
-          </span>
+          </button>
           {rankedTags.length > 0 && (
             <div class="filter-toggles">
               <button type="button" class="filter-toggle" data-action="mark-all">Mark&nbsp;All</button>
@@ -334,9 +339,6 @@ for (const cat of CATEGORY_ORDER) {
       setFiltered(block, !anyVisible);
     }
     if (visibleCounter) visibleCounter.textContent = String(visible);
-    // Keep the tag panel open whenever a filter is actively applied.
-    const anyDeselected = visibleChips.some(c => c.dataset.selected !== 'true');
-    labelsCell.classList.toggle('tags-active', anyDeselected);
     return visible;
   }
 
@@ -495,6 +497,32 @@ for (const cat of CATEGORY_ORDER) {
   const clearUsing = () => { impactCell.dataset.using = 'false'; };
   slider.addEventListener('pointerup', clearUsing);
   slider.addEventListener('pointercancel', clearUsing);
+
+  // Labels panel: manual expand/collapse only. Hover for ≥ 2s also expands
+  // (one-shot — after the auto-expand fires, it stays expanded until the
+  // user collapses it manually). Mouse-leave never collapses.
+  const eyebrow = labelsCell.querySelector<HTMLButtonElement>('.filter-cell-label-eyebrow');
+  function setLabelsExpanded(expanded: boolean): void {
+    labelsCell.dataset.expanded = expanded ? 'true' : 'false';
+    eyebrow?.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  }
+  eyebrow?.addEventListener('click', () => {
+    setLabelsExpanded(labelsCell.dataset.expanded !== 'true');
+  });
+  let hoverTimer: ReturnType<typeof setTimeout> | null = null;
+  labelsCell.addEventListener('mouseenter', () => {
+    if (labelsCell.dataset.expanded === 'true') return;
+    hoverTimer = setTimeout(() => {
+      hoverTimer = null;
+      setLabelsExpanded(true);
+    }, 2000);
+  });
+  labelsCell.addEventListener('mouseleave', () => {
+    if (hoverTimer !== null) {
+      clearTimeout(hoverTimer);
+      hoverTimer = null;
+    }
+  });
 
   // Suppress the first paint's collapse animation: items below the default
   // threshold would otherwise flash in fully expanded and then animate down.
@@ -708,7 +736,7 @@ for (const cat of CATEGORY_ORDER) {
     gap: 0.45rem;
     min-width: 0;
     /* Faint dashed frame so the cell reads as a discrete, expandable region
-       rather than free-floating text. Brightens to solid on hover/focus. */
+       rather than free-floating text. Brightens to solid when expanded. */
     padding: 0.45rem 0.6rem 0.55rem;
     border: 1px dashed var(--color-rule);
     transition:
@@ -716,11 +744,7 @@ for (const cat of CATEGORY_ORDER) {
       border-style 0s;
   }
   @media (hover: hover) and (pointer: fine) {
-    .filter-cell-labels:hover,
-    .filter-cell-labels:focus-within,
-    .filter-cell-impact:hover ~ .filter-cell-labels,
-    .filter-cell-impact:focus-within ~ .filter-cell-labels,
-    .filter-cell-impact[data-using="true"] ~ .filter-cell-labels {
+    .filter-cell-labels[data-expanded="true"] {
       border-color: var(--color-accent);
       border-style: solid;
     }
@@ -736,6 +760,14 @@ for (const cat of CATEGORY_ORDER) {
     align-items: baseline;
     gap: 0.4rem;
     min-width: 0;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
   }
   .filter-cell-chevron {
     display: inline-block;
@@ -756,16 +788,12 @@ for (const cat of CATEGORY_ORDER) {
   }
   /* Coarse-pointer / no-hover devices keep the chips always visible; the
      chevron points down to match. On fine pointers the chevron sits sideways
-     when the cell is collapsed and rotates open on hover/focus. */
+     when collapsed and rotates open when the user expands the panel. */
   @media (hover: hover) and (pointer: fine) {
     .filter-cell-chevron {
       transform: rotate(-90deg);
     }
-    .filter-cell-labels:hover .filter-cell-chevron,
-    .filter-cell-labels:focus-within .filter-cell-chevron,
-    .filter-cell-impact:hover ~ .filter-cell-labels .filter-cell-chevron,
-    .filter-cell-impact:focus-within ~ .filter-cell-labels .filter-cell-chevron,
-    .filter-cell-impact[data-using="true"] ~ .filter-cell-labels .filter-cell-chevron {
+    .filter-cell-labels[data-expanded="true"] .filter-cell-chevron {
       transform: rotate(0deg);
       color: var(--color-accent);
     }
@@ -971,12 +999,7 @@ for (const cat of CATEGORY_ORDER) {
       opacity: 0;
       pointer-events: none;
     }
-    .filter-cell-labels:hover .filter-groups,
-    .filter-cell-labels:focus-within .filter-groups,
-    .filter-cell-labels.tags-active .filter-groups,
-    .filter-cell-impact:hover ~ .filter-cell-labels .filter-groups,
-    .filter-cell-impact:focus-within ~ .filter-cell-labels .filter-groups,
-    .filter-cell-impact[data-using="true"] ~ .filter-cell-labels .filter-groups {
+    .filter-cell-labels[data-expanded="true"] .filter-groups {
       grid-template-rows: 1fr;
       opacity: 1;
       pointer-events: auto;
