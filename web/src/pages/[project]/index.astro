@@ -544,9 +544,7 @@ for (const cat of CATEGORY_ORDER) {
   slider.addEventListener('pointerup', clearUsing);
   slider.addEventListener('pointercancel', clearUsing);
 
-  // Labels panel: manual expand/collapse only. Hover for ≥ 2s also expands
-  // (one-shot — after the auto-expand fires, it stays expanded until the
-  // user collapses it manually). Mouse-leave never collapses.
+  // Labels panel: manual expand/collapse only — never on hover.
   const eyebrow = labelsCell.querySelector<HTMLButtonElement>('.filter-cell-label-eyebrow');
   function setLabelsExpanded(expanded: boolean): void {
     labelsCell.dataset.expanded = expanded ? 'true' : 'false';
@@ -554,20 +552,6 @@ for (const cat of CATEGORY_ORDER) {
   }
   eyebrow?.addEventListener('click', () => {
     setLabelsExpanded(labelsCell.dataset.expanded !== 'true');
-  });
-  let hoverTimer: ReturnType<typeof setTimeout> | null = null;
-  labelsCell.addEventListener('mouseenter', () => {
-    if (labelsCell.dataset.expanded === 'true') return;
-    hoverTimer = setTimeout(() => {
-      hoverTimer = null;
-      setLabelsExpanded(true);
-    }, 2000);
-  });
-  labelsCell.addEventListener('mouseleave', () => {
-    if (hoverTimer !== null) {
-      clearTimeout(hoverTimer);
-      hoverTimer = null;
-    }
   });
 
   // Suppress the first paint's collapse animation: items below the default
