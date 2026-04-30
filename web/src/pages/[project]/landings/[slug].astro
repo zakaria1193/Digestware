@@ -97,6 +97,19 @@ function categoryFor(tag: string): Category {
   const raw = tagAssignments[tag];
   return (CATEGORY_ORDER as readonly string[]).includes(raw) ? (raw as Category) : 'other';
 }
+
+function inlineCode(text: string | null | undefined): string {
+  if (!text) return '';
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  return escaped
+    .replace(/``([^`\n]+)``/g, '<code>$1</code>')
+    .replace(/`([^`\n]+)`/g, '<code>$1</code>');
+}
+
 type RankedTag = { name: string; count: number; scores: number[] };
 const groupedTags: Array<{ category: Category; tags: RankedTag[] }> = [];
 for (const cat of CATEGORY_ORDER) {
@@ -276,14 +289,14 @@ for (const cat of CATEGORY_ORDER) {
     {d.primer_expert && (
       <section class="extra">
         <h2>In Details</h2>
-        <p>{d.primer_expert}</p>
+        <p set:html={inlineCode(d.primer_expert)} />
       </section>
     )}
 
     {d.primer_general && (
       <section class="extra">
         <h2>For Context</h2>
-        <p>{d.primer_general}</p>
+        <p set:html={inlineCode(d.primer_general)} />
       </section>
     )}
 
@@ -319,7 +332,7 @@ for (const cat of CATEGORY_ORDER) {
           {d.primer_glossary!.map((item: any) => (
             <>
               <dt class="glossary-term">{item.term}</dt>
-              <dd class="glossary-def">{item.definition}</dd>
+              <dd class="glossary-def" set:html={inlineCode(item.definition)} />
             </>
           ))}
         </dl>

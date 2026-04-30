@@ -51,6 +51,18 @@ function scoreColor(n: number | null | undefined): string {
   if (n <= 8)  return '#7a1a2e';
   return '#b80018';
 }
+
+function inlineCode(text: string | null | undefined): string {
+  if (!text) return '';
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  return escaped
+    .replace(/``([^`\n]+)``/g, '<code>$1</code>')
+    .replace(/`([^`\n]+)`/g, '<code>$1</code>');
+}
 ---
 
 <PublicLayout project={project} title={d.headline} description={d.tldr}>
@@ -139,14 +151,14 @@ function scoreColor(n: number | null | undefined): string {
     {d.primer_expert && (
       <section class="extra">
         <h2>In Details</h2>
-        <p>{d.primer_expert}</p>
+        <p set:html={inlineCode(d.primer_expert)} />
       </section>
     )}
 
     {d.primer_general && (
       <section class="extra">
         <h2>For Context</h2>
-        <p>{d.primer_general}</p>
+        <p set:html={inlineCode(d.primer_general)} />
       </section>
     )}
 
@@ -182,7 +194,7 @@ function scoreColor(n: number | null | undefined): string {
           {d.primer_glossary!.map((item: any) => (
             <>
               <dt class="glossary-term">{item.term}</dt>
-              <dd class="glossary-def">{item.definition}</dd>
+              <dd class="glossary-def" set:html={inlineCode(item.definition)} />
             </>
           ))}
         </dl>
