@@ -70,15 +70,19 @@ const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {
 // live count as the impact slider moves — chips with zero items at the current
 // threshold get hidden, and categories that empty out collapse with them.
 const scoresByTag = new Map<string, number[]>();
+const datesByTag = new Map<string, number[]>();
 for (const entry of [...allDiscussions, ...landings]) {
   const score = entry.data.impact_score ?? entry.data.sentiment_score ?? -1;
+  const ts = entry.data.date.getTime();
   for (const tag of entry.data.tags ?? []) {
     if (!scoresByTag.has(tag)) scoresByTag.set(tag, []);
     scoresByTag.get(tag)!.push(score);
+    if (!datesByTag.has(tag)) datesByTag.set(tag, []);
+    datesByTag.get(tag)!.push(ts);
   }
 }
 const rankedTags = [...scoresByTag.entries()]
-  .map(([name, scores]) => ({ name, count: scores.length, scores }))
+  .map(([name, scores]) => ({ name, count: scores.length, scores, dates: datesByTag.get(name) ?? [] }))
   .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 const totalItems = allDiscussions.length + landings.length;
 
@@ -109,7 +113,7 @@ function categoryFor(tag: string): Category {
   return (CATEGORY_ORDER as readonly string[]).includes(raw) ? (raw as Category) : 'other';
 }
 
-type RankedTag = { name: string; count: number; scores: number[] };
+type RankedTag = { name: string; count: number; scores: number[]; dates: number[] };
 const groupedTags: Array<{ category: Category; tags: RankedTag[] }> = [];
 for (const cat of CATEGORY_ORDER) {
   const bucket = rankedTags.filter(t => categoryFor(t.name) === cat);
@@ -137,6 +141,19 @@ for (const cat of CATEGORY_ORDER) {
             <span data-stop="3">Mid</span>
             <span data-stop="4">High</span>
             <span data-stop="5">Highest</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="filter-cell filter-cell-date">
+        <span class="filter-cell-label">Date</span>
+        <div class="filter-cell-control">
+          <div class="date-pills">
+            <button type="button" class="date-pill" data-days="" data-active="true">All time</button>
+            <button type="button" class="date-pill" data-days="1">Today</button>
+            <button type="button" class="date-pill" data-days="3">Last 3 days</button>
+            <button type="button" class="date-pill" data-days="7">Last week</button>
+            <button type="button" class="date-pill" data-days="30">Last month</button>
           </div>
         </div>
       </div>
@@ -182,6 +199,7 @@ for (const cat of CATEGORY_ORDER) {
                         data-selected="true"
                         aria-pressed="true"
                         data-scores={t.scores.join(',')}
+                        data-dates={t.dates.join(',')}
                       >
                         <span class="chip-name">{t.name}</span>
                         <span class="chip-count">{t.count}</span>
@@ -256,6 +274,13 @@ for (const cat of CATEGORY_ORDER) {
   const labelsCell = document.querySelector<HTMLElement>('.filter-cell-labels')!;
   const visibleCounter = document.getElementById('filter-visible');
 
+  const datePills = Array.from(document.querySelectorAll<HTMLButtonElement>('.date-pill'));
+  let selectedDays: number | null = null;
+  const NOW = Date.now();
+  function dateFloorTs(): number {
+    return selectedDays === null ? -Infinity : NOW - selectedDays * 86400000;
+  }
+
   // Slider values are integers in [10, 100]; the live threshold is value/10
   // so the impact floor moves continuously between 1.0 and 10.0.
   function thresholdFromSlider(value: number): number {
@@ -270,12 +295,17 @@ for (const cat of CATEGORY_ORDER) {
     document.querySelectorAll<HTMLElement>('[data-subsystem-block]')
   );
 
-  // Pre-parse `data-scores` once; chips never change identity, only visibility.
+  // Pre-parse `data-scores` and `data-dates` once; chips never change identity, only visibility.
   const scoresOf = new Map<HTMLButtonElement, number[]>();
+  const datesOf = new Map<HTMLButtonElement, number[]>();
   for (const chip of allChips) {
     scoresOf.set(
       chip,
       (chip.dataset.scores ?? '').split(',').filter(Boolean).map(s => parseInt(s)),
+    );
+    datesOf.set(
+      chip,
+      (chip.dataset.dates ?? '').split(',').filter(Boolean).map(Number),
     );
   }
 
@@ -284,10 +314,13 @@ for (const cat of CATEGORY_ORDER) {
     el.setAttribute('aria-hidden', filtered ? 'true' : 'false');
   }
 
-  function updateChipsForLevel(min: number): HTMLButtonElement[] {
+  function updateChipsForLevel(min: number, floor: number): HTMLButtonElement[] {
     const visible: HTMLButtonElement[] = [];
     for (const chip of allChips) {
-      const count = (scoresOf.get(chip) ?? []).reduce((n, s) => n + (s < 0 || s >= min ? 1 : 0), 0);
+      const scores = scoresOf.get(chip) ?? [];
+      const dates = datesOf.get(chip) ?? [];
+      const count = scores.reduce((n, s, i) =>
+        n + ((s < 0 || s >= min) && (dates[i] ?? 0) >= floor ? 1 : 0), 0);
       setFiltered(chip, count === 0);
       const badge = chip.querySelector<HTMLElement>('.chip-count');
       if (badge) badge.textContent = String(count);
@@ -324,13 +357,15 @@ for (const cat of CATEGORY_ORDER) {
 
   function apply(value: number): number {
     const min = thresholdFromSlider(value);
-    const visibleChips = updateChipsForLevel(min);
+    const floor = dateFloorTs();
+    const visibleChips = updateChipsForLevel(min, floor);
     const selected = selectedSet(visibleChips);
     let visible = 0;
 
     for (const el of [...wires, ...stories]) {
       const score = parseFloat(el.dataset.score ?? '-1');
-      const show = (score < 0 || score >= min) && passesLabels(el.dataset.tags, selected, visibleChips.length);
+      const ts = parseFloat(el.dataset.date ?? '0');
+      const show = (score < 0 || score >= min) && ts >= floor && passesLabels(el.dataset.tags, selected, visibleChips.length);
       setFiltered(el, !show);
       if (show) visible++;
     }
@@ -467,6 +502,17 @@ for (const cat of CATEGORY_ORDER) {
     });
   });
 
+  for (const pill of datePills) {
+    pill.addEventListener('click', () => {
+      const v = pill.dataset.days ?? '';
+      selectedDays = v === '' ? null : parseInt(v);
+      for (const p of datePills) p.dataset.active = p === pill ? 'true' : 'false';
+      userAdjusted = false;
+      apply(parseInt(slider.value));
+      autoAdjust();
+    });
+  }
+
   const impactCell = document.querySelector<HTMLElement>('.filter-cell-impact')!;
   const ticks = Array.from(document.querySelectorAll<HTMLElement>('.filter-ticks span'));
   // Slider is 10–100; map to 5 equal zones (each 18 wide) → stop label 1–5.
@@ -555,6 +601,10 @@ for (const cat of CATEGORY_ORDER) {
         .filter(c => c.dataset.selected === 'true')
         .map(c => c.dataset.tag ?? '');
       if (selected.length) params.set('t', selected.join('|'));
+    }
+    if (selectedDays !== null) {
+      const dMap: Record<number, string> = { 1: 'today', 3: '3d', 7: '7d', 30: '30d' };
+      if (dMap[selectedDays]) params.set('d', dMap[selectedDays]);
     }
     return params.toString();
   }
@@ -1044,8 +1094,43 @@ for (const cat of CATEGORY_ORDER) {
 
   @media (min-width: 900px) {
     .filter-bar-body {
-      grid-template-columns: minmax(220px, 1fr) minmax(0, 3fr);
+      grid-template-columns: auto minmax(220px, 1fr) minmax(0, 3fr);
     }
+  }
+
+  .filter-cell-date {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.6rem 0.9rem;
+    align-items: center;
+  }
+  .filter-cell-date .filter-cell-control { display: flex; align-items: center; }
+  .date-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+  }
+  .date-pill {
+    font-family: var(--font-sans);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    background: transparent;
+    border: 1px solid var(--color-rule);
+    padding: 0.22rem 0.55rem;
+    cursor: pointer;
+    transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+  }
+  .date-pill:hover {
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+  }
+  .date-pill[data-active="true"] {
+    color: var(--color-paper);
+    background: var(--color-accent);
+    border-color: var(--color-accent);
   }
 
   @media (min-width: 900px) {

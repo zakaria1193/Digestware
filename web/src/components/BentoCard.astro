@@ -51,7 +51,7 @@ function scoreColor(n: number | null | undefined): string {
 const dateStr = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 ---
 
-<article class:list={["story", isHigh && "story-featured", isLow && "story-dim"]} data-score={score} data-tags={(d.tags ?? []).join('|')}>
+<article class:list={["story", isHigh && "story-featured", isLow && "story-dim"]} data-score={score} data-tags={(d.tags ?? []).join('|')} data-date={d.date.getTime()}>
   <header class="story-head">
     <span class="story-kicker">{d.subsystem}</span>
     <div class="story-head-right">
