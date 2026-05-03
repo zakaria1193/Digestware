@@ -2,10 +2,9 @@
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { getCollection } from 'astro:content';
 
-const [discussions, landings, digests] = await Promise.all([
+const [discussions, landings] = await Promise.all([
   getCollection('discussions'),
   getCollection('landings'),
-  getCollection('digests'),
 ]);
 
 const projects = [...new Set([
@@ -115,9 +114,4 @@ const breakingChanges = landings.filter(e => e.data.breaking_change).length;
     </div>
   </div>
 
-  {digests.length === 0 && (
-    <div class="admin-card border-dashed" style="border-style: dashed; opacity: 0.6; text-align: center;">
-      <p class="text-sm">No digests yet — run the agent to generate the first bento.</p>
-    </div>
-  )}
 </AdminLayout>
