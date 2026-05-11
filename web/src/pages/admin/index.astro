@@ -1,6 +1,7 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { getCollection } from 'astro:content';
+import { SHOW_IMPACT_SCORE } from '../../config/features';
 
 const [discussions, landings] = await Promise.all([
   getCollection('discussions'),
@@ -52,10 +53,12 @@ const breakingChanges = landings.filter(e => e.data.breaking_change).length;
       <p class="text-xs uppercase tracking-wide mb-1">Discussions</p>
       <p class="text-3xl font-bold tabular-nums value">{discussions.length}</p>
     </div>
-    <div class="admin-card">
-      <p class="text-xs uppercase tracking-wide mb-1">High Impact ≥8</p>
-      <p class="text-3xl font-bold tabular-nums value" style="color: var(--color-accent);">{highImpactLandings}</p>
-    </div>
+    {SHOW_IMPACT_SCORE && (
+      <div class="admin-card">
+        <p class="text-xs uppercase tracking-wide mb-1">High Impact ≥8</p>
+        <p class="text-3xl font-bold tabular-nums value" style="color: var(--color-accent);">{highImpactLandings}</p>
+      </div>
+    )}
     <div class="admin-card">
       <p class="text-xs uppercase tracking-wide mb-1">Breaking Changes</p>
       <p class="text-3xl font-bold tabular-nums value" style="color: var(--color-market-red);">{breakingChanges}</p>
@@ -89,7 +92,7 @@ const breakingChanges = landings.filter(e => e.data.breaking_change).length;
           <li>
             <a href={`/admin/landings/${e.id}`} class="block admin-link rounded px-2 py-1 -mx-2 transition-colors">
               <p class="text-sm value truncate">{e.data.commit_hash?.slice(0, 8) ?? '—'} <span style="color: var(--color-muted);">{e.data.project}</span></p>
-              <p class="text-xs" style="color: var(--color-muted);">{e.data.date.toISOString().slice(0, 10)} · impact {e.data.impact_score ?? '?'}</p>
+              <p class="text-xs" style="color: var(--color-muted);">{e.data.date.toISOString().slice(0, 10)}{SHOW_IMPACT_SCORE && <> · impact {e.data.impact_score ?? '?'}</>}</p>
             </a>
           </li>
         ))}

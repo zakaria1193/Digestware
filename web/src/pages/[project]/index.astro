@@ -4,6 +4,7 @@ import BentoCard from '../../components/BentoCard.astro';
 import CommitRow from '../../components/CommitRow.astro';
 import { getCollection } from 'astro:content';
 import { PROJECTS, getProject } from '../../config/projects';
+import { SHOW_IMPACT_SCORE } from '../../config/features';
 
 export async function getStaticPaths() {
   return PROJECTS.map(p => ({ params: { project: p.slug }, props: { projectSlug: p.slug } }));
@@ -130,11 +131,11 @@ for (const cat of CATEGORY_ORDER) {
       <span class="wsj-section-rule"></span>
     </div>
 
-    <div class="filter-bar-body">
-      <div class="filter-cell filter-cell-impact">
+    <div class="filter-bar-body" data-impact-hidden={SHOW_IMPACT_SCORE ? undefined : 'true'}>
+      <div class="filter-cell filter-cell-impact" style={SHOW_IMPACT_SCORE ? undefined : 'display:none'} aria-hidden={SHOW_IMPACT_SCORE ? undefined : 'true'}>
         <span class="filter-cell-label">Impact</span>
         <div class="filter-cell-control">
-          <input type="range" id="impact-filter" min="10" max="100" step="1" value="30" aria-label="Minimum impact level" />
+          <input type="range" id="impact-filter" min="10" max="100" step="1" value={SHOW_IMPACT_SCORE ? "30" : "10"} aria-label="Minimum impact level" />
           <div class="filter-ticks">
             <span data-stop="1">Lowest</span>
             <span data-stop="2">Low</span>
@@ -1079,6 +1080,9 @@ for (const cat of CATEGORY_ORDER) {
   @media (min-width: 900px) {
     .filter-bar-body {
       grid-template-columns: auto minmax(220px, 1fr) minmax(0, 3fr);
+    }
+    .filter-bar-body[data-impact-hidden="true"] {
+      grid-template-columns: auto minmax(0, 1fr);
     }
   }
 

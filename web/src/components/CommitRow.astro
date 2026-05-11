@@ -1,5 +1,6 @@
 ---
 import type { CollectionEntry } from 'astro:content';
+import { SHOW_IMPACT_SCORE } from '../config/features';
 
 interface Props {
   entry: CollectionEntry<'landings'>;
@@ -10,8 +11,9 @@ const { entry, projectSlug } = Astro.props;
 const d = entry.data;
 
 const dateStr = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
-const isHigh = (d.impact_score ?? 0) >= 8;
-const isLow = d.impact_score != null && d.impact_score <= 2;
+const impactScore = SHOW_IMPACT_SCORE ? d.impact_score : null;
+const isHigh = (impactScore ?? 0) >= 8;
+const isLow = impactScore != null && impactScore <= 2;
 
 function scoreColor(n: number | null | undefined): string {
   if (n == null) return '#888';
@@ -23,13 +25,13 @@ function scoreColor(n: number | null | undefined): string {
 }
 ---
 
-<a href={`/${projectSlug}/landings/${entry.id}`} class:list={["wire", isHigh && "wire-starred", isLow && "wire-dim"]} data-score={d.impact_score ?? -1} data-tags={(d.tags ?? []).join('|')} data-date={d.date.getTime()}>
+<a href={`/${projectSlug}/landings/${entry.id}`} class:list={["wire", isHigh && "wire-starred", isLow && "wire-dim"]} data-score={impactScore ?? -1} data-tags={(d.tags ?? []).join('|')} data-date={d.date.getTime()}>
   <div class="wire-top">
     <span class="wire-date">{dateStr}</span>
     <span class="wire-sep">&mdash;</span>
     <span class="wire-sub">{d.subsystem}</span>
-    {d.impact_score != null && (
-      <span class="wire-score" style={`color: ${scoreColor(d.impact_score)}`}>{d.impact_score}&thinsp;/&thinsp;10</span>
+    {impactScore != null && (
+      <span class="wire-score" style={`color: ${scoreColor(impactScore)}`}>{impactScore}&thinsp;/&thinsp;10</span>
     )}
     {isHigh && <span class="wire-star" aria-label="High impact">&#9733;</span>}
   </div>

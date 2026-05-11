@@ -1,5 +1,6 @@
 ---
 import type { CollectionEntry } from 'astro:content';
+import { SHOW_IMPACT_SCORE } from '../config/features';
 
 interface Props {
   entry: CollectionEntry<'discussions'>;
@@ -10,7 +11,8 @@ interface Props {
 const { entry, projectSlug, clusterCount = 1 } = Astro.props;
 const d = entry.data;
 
-const score = d.impact_score ?? d.sentiment_score ?? -1;
+const impactScore = SHOW_IMPACT_SCORE ? d.impact_score : null;
+const score = impactScore ?? d.sentiment_score ?? -1;
 const isHigh = score >= 7;
 const isLow = score > 0 && score <= 3;
 
@@ -55,8 +57,8 @@ const dateStr = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numer
   <header class="story-head">
     <span class="story-kicker">{d.subsystem}</span>
     <div class="story-head-right">
-      {d.impact_score != null && (
-        <span class="story-score" style={`color: ${scoreColor(d.impact_score)}`}>{d.impact_score}&thinsp;/&thinsp;10</span>
+      {impactScore != null && (
+        <span class="story-score" style={`color: ${scoreColor(impactScore)}`}>{impactScore}&thinsp;/&thinsp;10</span>
       )}
       {d.sentiment_score != null && (
         <span class="story-score" style={`color: ${scoreColor(d.sentiment_score)}`}>{d.sentiment_score}&thinsp;/&thinsp;10</span>

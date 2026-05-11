@@ -3,6 +3,7 @@ import PublicLayout from '../../../layouts/PublicLayout.astro';
 import CommitRow from '../../../components/CommitRow.astro';
 import { getCollection } from 'astro:content';
 import { PROJECTS, getProject } from '../../../config/projects';
+import { SHOW_IMPACT_SCORE } from '../../../config/features';
 
 export async function getStaticPaths() {
   const paths = [];
@@ -143,8 +144,8 @@ for (const cat of CATEGORY_ORDER) {
       <span class="wsj-section-label">Filters</span>
       <span class="wsj-section-rule"></span>
     </div>
-    <div class="filter-bar-body">
-      <div class="filter-cell filter-cell-impact">
+    <div class="filter-bar-body" data-impact-hidden={SHOW_IMPACT_SCORE ? undefined : 'true'}>
+      <div class="filter-cell filter-cell-impact" style={SHOW_IMPACT_SCORE ? undefined : 'display:none'} aria-hidden={SHOW_IMPACT_SCORE ? undefined : 'true'}>
         <span class="filter-cell-label">Impact</span>
         <div class="filter-cell-control">
           <input type="range" id="impact-filter" min="10" max="100" step="1" value="10" aria-label="Minimum impact level" />
@@ -256,7 +257,7 @@ for (const cat of CATEGORY_ORDER) {
     <header class="article-head">
       <div class="kicker-row">
         <span class="wsj-kicker">{d.subsystem}</span>
-        {d.impact_score != null && (
+        {SHOW_IMPACT_SCORE && d.impact_score != null && (
           <>
             <span class="kicker-sep">&mdash;</span>
             <span class="impact-pill" style={`color: ${scoreColor(d.impact_score)}; border-bottom-color: ${scoreColor(d.impact_score)}`}>Impact {d.impact_score}&thinsp;/&thinsp;10</span>
@@ -644,6 +645,7 @@ for (const cat of CATEGORY_ORDER) {
   }
   @media (min-width: 900px) {
     .filter-bar-body { grid-template-columns: auto minmax(220px, 1fr) minmax(0, 3fr); }
+    .filter-bar-body[data-impact-hidden="true"] { grid-template-columns: auto minmax(0, 1fr); }
   }
   .filter-cell-date {
     display: grid;

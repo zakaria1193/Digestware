@@ -1,6 +1,7 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import { getCollection } from 'astro:content';
+import { SHOW_IMPACT_SCORE } from '../../../config/features';
 
 const landings = (await getCollection('landings'))
   .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
@@ -53,7 +54,9 @@ const landings = (await getCollection('landings'))
           <th class="px-4 py-3 text-left font-medium text-xs uppercase tracking-wide">Subsystem</th>
           <th class="px-4 py-3 text-left font-medium text-xs uppercase tracking-wide">Commit</th>
           <th class="px-4 py-3 text-left font-medium text-xs uppercase tracking-wide">Author</th>
-          <th class="px-4 py-3 text-center font-medium text-xs uppercase tracking-wide">Impact</th>
+          {SHOW_IMPACT_SCORE && (
+            <th class="px-4 py-3 text-center font-medium text-xs uppercase tracking-wide">Impact</th>
+          )}
           <th class="px-4 py-3 text-center font-medium text-xs uppercase tracking-wide">Perf</th>
           <th class="px-4 py-3 text-center font-medium text-xs uppercase tracking-wide">Breaking</th>
         </tr>
@@ -82,12 +85,14 @@ const landings = (await getCollection('landings'))
             <td class="px-4 py-2.5 text-xs max-w-[10rem] truncate" style="color: var(--color-muted);">
               {e.data.author ?? '—'}
             </td>
-            <td class="px-4 py-2.5 text-center">
-              <span class={`text-xs font-bold tabular-nums`}
-                style={`color: ${(e.data.impact_score ?? 0) >= 8 ? 'var(--color-accent)' : 'var(--color-muted)'}`}>
-                {e.data.impact_score ?? '—'}
-              </span>
-            </td>
+            {SHOW_IMPACT_SCORE && (
+              <td class="px-4 py-2.5 text-center">
+                <span class={`text-xs font-bold tabular-nums`}
+                  style={`color: ${(e.data.impact_score ?? 0) >= 8 ? 'var(--color-accent)' : 'var(--color-muted)'}`}>
+                  {e.data.impact_score ?? '—'}
+                </span>
+              </td>
+            )}
             <td class="px-4 py-2.5 text-center">
               {e.data.performance_win ? (
                 <span class="text-xs" style="color: #2ecc71;">yes</span>
