@@ -2,6 +2,7 @@
 import PublicLayout from '../../../layouts/PublicLayout.astro';
 import { getCollection } from 'astro:content';
 import { PROJECTS, getProject } from '../../../config/projects';
+import { SHOW_IMPACT_SCORE } from '../../../config/features';
 
 export async function getStaticPaths() {
   const paths = [];
@@ -80,7 +81,7 @@ function inlineCode(text: string | null | undefined): string {
         <span class="wsj-kicker">{d.subsystem}</span>
         <span class="kicker-sep">&mdash;</span>
         <span class="outcome-pill">{outcomeLabel}</span>
-        {d.impact_score != null && (
+        {SHOW_IMPACT_SCORE && d.impact_score != null && (
           <>
             <span class="kicker-sep">&mdash;</span>
             <span class="score-pill" style={`color: ${scoreColor(d.impact_score)}; border-bottom-color: ${scoreColor(d.impact_score)}`}>

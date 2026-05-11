@@ -1,6 +1,7 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import { getCollection } from 'astro:content';
+import { SHOW_IMPACT_SCORE } from '../../../config/features';
 
 export async function getStaticPaths() {
   const landings = await getCollection('landings');
@@ -23,7 +24,7 @@ const attributes: Array<[string, unknown]> = [
   ['headline', d.headline],
   ['tldr', d.tldr],
   ['author', d.author],
-  ['impact_score', d.impact_score],
+  ...(SHOW_IMPACT_SCORE ? [['impact_score', d.impact_score]] as Array<[string, unknown]> : []),
   ['outcome', d.outcome],
   ['performance_win', d.performance_win],
   ['breaking_change', d.breaking_change],
@@ -105,12 +106,14 @@ const attributes: Array<[string, unknown]> = [
           <p>{d.source_type}</p>
         </div>
         <div class="flex gap-4">
-          <div>
-            <p class="label">Impact</p>
-            <p class="text-xl font-bold" style={`color: ${(d.impact_score ?? 0) >= 8 ? 'var(--color-accent)' : 'var(--color-ink)'}`}>
-              {d.impact_score ?? '—'}<span class="text-xs" style="color: var(--color-muted);">/10</span>
-            </p>
-          </div>
+          {SHOW_IMPACT_SCORE && (
+            <div>
+              <p class="label">Impact</p>
+              <p class="text-xl font-bold" style={`color: ${(d.impact_score ?? 0) >= 8 ? 'var(--color-accent)' : 'var(--color-ink)'}`}>
+                {d.impact_score ?? '—'}<span class="text-xs" style="color: var(--color-muted);">/10</span>
+              </p>
+            </div>
+          )}
           <div>
             <p class="label">Perf win</p>
             <p style={d.performance_win ? 'color: #2ecc71;' : 'color: var(--color-muted);'}>{d.performance_win ? 'Yes' : 'No'}</p>
