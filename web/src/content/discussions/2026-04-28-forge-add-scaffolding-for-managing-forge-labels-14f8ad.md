@@ -23,6 +23,7 @@ series_parts: []
 url: https://inbox.sourceware.org/gcc/20260428130732.2479544-1-rearnsha@arm.com
 bugzilla_url: null
 date: '2026-04-28'
+is_stub: true
 ---
 
 Summary unavailable — see source link.

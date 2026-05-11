@@ -23,6 +23,7 @@ series_parts: []
 url: https://inbox.sourceware.org/gcc/19a4bd2c-c536-4fbb-a72a-1ba2e5ba646a.max@germanymarketinsight.com
 bugzilla_url: null
 date: '2026-05-09'
+is_stub: true
 ---
 
 Summary unavailable — see source link.

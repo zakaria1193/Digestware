@@ -57,8 +57,16 @@ const discussions = (await getCollection('discussions'))
     }
   </style>
 
-  <div class="mb-4">
-    <p class="text-sm" style="color: var(--color-muted);">{discussions.length} threads indexed</p>
+  <div class="mb-4 flex items-center justify-between">
+    <p class="text-sm" style="color: var(--color-muted);">
+      <span id="row-count">{discussions.length}</span> of {discussions.length} threads
+      <span id="filter-label" style="color: var(--color-accent);"></span>
+    </p>
+    <div class="text-xs flex gap-2" style="color: var(--color-muted);">
+      <a href="/admin/discussions" class="filter-link" data-filter="">All</a>
+      <span>·</span>
+      <a href="/admin/discussions?filter=stubs" class="filter-link" data-filter="stubs">Stubs</a>
+    </div>
   </div>
 
   <div class="discussions-table">
@@ -71,11 +79,12 @@ const discussions = (await getCollection('discussions'))
           <th class="px-4 py-3 text-left font-medium text-xs uppercase tracking-wide">Proposer</th>
           <th class="px-4 py-3 text-center font-medium text-xs uppercase tracking-wide">Consensus</th>
           <th class="px-4 py-3 text-center font-medium text-xs uppercase tracking-wide">Sentiment</th>
+          <th class="px-4 py-3 text-center font-medium text-xs uppercase tracking-wide">Stub</th>
         </tr>
       </thead>
       <tbody>
         {discussions.map(e => (
-          <tr>
+          <tr data-stub={e.data.is_stub ? '1' : '0'}>
             <td class="px-4 py-2.5 font-mono text-xs whitespace-nowrap" style="color: var(--color-muted);">
               {e.data.date.toISOString().slice(0, 10)}
             </td>
@@ -115,9 +124,45 @@ const discussions = (await getCollection('discussions'))
                 {e.data.sentiment_score ?? '—'}
               </span>
             </td>
+            <td class="px-4 py-2.5 text-center">
+              {e.data.is_stub ? (
+                <span class="text-xs font-semibold" style="color: var(--color-muted);">stub</span>
+              ) : (
+                <span class="text-xs" style="color: var(--color-muted);">—</span>
+              )}
+            </td>
           </tr>
         ))}
       </tbody>
     </table>
   </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const filter = params.get('filter') ?? '';
+    const rows = Array.from(document.querySelectorAll<HTMLTableRowElement>('.discussions-table tbody tr'));
+    const countEl = document.getElementById('row-count');
+    const labelEl = document.getElementById('filter-label');
+    const labels: Record<string, string> = {
+      stubs: '· filtered: stubs (failed digests)',
+    };
+    function rowPasses(r: HTMLTableRowElement, f: string): boolean {
+      if (f === 'stubs') return r.dataset.stub === '1';
+      return true;
+    }
+    let visible = 0;
+    for (const r of rows) {
+      const show = rowPasses(r, filter);
+      r.style.display = show ? '' : 'none';
+      if (show) visible++;
+    }
+    if (countEl) countEl.textContent = String(visible);
+    if (labelEl) labelEl.textContent = labels[filter] ?? '';
+    for (const a of document.querySelectorAll<HTMLAnchorElement>('.filter-link')) {
+      if ((a.dataset.filter ?? '') === filter) {
+        a.style.color = 'var(--color-accent)';
+        a.style.fontWeight = '700';
+      }
+    }
+  </script>
 </AdminLayout>

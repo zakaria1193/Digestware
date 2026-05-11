@@ -27,6 +27,7 @@ series_parts:
 url: https://inbox.sourceware.org/binutils/or8qa5hxxk.fsf@lxoliva.fsfla.org
 bugzilla_url: null
 date: '2026-04-30'
+is_stub: true
 ---
 
 Summary unavailable — see source link.

@@ -57,3 +57,7 @@ class DiscussionDigest(BimodalBase):
     # preserved from RawDiscussion — when the discussion happened
     date: datetime
     bugzilla_url: str | None = None
+    # True when the digest is an agent-side placeholder (LLM batch failed or
+    # omitted the item). Stubs are written to disk so admin can inspect them,
+    # but the public site filters them out.
+    is_stub: bool = False

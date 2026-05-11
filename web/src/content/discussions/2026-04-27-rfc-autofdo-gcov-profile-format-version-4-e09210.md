@@ -23,6 +23,7 @@ series_parts: []
 url: https://inbox.sourceware.org/gcc/98d54418-a87c-4aa8-8275-20ca021390db@nvidia.com
 bugzilla_url: null
 date: '2026-04-27'
+is_stub: true
 ---
 
 Summary unavailable — see source link.

@@ -135,3 +135,16 @@ class TestWriteLanding:
         path = write_landing(sample_landing_digest, output_dir=tmp_output_dir)
         content = path.read_text(encoding="utf-8")
         assert sample_landing_digest.summary in content
+
+    def test_is_stub_default_false(self, sample_landing_digest, tmp_output_dir):
+        path = write_landing(sample_landing_digest, output_dir=tmp_output_dir)
+        fm = yaml.safe_load(path.read_text(encoding="utf-8").split("---")[1])
+        assert fm["is_stub"] is False
+
+    def test_is_stub_emitted_when_true(self, sample_landing_digest, tmp_output_dir):
+        sample_landing_digest = sample_landing_digest.model_copy(
+            update={"is_stub": True}
+        )
+        path = write_landing(sample_landing_digest, output_dir=tmp_output_dir)
+        fm = yaml.safe_load(path.read_text(encoding="utf-8").split("---")[1])
+        assert fm["is_stub"] is True

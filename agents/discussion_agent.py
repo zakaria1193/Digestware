@@ -562,6 +562,7 @@ def _stub_digests(items: list[RawDiscussion]) -> list[DiscussionDigest]:
                 summary="Summary unavailable — see source link.",
                 url=d.url,
                 date=d.date,
+                is_stub=True,
             )
         )
     return out
