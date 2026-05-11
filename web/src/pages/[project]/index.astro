@@ -151,7 +151,7 @@ for (const cat of CATEGORY_ORDER) {
         <div class="filter-cell-control">
           <div class="date-pills">
             <button type="button" class="date-pill" data-days="" data-active="true">All time</button>
-            <button type="button" class="date-pill" data-days="1">Today</button>
+            <button type="button" class="date-pill" data-days="1">Last day</button>
             <button type="button" class="date-pill" data-days="3">Last 3 days</button>
             <button type="button" class="date-pill" data-days="7">Last week</button>
             <button type="button" class="date-pill" data-days="30">Last month</button>
@@ -278,8 +278,14 @@ for (const cat of CATEGORY_ORDER) {
   const datePills = Array.from(document.querySelectorAll<HTMLButtonElement>('.date-pill'));
   let selectedDays: number | null = null;
   const NOW = Date.now();
-  function dateFloorTs(): number {
-    return selectedDays === null ? -Infinity : NOW - selectedDays * 86400000;
+  const DAY_MS = 86400000;
+  // "Last day" (selectedDays === 1) means yesterday only — the digester runs
+  // early in the morning, so today's window is empty. Other ranges remain
+  // a simple rolling window ending now.
+  function dateWindow(): [number, number] {
+    if (selectedDays === null) return [-Infinity, Infinity];
+    if (selectedDays === 1) return [NOW - 2 * DAY_MS, NOW - DAY_MS];
+    return [NOW - selectedDays * DAY_MS, Infinity];
   }
 
   // Slider values are integers in [10, 100]; the live threshold is value/10
@@ -315,13 +321,15 @@ for (const cat of CATEGORY_ORDER) {
     el.setAttribute('aria-hidden', filtered ? 'true' : 'false');
   }
 
-  function updateChipsForLevel(min: number, floor: number): HTMLButtonElement[] {
+  function updateChipsForLevel(min: number, floor: number, ceil: number): HTMLButtonElement[] {
     const visible: HTMLButtonElement[] = [];
     for (const chip of allChips) {
       const scores = scoresOf.get(chip) ?? [];
       const dates = datesOf.get(chip) ?? [];
-      const count = scores.reduce((n, s, i) =>
-        n + ((s < 0 || s >= min) && (dates[i] ?? 0) >= floor ? 1 : 0), 0);
+      const count = scores.reduce((n, s, i) => {
+        const d = dates[i] ?? 0;
+        return n + ((s < 0 || s >= min) && d >= floor && d <= ceil ? 1 : 0);
+      }, 0);
       setFiltered(chip, count === 0);
       const badge = chip.querySelector<HTMLElement>('.chip-count');
       if (badge) badge.textContent = String(count);
@@ -358,15 +366,15 @@ for (const cat of CATEGORY_ORDER) {
 
   function apply(value: number): number {
     const min = thresholdFromSlider(value);
-    const floor = dateFloorTs();
-    const visibleChips = updateChipsForLevel(min, floor);
+    const [floor, ceil] = dateWindow();
+    const visibleChips = updateChipsForLevel(min, floor, ceil);
     const selected = selectedSet(visibleChips);
     let visible = 0;
 
     for (const el of [...wires, ...stories]) {
       const score = parseFloat(el.dataset.score ?? '-1');
       const ts = parseFloat(el.dataset.date ?? '0');
-      const show = (score < 0 || score >= min) && ts >= floor && passesLabels(el.dataset.tags, selected, visibleChips.length);
+      const show = (score < 0 || score >= min) && ts >= floor && ts <= ceil && passesLabels(el.dataset.tags, selected, visibleChips.length);
       setFiltered(el, !show);
       if (show) visible++;
     }
@@ -588,7 +596,7 @@ for (const cat of CATEGORY_ORDER) {
       if (selected.length) params.set('t', selected.join('|'));
     }
     if (selectedDays !== null) {
-      const dMap: Record<number, string> = { 1: 'today', 3: '3d', 7: '7d', 30: '30d' };
+      const dMap: Record<number, string> = { 1: 'lastday', 3: '3d', 7: '7d', 30: '30d' };
       if (dMap[selectedDays]) params.set('d', dMap[selectedDays]);
     }
     return params.toString();
