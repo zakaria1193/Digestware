@@ -30,6 +30,7 @@ series_parts: []
 url: https://inbox.sourceware.org/binutils/20260502055752.A8B674A99320@sourceware.org
 bugzilla_url: null
 date: '2026-05-02'
+is_stub: true
 ---
 
 The buildbot reports a failed test for binutils-gdb on the binutils-fedora-x86_64 builder. The failure occurred during the `make check` step, triggered by commit a7202a38dd07a4c94dcb7f024e7c44b9f55147fb. Developers should investigate the logs to identify and fix the cause of the test failure to ensure the stability of the binutils-gdb codebase.

@@ -35,6 +35,7 @@ series_parts: []
 url: https://inbox.sourceware.org/binutils/20260504003038.E371B4BAE7D7@sourceware.org
 bugzilla_url: null
 date: '2026-05-04'
+is_stub: true
 ---
 
 The buildbot reports a successful build for binutils-gdb on the master branch, specifically on the binutils-fedora-arm64 builder. The build details, including logs and build state, are available at the provided URL. The revision built was 32d1bc86b842abf2f29953c3f5dd4181f8ae3506.

@@ -36,6 +36,7 @@ series_parts: []
 url: https://inbox.sourceware.org/binutils/20260502154009.D0AFB4BB58FC@sourceware.org
 bugzilla_url: null
 date: '2026-05-02'
+is_stub: true
 ---
 
 The buildbot reports a successful build of binutils-gdb on the binutils-debian-amd64 builder. The build triggered from commit 102692fa14ecf2b578c1c69febab8124dbaaa3fe completed successfully, although there were some warnings during the `make` and `make check` steps.  These warnings should be investigated to ensure the build is fully clean.

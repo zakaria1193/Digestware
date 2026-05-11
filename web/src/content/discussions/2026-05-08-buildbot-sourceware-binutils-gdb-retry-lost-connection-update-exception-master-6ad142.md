@@ -38,6 +38,7 @@ series_parts: []
 url: https://inbox.sourceware.org/binutils/20260508101800.301DB4BA2E27@sourceware.org
 bugzilla_url: null
 date: '2026-05-08'
+is_stub: true
 ---
 
 The Sourceware buildbot for binutils-gdb on fedora-arm64 encountered a "retry lost connection update (exception)" during the `git checkout` step. The build is being retried. The blamelist includes Jan Beulich and Simon Marchi.

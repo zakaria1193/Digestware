@@ -33,6 +33,7 @@ series_parts: []
 url: https://inbox.sourceware.org/gcc/20260503223546.2B4094BAE7F1@sourceware.org
 bugzilla_url: null
 date: '2026-05-03'
+is_stub: true
 ---
 
 A snapshot of GCC 17, gcc-17-20260503, is now available for download from the GCC website and mirrors. This snapshot was generated from the GCC 17 git branch, revision b183634956ae52ceafca5c32f70bb60ebbf7e34c. The announcement advises against using snapshots before they are announced on the gcc list.

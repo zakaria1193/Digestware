@@ -43,6 +43,7 @@ series_parts: []
 url: https://inbox.sourceware.org/gcc/83201887-7a15-4234-8bce-a5aa0c21c383@web.de
 bugzilla_url: null
 date: '2026-04-26'
+is_stub: true
 ---
 
 Frank Scheiner reports that the second release candidate for GCC 16.1 bootstrapped successfully for C and C++ on ia64-linux. He planned to run the test suite the next day. Release candidates are important milestones on the path to a stable release, and testing on various platforms helps ensure quality.
