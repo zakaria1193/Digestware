@@ -41,10 +41,3 @@ def clean_subject(title: str) -> str:
     # Drop trailing " N/M" series markers if they leaked through.
     s = _SERIES_MARK_RE.sub("", s).strip(" -:")
     return s or (title or "").strip()
-
-
-def capitalise_first(s: str) -> str:
-    """Capitalise the first letter, leave the rest alone (preserves ``GCC``)."""
-    if not s:
-        return s
-    return s[0].upper() + s[1:]
