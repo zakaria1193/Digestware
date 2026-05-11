@@ -310,9 +310,47 @@ for (const cat of CATEGORY_ORDER) {
     );
   }
 
+  // Story collapse takes 0.36s (see BentoCard.astro `.story` transition).
+  // Wait slightly longer before dropping the card from the grid so the
+  // animation finishes uninterrupted.
+  const HIDE_AFTER_MS = 400;
+  const hideTimers = new WeakMap<HTMLElement, number>();
+
   function setFiltered(el: HTMLElement, filtered: boolean): void {
+    const wasFiltered = el.classList.contains('is-filtered');
     el.classList.toggle('is-filtered', filtered);
     el.setAttribute('aria-hidden', filtered ? 'true' : 'false');
+
+    // Bento grid cells (`.story`) must drop out of layout when hidden, not
+    // just collapse to zero size — otherwise their reserved slots punch
+    // visible holes in the grid (especially featured cards that span 2
+    // columns). Other filterable elements (chips, groups, wires, subsystem
+    // blocks) live outside the grid and stay animated.
+    if (!el.classList.contains('story')) return;
+    if (filtered === wasFiltered) return;
+
+    const prev = hideTimers.get(el);
+    if (prev !== undefined) {
+      clearTimeout(prev);
+      hideTimers.delete(el);
+    }
+
+    if (filtered) {
+      if (document.documentElement.classList.contains('filter-init')) {
+        // First paint has transitions suppressed — hide immediately so the
+        // grid lays out without the filtered slot from the very first frame.
+        el.style.display = 'none';
+      } else {
+        // Let the collapse animation play, then remove from grid flow.
+        const t = setTimeout(() => {
+          if (el.classList.contains('is-filtered')) el.style.display = 'none';
+          hideTimers.delete(el);
+        }, HIDE_AFTER_MS) as unknown as number;
+        hideTimers.set(el, t);
+      }
+    } else {
+      el.style.display = '';
+    }
   }
 
   function updateChipsForLevel(min: number, floor: number): HTMLButtonElement[] {
