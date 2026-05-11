@@ -32,6 +32,7 @@ series_parts: []
 url: https://inbox.sourceware.org/gcc/28323380-df55-457d-93d8-b148768eb1cc@linux.ibm.com
 bugzilla_url: null
 date: '2026-04-29'
+is_stub: true
 ---
 
 Jeevitha reports successful bootstrap and testing of the GCC 16.1 Release Candidate 2 on various Power architectures (Power8, Power9, and Power10) in both 32-bit and 64-bit modes. This provides confidence in the stability of the release candidate on Power platforms.

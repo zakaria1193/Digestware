@@ -682,6 +682,7 @@ def _stub_digests(items: list[RawCommit]) -> list[LandingDigest]:
                 summary="Summary unavailable — see source link.",
                 url=c.url,
                 date=c.date,
+                is_stub=True,
             )
         )
     return out

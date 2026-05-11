@@ -20,6 +20,7 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/15a641d7804b091d37113eb07f898b0cc7da428a
 date: '2026-05-06'
+is_stub: true
 ---
 
 Summary unavailable — see source link.

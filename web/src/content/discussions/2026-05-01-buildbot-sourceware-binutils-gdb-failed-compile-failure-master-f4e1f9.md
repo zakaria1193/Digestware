@@ -33,6 +33,7 @@ series_parts: []
 url: https://inbox.sourceware.org/binutils/20260501215622.969EC43B5538@sourceware.org
 bugzilla_url: null
 date: '2026-05-01'
+is_stub: true
 ---
 
 The Sourceware buildbot detected a failed compilation of binutils-gdb on the binutils-fedora-arm64 builder. The failure occurred during the make stage, after successfully completing the checkout, rm, and configure stages. Full logs are available on the buildbot website.

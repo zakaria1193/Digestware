@@ -31,6 +31,7 @@ series_parts: []
 url: https://inbox.sourceware.org/gcc/20260501223543.AF2954A9A8B9@sourceware.org
 bugzilla_url: null
 date: '2026-05-01'
+is_stub: true
 ---
 
 A snapshot of GCC 15 is now available on the GCC website and mirrors. This snapshot was generated from the GCC 15 git branch at revision d3240e544f5ea5e4983c38bc844c338dda1b127e. Binaries and diffs from the previous snapshot are also available.

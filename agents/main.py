@@ -37,6 +37,7 @@ from agents.ingestion.engine import IngestionEngine
 from agents.landing_agent import run_landing_agent
 from agents.tag_categorizer import run_tag_categorizer
 from agents.tools.noise_filter import filter_noise
+from agents.tools.retro_noise import sweep_content_root
 from agents.writer import write_discussion, write_landing
 
 logger = logging.getLogger("agents.main")
@@ -225,6 +226,24 @@ def main() -> int:
         len(discussion_sources),
         len(commit_sources),
     )
+
+    # Retro-apply the noise filter to already-published markdown so entries
+    # that became "noise" by today's stricter rules get hidden from the
+    # public site without needing a one-shot migration. Runs every night
+    # regardless of whether new data was ingested.
+    logger.info(_step_banner("STEP 0 — RETRO NOISE SWEEP", "cyan"))
+    retro_counts = sweep_content_root(args.content_root)
+    if retro_counts["total"]:
+        logger.info(
+            "Retro noise sweep marked %d file(s) as stub "
+            "(title-noise=%d, spam=%d, bot-author=%d)",
+            retro_counts["total"],
+            retro_counts["title-noise"],
+            retro_counts["spam"],
+            retro_counts["bot-author"],
+        )
+    else:
+        logger.info("Retro noise sweep: nothing to mark.")
 
     # Ingest
     logger.info(_step_banner("STEP 1 — INGESTION", "cyan"))

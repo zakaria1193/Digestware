@@ -14,7 +14,12 @@ const { projectSlug } = Astro.props as { projectSlug: string };
 const project = getProject(projectSlug)!;
 
 // HARD rule: never merge content across projects — filter by `project` field.
-const allDiscussions = (await getCollection('discussions', ({ data }) => data.project === projectSlug))
+// Stubs (agent-side placeholders for failed LLM batches) are excluded from the
+// public site; they remain visible under /admin for ops triage.
+const allDiscussions = (await getCollection(
+  'discussions',
+  ({ data }) => data.project === projectSlug && !data.is_stub,
+))
   .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
 
 const bySubsystem = new Map<string, typeof allDiscussions>();
@@ -57,7 +62,10 @@ function clusterGroup(entries: typeof allDiscussions): Map<string, { count: numb
   return result;
 }
 
-const landings = (await getCollection('landings', ({ data }) => data.project === projectSlug))
+const landings = (await getCollection(
+  'landings',
+  ({ data }) => data.project === projectSlug && !data.is_stub,
+))
   .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
 
 const subsystemKeys = [...bySubsystem.keys()].sort((a, b) => {

@@ -23,6 +23,7 @@ series_parts: []
 url: https://inbox.sourceware.org/binutils/ae-BMT4p0QeM4CKL@mx3210.local
 bugzilla_url: null
 date: '2026-04-27'
+is_stub: true
 ---
 
 Summary unavailable — see source link.

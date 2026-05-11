@@ -42,7 +42,23 @@ const landings = (await getCollection('landings'))
   </style>
 
   <div class="mb-4 flex items-center justify-between">
-    <p class="text-sm" style="color: var(--color-muted);">{landings.length} commits indexed</p>
+    <p class="text-sm" style="color: var(--color-muted);">
+      <span id="row-count">{landings.length}</span> of {landings.length} commits
+      <span id="filter-label" style="color: var(--color-accent);"></span>
+    </p>
+    <div class="text-xs flex gap-2" style="color: var(--color-muted);">
+      <a href="/admin/landings" class="filter-link" data-filter="">All</a>
+      <span>·</span>
+      {SHOW_IMPACT_SCORE && (
+        <>
+          <a href="/admin/landings?filter=high-impact" class="filter-link" data-filter="high-impact">High&nbsp;impact</a>
+          <span>·</span>
+        </>
+      )}
+      <a href="/admin/landings?filter=breaking" class="filter-link" data-filter="breaking">Breaking</a>
+      <span>·</span>
+      <a href="/admin/landings?filter=stubs" class="filter-link" data-filter="stubs">Stubs</a>
+    </div>
   </div>
 
   <div class="landings-table">
@@ -59,11 +75,16 @@ const landings = (await getCollection('landings'))
           )}
           <th class="px-4 py-3 text-center font-medium text-xs uppercase tracking-wide">Perf</th>
           <th class="px-4 py-3 text-center font-medium text-xs uppercase tracking-wide">Breaking</th>
+          <th class="px-4 py-3 text-center font-medium text-xs uppercase tracking-wide">Stub</th>
         </tr>
       </thead>
       <tbody>
         {landings.map(e => (
-          <tr>
+          <tr
+            data-impact={e.data.impact_score ?? -1}
+            data-breaking={e.data.breaking_change ? '1' : '0'}
+            data-stub={e.data.is_stub ? '1' : '0'}
+          >
             <td class="px-4 py-2.5 font-mono text-xs whitespace-nowrap" style="color: var(--color-muted);">
               {e.data.date.toISOString().slice(0, 10)}
             </td>
@@ -107,9 +128,49 @@ const landings = (await getCollection('landings'))
                 <span class="text-xs" style="color: var(--color-muted);">—</span>
               )}
             </td>
+            <td class="px-4 py-2.5 text-center">
+              {e.data.is_stub ? (
+                <span class="text-xs font-semibold" style="color: var(--color-muted);">stub</span>
+              ) : (
+                <span class="text-xs" style="color: var(--color-muted);">—</span>
+              )}
+            </td>
           </tr>
         ))}
       </tbody>
     </table>
   </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const filter = params.get('filter') ?? '';
+    const rows = Array.from(document.querySelectorAll<HTMLTableRowElement>('.landings-table tbody tr'));
+    const countEl = document.getElementById('row-count');
+    const labelEl = document.getElementById('filter-label');
+    const labels: Record<string, string> = {
+      'high-impact': '· filtered: high impact (≥8)',
+      breaking: '· filtered: breaking changes',
+      stubs: '· filtered: stubs (failed digests)',
+    };
+    function rowPasses(r: HTMLTableRowElement, f: string): boolean {
+      if (f === 'high-impact') return parseInt(r.dataset.impact ?? '-1') >= 8;
+      if (f === 'breaking') return r.dataset.breaking === '1';
+      if (f === 'stubs') return r.dataset.stub === '1';
+      return true;
+    }
+    let visible = 0;
+    for (const r of rows) {
+      const show = rowPasses(r, filter);
+      r.style.display = show ? '' : 'none';
+      if (show) visible++;
+    }
+    if (countEl) countEl.textContent = String(visible);
+    if (labelEl) labelEl.textContent = labels[filter] ?? '';
+    for (const a of document.querySelectorAll<HTMLAnchorElement>('.filter-link')) {
+      if ((a.dataset.filter ?? '') === filter) {
+        a.style.color = 'var(--color-accent)';
+        a.style.fontWeight = '700';
+      }
+    }
+  </script>
 </AdminLayout>

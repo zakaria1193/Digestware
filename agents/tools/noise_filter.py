@@ -26,6 +26,62 @@ _NOISE_COMMIT_RE = re.compile(
     re.IGNORECASE | re.VERBOSE | re.DOTALL,
 )
 
+# Discussion subjects that are bot- or release-management chatter — they
+# carry no technical content even with a long body.
+_NOISE_DISCUSSION_TITLE_RE = re.compile(
+    r"""
+    (
+        # Snapshot / point-release announcements:
+        #   "gcc-16-20260509 is now available", "binutils-2.46 is now available"
+        ^[\s☝]*(re:\s*)?(gcc|binutils|glibc|gdb|newlib)
+        -\d+(\.\d+)*(-\d{8})?\ is\ now\ available
+        # Release-candidate announcements: "Second GCC 16.1 Release Candidate available …"
+      | (first|second|third|fourth|fifth|\d+(st|nd|rd|th))?\s*
+        (gcc|binutils|glibc|gdb|newlib)\s+\d+(\.\d+)*\s+release\s+candidate
+        # Buildbot mails: "Buildbot (Sourceware): …" or "☝ Buildbot: …"
+      | ^[\s☝]*(re:\s*)?buildbot\b
+    )
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+# Authors / senders that are bots. Match the recognisable prefix; bot accounts
+# vary in their full email but the local-part is stable.
+_NOISE_AUTHOR_RE = re.compile(
+    r"""
+    \b(
+        builder@sourceware\.org
+      | buildbot@
+      | sourceware-builder@
+      | builder@[\w.-]*sourceware
+    )\b
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+# Obvious off-topic / commercial spam. Real toolchain threads never contain
+# these terms; matching any one of them in the title is sufficient.
+_SPAM_TITLE_RE = re.compile(
+    r"""
+    \b(
+        dermatologist
+      | ultrasonic\ transducer
+      | guangzhou\ fair
+      | overseas\ property
+      | study\ abroad
+      | immigration\ expo
+      | crypto(currency)?\ invest
+      | loan\ offer
+      | sex(ual)?\ enhance
+      | weight\ loss
+      | viagra
+      | casino
+      | bitcoin\ giveaway
+    )\b
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
 
 def is_noise_commit(c: RawCommit) -> bool:
     """True when the commit is routine maintenance we shouldn't publish."""
@@ -39,11 +95,20 @@ def is_noise_commit(c: RawCommit) -> bool:
 
 
 def is_noise_discussion(d: RawDiscussion) -> bool:
-    """True for empty pings, ``+1`` replies, or trivially short bodies.
+    """True for bots, release/buildbot chatter, spam, or trivial pings.
 
-    A discussion with a diff attached is never noise even if the body is short
-    — the diff itself is the content.
+    A discussion with a diff attached is exempt from the short-body rule —
+    the diff itself is the content. Bot/spam/release rules still apply
+    regardless of body length or diff presence.
     """
+    title = (d.title or "").strip()
+    if _NOISE_DISCUSSION_TITLE_RE.search(title):
+        return True
+    if _SPAM_TITLE_RE.search(title):
+        return True
+    author = (d.author or "").strip()
+    if author and _NOISE_AUTHOR_RE.search(author):
+        return True
     if d.diff_text:
         return False
     body = (d.body or "").strip()

@@ -23,6 +23,7 @@ series_parts: []
 url: https://inbox.sourceware.org/binutils/6eae3faa-6ec5-457c-91bf-f1e750909f1b@iscas.ac.cn
 bugzilla_url: null
 date: '2026-04-28'
+is_stub: true
 ---
 
 Summary unavailable — see source link.

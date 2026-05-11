@@ -30,6 +30,7 @@ series_parts: []
 url: https://inbox.sourceware.org/binutils/20260502091657.1E8634A9E063@sourceware.org
 bugzilla_url: null
 date: '2026-05-02'
+is_stub: true
 ---
 
 The buildbot reports a failed test for binutils-gdb on the binutils-debian-amd64 builder, triggered by commit 65cd0d66a647f14719e69bd19f34dc98bdb7e635. The `make check` step resulted in a failure.  The logs should be reviewed to determine the cause of the test failure and address the underlying issue. This failure blocks further integration.

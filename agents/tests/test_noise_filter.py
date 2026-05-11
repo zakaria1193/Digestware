@@ -27,12 +27,17 @@ def _commit(msg: str) -> RawCommit:
     )
 
 
-def _discussion(body: str, diff_text: str | None = None) -> RawDiscussion:
+def _discussion(
+    body: str,
+    diff_text: str | None = None,
+    title: str = "Subject",
+    author: str = "a@b",
+) -> RawDiscussion:
     return RawDiscussion(
         id="x",
-        title="Subject",
+        title=title,
         body=body,
-        author="a@b",
+        author=author,
         date=datetime(2026, 4, 16, tzinfo=timezone.utc),
         url="https://example.com",
         replies=[],
@@ -93,3 +98,52 @@ class TestFilterNoise:
         assert dropped_c == 1
         assert len(kept_d) == 1
         assert len(kept_c) == 1
+
+
+class TestDiscussionTitleNoise:
+    @pytest.mark.parametrize(
+        "title",
+        [
+            "gcc-16-20260509 is now available",
+            "Re: gcc-16-20260509 is now available",
+            "binutils-2.46 is now available",
+            "Second GCC 16.1 Release Candidate available from gcc.gnu.org",
+            "Re: First GCC 17.0 release candidate",
+            "Buildbot (Sourceware): binutils-gdb failed test failure (master)",
+            "☝ Buildbot (Sourceware): binutils-gdb - retry lost connection",
+        ],
+    )
+    def test_release_and_buildbot_dropped(self, title: str):
+        # Even with a substantial body these are dropped.
+        body = "x" * 500
+        assert is_noise_discussion(_discussion(body, title=title))
+
+    @pytest.mark.parametrize(
+        "title",
+        [
+            "Dermatologist Contacts",
+            "NDT Ultrasonic Transducer",
+            "34th Guangzhou Fair 2026 Overseas Property Immigration Study Abroad Expo",
+        ],
+    )
+    def test_spam_titles_dropped(self, title: str):
+        body = "x" * 500
+        assert is_noise_discussion(_discussion(body, title=title))
+
+    def test_bot_author_dropped(self):
+        body = "x" * 500
+        assert is_noise_discussion(
+            _discussion(body, title="something", author="builder@sourceware.org")
+        )
+
+    @pytest.mark.parametrize(
+        "title",
+        [
+            "[PATCH] gcc/ipa: improve inlining",
+            "RFC: AutoFDO GCOV Profile Format Version 4",
+            "Sourceware server reboots for Copy Fail CVE-2026-31431",
+        ],
+    )
+    def test_real_threads_kept(self, title: str):
+        body = "x" * 500
+        assert not is_noise_discussion(_discussion(body, title=title))

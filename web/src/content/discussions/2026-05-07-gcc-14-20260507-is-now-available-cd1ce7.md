@@ -26,6 +26,7 @@ series_parts: []
 url: https://inbox.sourceware.org/gcc/20260507223501.6EC134BA2E37@sourceware.org
 bugzilla_url: null
 date: '2026-05-07'
+is_stub: true
 ---
 
 A snapshot of GCC 14 is now available. This is a regular announcement for those tracking the development branch. Binaries and diffs from the previous snapshot are available.

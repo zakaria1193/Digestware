@@ -24,3 +24,7 @@ class LandingDigest(BimodalBase):
     series_parts: list[dict] = Field(default_factory=list)  # [{title, url}, …]
     url: str
     date: datetime            # preserved from RawCommit — when the commit landed
+    # True when the digest is an agent-side placeholder (LLM batch failed or
+    # omitted the item). Stubs are written to disk so admin can inspect them,
+    # but the public site filters them out.
+    is_stub: bool = False

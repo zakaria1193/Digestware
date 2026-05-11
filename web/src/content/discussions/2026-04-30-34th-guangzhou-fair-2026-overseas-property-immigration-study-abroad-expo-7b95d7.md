@@ -32,6 +32,7 @@ series_parts: []
 url: https://inbox.sourceware.org/gcc/19cd856a.87e6.19dddb32e23.Coremail.chenyu2325@163.com
 bugzilla_url: null
 date: '2026-04-30'
+is_stub: true
 ---
 
 Announcing the 34th Guangzhou Fair 2026 Overseas Property, Immigration & Study Abroad Expo, to be held August 21-23, 2026, at the Canton Fair Complex. The expo aims to gather high-net-worth clients for overseas real estate, immigration, international education and overseas study, providing a platform for business expansion and brand promotion in South China.

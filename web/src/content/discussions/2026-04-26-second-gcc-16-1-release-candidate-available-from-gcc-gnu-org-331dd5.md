@@ -23,6 +23,7 @@ series_parts: []
 url: https://inbox.sourceware.org/gcc/83201887-7a15-4234-8bce-a5aa0c21c383@web.de
 bugzilla_url: null
 date: '2026-04-26'
+is_stub: true
 ---
 
 Summary unavailable — see source link.

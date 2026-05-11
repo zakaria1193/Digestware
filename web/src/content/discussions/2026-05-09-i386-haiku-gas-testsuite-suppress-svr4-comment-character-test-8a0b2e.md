@@ -24,6 +24,7 @@ series_parts: []
 url: https://inbox.sourceware.org/binutils/alpine.DEB.2.21.2604072231330.29980@angie.orcam.me.uk
 bugzilla_url: null
 date: '2026-05-09'
+is_stub: true
 ---
 
 Summary unavailable — see source link.

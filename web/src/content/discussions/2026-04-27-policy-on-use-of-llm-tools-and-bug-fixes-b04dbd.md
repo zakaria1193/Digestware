@@ -23,6 +23,7 @@ series_parts: []
 url: https://inbox.sourceware.org/gcc/6a3b4f19-ed28-1dca-7d93-604f3f2444bb@redhat.com
 bugzilla_url: null
 date: '2026-04-27'
+is_stub: true
 ---
 
 Summary unavailable — see source link.

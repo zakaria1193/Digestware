@@ -7,7 +7,11 @@ import { SHOW_IMPACT_SCORE } from '../../../config/features';
 export async function getStaticPaths() {
   const paths = [];
   for (const p of PROJECTS) {
-    const entries = await getCollection('discussions', ({ data }) => data.project === p.slug);
+    // Stubs are admin-only; don't generate public detail pages for them.
+    const entries = await getCollection(
+      'discussions',
+      ({ data }) => data.project === p.slug && !data.is_stub,
+    );
     for (const entry of entries) {
       paths.push({
         params: { project: p.slug, slug: entry.id },
@@ -24,7 +28,10 @@ const d = entry.data;
 const { Content } = await entry.render();
 
 // Prev/next stays within the same project — no cross-project merging.
-const all = (await getCollection('discussions', ({ data }) => data.project === projectSlug))
+const all = (await getCollection(
+  'discussions',
+  ({ data }) => data.project === projectSlug && !data.is_stub,
+))
   .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
 const idx = all.findIndex(e => e.id === entry.id);
 const prev = idx > 0 ? all[idx - 1] : null;

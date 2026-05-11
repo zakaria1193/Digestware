@@ -169,6 +169,7 @@ def write_discussion(
         "url": d.url,
         "bugzilla_url": d.bugzilla_url,
         "date": date_str,
+        "is_stub": d.is_stub,
     }
 
     body = _sanitise_body(d.summary, context=f"discussion {d.discussion_id}")
@@ -212,6 +213,7 @@ def write_landing(
         "series_parts": landing.series_parts,
         "url": landing.url,
         "date": date_str,
+        "is_stub": landing.is_stub,
     }
 
     body = _sanitise_body(landing.summary, context=f"landing {landing.commit_hash}")

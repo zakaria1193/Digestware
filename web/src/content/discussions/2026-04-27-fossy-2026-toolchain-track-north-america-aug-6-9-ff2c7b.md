@@ -23,6 +23,7 @@ series_parts: []
 url: https://inbox.sourceware.org/binutils/20260427214630.GI11304@gnu.wildebeest.org
 bugzilla_url: null
 date: '2026-04-27'
+is_stub: true
 ---
 
 Summary unavailable — see source link.

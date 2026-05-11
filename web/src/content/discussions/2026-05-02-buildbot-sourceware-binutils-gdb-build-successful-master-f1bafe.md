@@ -32,6 +32,7 @@ series_parts: []
 url: https://inbox.sourceware.org/binutils/20260502153453.2744A4BB5880@sourceware.org
 bugzilla_url: null
 date: '2026-05-02'
+is_stub: true
 ---
 
 The buildbot reports a successful build of binutils-gdb on the binutils-fedora-ppc64le builder.  The build, triggered by commit 102692fa14ecf2b578c1c69febab8124dbaaa3fe, completed successfully, although there were warnings during the `make` and `make check` steps.  These warnings should be investigated to guarantee a clean build.

@@ -23,6 +23,12 @@ const recentDiscussions = [...discussions]
 
 const highImpactLandings = landings.filter(e => (e.data.impact_score ?? 0) >= 8).length;
 const breakingChanges = landings.filter(e => e.data.breaking_change).length;
+// Stubs = agent-side placeholders (LLM batch failed or omitted the item).
+// They're hidden from the public site but tracked here so failures stay
+// visible to ops.
+const stubLandings = landings.filter(e => e.data.is_stub).length;
+const stubDiscussions = discussions.filter(e => e.data.is_stub).length;
+const stubTotal = stubLandings + stubDiscussions;
 ---
 
 <AdminLayout title="Dashboard" section="dashboard">
@@ -32,6 +38,15 @@ const breakingChanges = landings.filter(e => e.data.breaking_change).length;
       border: 1px solid var(--color-rule);
       border-radius: 0.5rem;
       padding: 1rem;
+      display: block;
+      text-decoration: none;
+      color: inherit;
+      transition: background-color 0.15s, border-color 0.15s, transform 0.15s;
+    }
+    a.admin-card:hover {
+      background: rgba(26, 26, 26, 0.04);
+      border-color: var(--color-accent);
+      transform: translateY(-1px);
     }
     .admin-card p {
       color: var(--color-muted);
@@ -44,24 +59,33 @@ const breakingChanges = landings.filter(e => e.data.breaking_change).length;
     }
   </style>
 
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-8">
-    <div class="admin-card">
+  <div class="grid grid-cols-2 gap-4 lg:grid-cols-5 mb-8">
+    <a class="admin-card" href="/admin/landings">
       <p class="text-xs uppercase tracking-wide mb-1">Landings</p>
       <p class="text-3xl font-bold tabular-nums value">{landings.length}</p>
-    </div>
-    <div class="admin-card">
+    </a>
+    <a class="admin-card" href="/admin/discussions">
       <p class="text-xs uppercase tracking-wide mb-1">Discussions</p>
       <p class="text-3xl font-bold tabular-nums value">{discussions.length}</p>
-    </div>
+    </a>
     {SHOW_IMPACT_SCORE && (
-      <div class="admin-card">
+      <a class="admin-card" href="/admin/landings?filter=high-impact">
         <p class="text-xs uppercase tracking-wide mb-1">High Impact ≥8</p>
         <p class="text-3xl font-bold tabular-nums value" style="color: var(--color-accent);">{highImpactLandings}</p>
-      </div>
+      </a>
     )}
-    <div class="admin-card">
+    <a class="admin-card" href="/admin/landings?filter=breaking">
       <p class="text-xs uppercase tracking-wide mb-1">Breaking Changes</p>
       <p class="text-3xl font-bold tabular-nums value" style="color: var(--color-market-red);">{breakingChanges}</p>
+    </a>
+    <div class="admin-card" title={`${stubLandings} stub landings + ${stubDiscussions} stub discussions`}>
+      <p class="text-xs uppercase tracking-wide mb-1">Stubs (failed)</p>
+      <p class="text-3xl font-bold tabular-nums value" style="color: var(--color-muted);">{stubTotal}</p>
+      <p class="text-xs mt-1" style="color: var(--color-muted);">
+        <a href="/admin/landings?filter=stubs" style="color: var(--color-accent);">{stubLandings} L</a>
+        ·
+        <a href="/admin/discussions?filter=stubs" style="color: var(--color-accent);">{stubDiscussions} D</a>
+      </p>
     </div>
   </div>
 
