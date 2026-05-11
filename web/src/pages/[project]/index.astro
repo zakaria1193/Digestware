@@ -635,6 +635,12 @@ for (const cat of CATEGORY_ORDER) {
     display: grid;
     grid-template-columns: 1fr;
     gap: 0;
+    /* Featured cards (`.story-featured`) take `grid-column: span 2`. With the
+       default sparse auto-flow, a span-2 card that lands where two contiguous
+       columns aren't free skips forward, leaving holes that later
+       normal-width cards flow past — producing visible empty slots in the
+       middle or on the left. `dense` backfills those holes. */
+    grid-auto-flow: dense;
   }
 
   .commit-stream {
