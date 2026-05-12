@@ -565,6 +565,7 @@ for (const cat of CATEGORY_ORDER) {
       userAdjusted = false;
       apply(parseInt(slider.value));
       autoAdjust();
+      collapseLabelsIfAllSelected();
     });
   }
 
@@ -585,6 +586,7 @@ for (const cat of CATEGORY_ORDER) {
     const level = parseInt(slider.value);
     updateTicks(level);
     const visible = apply(level);
+    collapseLabelsIfAllSelected();
     if (visible === 0) {
       tooHighTimer = setTimeout(() => {
         tooHighTimer = null;
@@ -598,6 +600,17 @@ for (const cat of CATEGORY_ORDER) {
   const clearUsing = () => { impactCell.dataset.using = 'false'; };
   slider.addEventListener('pointerup', clearUsing);
   slider.addEventListener('pointercancel', clearUsing);
+
+  // Auto-collapse the labels panel when the label filter is effectively inactive
+  // (all visible chips selected). Called after impact/date changes so the panel
+  // doesn't stay open when the user hasn't explicitly set a label filter.
+  function collapseLabelsIfAllSelected(): void {
+    const visibleChips = allChips.filter(c => !c.classList.contains('is-filtered'));
+    const allSelected =
+      visibleChips.length === 0 ||
+      visibleChips.every(c => c.dataset.selected === 'true');
+    if (allSelected) setLabelsExpanded(false);
+  }
 
   // Labels panel: manual expand/collapse only — never on hover.
   const eyebrow = labelsCell.querySelector<HTMLButtonElement>('.filter-cell-label-eyebrow');
