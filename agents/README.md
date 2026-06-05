@@ -226,7 +226,7 @@ def run_discussion_agent(
 ) -> list[DiscussionDigest]:
 ```
 
-- Model: `google/gemini-2.0-flash-001` (override via `SUMMARISER_MODEL`)
+- Model: `google/gemini-2.5-flash` (override via `SUMMARISER_MODEL`)
 - Batch size: **10**
 - Batches are kept series-aware (`series_aware_batches`) — items sharing a
   `metadata["series_id"]` (e.g., `[PATCH 1/3]`, `[PATCH 2/3]`) are never
@@ -244,7 +244,7 @@ def run_landing_agent(
 ) -> list[LandingDigest]:
 ```
 
-- Model: `google/gemini-2.0-flash-001` (override via `SUMMARISER_MODEL`)
+- Model: `google/gemini-2.5-flash` (override via `SUMMARISER_MODEL`)
 - Batch size: **15**
 - After the cheap pass, `_extract_trailers()` runs deterministically over every
   original commit message, scanning for:

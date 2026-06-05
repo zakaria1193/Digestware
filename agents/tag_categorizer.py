@@ -13,7 +13,7 @@ those to group the overflow chips revealed by "Show all" under human-readable
 category headers. If a project's JSON is missing the UI degrades gracefully to
 the flat behaviour, so this module is best-effort — never raises into main.py.
 
-Model: google/gemini-2.0-flash-001 (cheap, one batched call per project).
+Model: google/gemini-2.5-flash (cheap, one batched call per project).
 """
 
 from __future__ import annotations
@@ -33,13 +33,13 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 
-from agents._openrouter import build_model
+from agents._openrouter import DEFAULT_SUMMARISER_MODEL, build_model
 from agents._retry import retry_with_backoff
 from agents.usage_log import append_usage
 
 logger = logging.getLogger("agents.tag_categorizer")
 
-_DEFAULT_MODEL = "google/gemini-2.0-flash-001"
+_DEFAULT_MODEL = DEFAULT_SUMMARISER_MODEL
 _DEFAULT_CONTENT_ROOT = Path("web/src/content")
 _DEFAULT_OUTPUT_ROOT = Path("web/src/data/tag-categories")
 

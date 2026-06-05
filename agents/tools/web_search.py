@@ -10,13 +10,23 @@ a meaningful summary.
 """
 
 import logging
+import os
 
-from agents._openrouter import build_client
+from agents._openrouter import DEFAULT_SUMMARISER_MODEL, build_client
 
 logger = logging.getLogger(__name__)
 
-# Appending :online tells OpenRouter to enable web-search grounding for this call.
-_SEARCH_MODEL = "google/gemini-2.0-flash-001:online"
+
+def _search_model() -> str:
+    """Cheap bulk model with OpenRouter's ':online' grounding suffix.
+
+    Appending ``:online`` tells OpenRouter to enable web-search grounding for
+    the call. The base slug tracks the same ``SUMMARISER_MODEL`` override the
+    agents honour, so the search model stays in lock-step with the bulk
+    summariser (and benefits from the same central default).
+    """
+    base = os.environ.get("SUMMARISER_MODEL", DEFAULT_SUMMARISER_MODEL)
+    return f"{base}:online"
 
 
 def search_context(query: str, max_results: int = 5) -> list[str]:
@@ -31,7 +41,7 @@ def search_context(query: str, max_results: int = 5) -> list[str]:
     try:
         client = build_client()
         response = client.chat.completions.create(
-            model=_SEARCH_MODEL,
+            model=_search_model(),
             messages=[
                 {
                     "role": "user",
