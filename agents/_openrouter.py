@@ -13,6 +13,16 @@ from pydantic_ai.providers.openai import OpenAIProvider
 
 BASE_URL = "https://openrouter.ai/api/v1"
 
+# Default model slugs live here — alongside the base URL and key — so a
+# provider-side deprecation is a one-line change, not a repo-wide hunt. Both
+# are overridable per run via the SUMMARISER_MODEL / BENTO_MODEL env vars.
+#
+# NOTE: google/gemini-2.0-flash-001 was retired by Google on 2026-06-01
+# (OpenRouter then returns 404 "No endpoints found"). google/gemini-2.5-flash
+# is the documented 1:1 replacement — same cheap Flash tier, 1M-token context.
+DEFAULT_SUMMARISER_MODEL = "google/gemini-2.5-flash"
+DEFAULT_PREMIUM_MODEL = "anthropic/claude-sonnet-4-5"
+
 
 def _api_key() -> str:
     return os.environ.get("OPENROUTER_API_KEY", "")

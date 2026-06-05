@@ -1,7 +1,7 @@
 """Factory agent — digests landed commits into LandingDigest.
 
 Model strategy (budget-aware):
-- google/gemini-2.0-flash-001 for all bulk processing.
+- google/gemini-2.5-flash for all bulk processing.
 - anthropic/claude-sonnet-4-5 only when impact_score >= 9 (re-run single item).
 
 Batching: 8 commits per LLM call (down from 15 after observing Gemini Flash
@@ -31,7 +31,11 @@ from urllib.parse import urlparse
 from pydantic import TypeAdapter
 from pydantic_ai import Agent
 
-from agents._openrouter import build_model
+from agents._openrouter import (
+    DEFAULT_PREMIUM_MODEL,
+    DEFAULT_SUMMARISER_MODEL,
+    build_model,
+)
 from agents._retry import retry_with_backoff
 from agents.models.base import Outcome
 from agents.models.landing import LandingDigest
@@ -47,8 +51,8 @@ from agents.usage_log import append_usage
 logger = logging.getLogger(__name__)
 
 _BATCH_SIZE = 8
-_DEFAULT_MODEL = "google/gemini-2.0-flash-001"
-_PREMIUM_MODEL = "anthropic/claude-sonnet-4-5"
+_DEFAULT_MODEL = DEFAULT_SUMMARISER_MODEL
+_PREMIUM_MODEL = DEFAULT_PREMIUM_MODEL
 
 # Module-level counters so main() can detect silent degradation (every LLM
 # batch falling through to stubs). Reset by main() at the start of each run.

@@ -259,12 +259,12 @@ field is included in the prompt so the model adapts its heuristics:
 - `plain_git` → commit-body-only analysis
 
 **`agents/discussion_agent.py`** — `Agent[None, list[DiscussionDigest]]`
-- Model: `google/gemini-2.0-flash-001`
+- Model: `google/gemini-2.5-flash`
 - Registered tools: `web_search`, `patch_id`
 - **Batching**: 10 discussions per LLM call
 
 **`agents/landing_agent.py`** — `Agent[None, list[LandingDigest]]`
-- Model: `google/gemini-2.0-flash-001`; re-run with `anthropic/claude-sonnet-4-5` if `impact_score >= 9`
+- Model: `google/gemini-2.5-flash`; re-run with `anthropic/claude-sonnet-4-5` if `impact_score >= 9`
 - Scan commit message for `Closes #N`, `Message-Id:`, `Link:`, `PR \d+` trailers
 - **Batching**: 15 commits per LLM call
 
@@ -346,7 +346,7 @@ Add `agents/cache/` with `.gitkeep`.
 ---
 
 ## Budget Rule
-`google/gemini-2.0-flash-001` for all bulk calls.
+`google/gemini-2.5-flash` for all bulk calls.
 `anthropic/claude-sonnet-4-5` only for `LandingDigest` items with `impact_score >= 9`.
 Never call LLMs per-item — batch (10 discussions / 15 commits per call).
 Log token usage to `agents/output/usage.log` after every run.

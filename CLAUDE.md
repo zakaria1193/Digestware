@@ -26,7 +26,7 @@ Digestware/
 |-------|--------|-----|
 | AI runtime | PydanticAI | Typed, structured output; easy tool registration |
 | LLM provider | OpenRouter | Model-agnostic, pay-per-token |
-| Cheap summariser model | `google/gemini-2.0-flash-001` or `mistralai/mistral-small` | Near-zero cost for bulk work |
+| Cheap summariser model | `google/gemini-2.5-flash` or `mistralai/mistral-small` | Near-zero cost for bulk work |
 | Premium model (Bento logic) | `anthropic/claude-sonnet-4-5` | Only for final ranking / formatting |
 | Frontend | Astro 6 + Tailwind 4 | Static-first, Content Collections, fast |
 | Newsletter | Resend API + React Email | Developer-friendly, generous free tier |

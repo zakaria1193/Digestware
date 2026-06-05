@@ -1,6 +1,6 @@
 """Lab agent — digests mailing-list / PR discussions into DiscussionDigest.
 
-Model: google/gemini-2.0-flash-001 (cheap, fast, good at long context).
+Model: google/gemini-2.5-flash (cheap, fast, good at long context).
 Batching: 10 discussions per LLM call to stay within budget.
 Token usage is appended as a JSON line to agents/output/usage.log.
 """
@@ -14,7 +14,7 @@ import os
 from pydantic import TypeAdapter
 from pydantic_ai import Agent
 
-from agents._openrouter import build_model
+from agents._openrouter import DEFAULT_SUMMARISER_MODEL, build_model
 from agents._retry import retry_with_backoff
 from agents.models.base import Outcome
 from agents.models.discussion import DiscussionDigest
@@ -31,7 +31,7 @@ from agents.usage_log import append_usage
 logger = logging.getLogger(__name__)
 
 _BATCH_SIZE = 10
-_DEFAULT_MODEL = "google/gemini-2.0-flash-001"
+_DEFAULT_MODEL = DEFAULT_SUMMARISER_MODEL
 
 # Module-level counters so main() can detect silent degradation (every LLM
 # batch falling through to stubs). Reset by main() at the start of each run.
