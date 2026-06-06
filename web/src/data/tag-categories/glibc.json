@@ -1,9 +1,9 @@
 {
   "assignments": {
     "EFTYPE": "other",
-    "documentation": "components",
-    "errno": "other"
+    "documentation": "topics",
+    "errno": "components"
   },
-  "generated_at": "2026-06-01T03:06:38.649343Z",
-  "model": "google/gemini-2.0-flash-001"
+  "generated_at": "2026-06-06T03:15:23.774844Z",
+  "model": "google/gemini-2.5-flash"
 }
