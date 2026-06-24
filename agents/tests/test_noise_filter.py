@@ -52,7 +52,11 @@ class TestCommitNoise:
         [
             "Daily bump.",
             "Daily bump",
+            "Automatic date update in version.h",
+            "automatic date update in bfd/version.h",
             "Update copyright years.",
+            "Update bfd version header to 2.44.50",
+            "Update the BFD version header",
             "Regenerate configure",
             "Bump version to 15.2",
             "Merge branch 'master' into devel",

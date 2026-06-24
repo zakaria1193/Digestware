@@ -135,3 +135,55 @@ class TestSweepContentRoot:
         counts = sweep_content_root(root)
         assert counts["total"] == 0
         assert _read_fm(f)["is_stub"] is False
+
+    def test_marks_landing_low_score(self, tmp_path: Path):
+        root = tmp_path
+        f = root / "landings" / "2026-06-24-bfd-abc12345.md"
+        _write_md(
+            f,
+            {
+                "project": "binutils",
+                "headline": "BFD library version header updates to today's date",
+                "author": "gdbadmin@sourceware.org",
+                "impact_score": 2,
+                "is_stub": False,
+            },
+        )
+        counts = sweep_content_root(root)
+        assert counts["low-score"] == 1
+        assert counts["total"] == 1
+        assert _read_fm(f)["is_stub"] is True
+
+    def test_landing_score_4_kept(self, tmp_path: Path):
+        root = tmp_path
+        f = root / "landings" / "2026-06-24-gcc-ipa-abc12345.md"
+        _write_md(
+            f,
+            {
+                "project": "gcc",
+                "headline": "ipa: refactor internal API for clarity",
+                "author": "a@b",
+                "impact_score": 4,
+                "is_stub": False,
+            },
+        )
+        counts = sweep_content_root(root)
+        assert counts["total"] == 0
+        assert _read_fm(f)["is_stub"] is False
+
+    def test_landing_null_score_kept(self, tmp_path: Path):
+        """Stub digests (impact_score=None) must not be re-marked."""
+        root = tmp_path
+        f = root / "landings" / "2026-06-24-gcc-stub.md"
+        _write_md(
+            f,
+            {
+                "project": "gcc",
+                "headline": "stub",
+                "author": "a@b",
+                "impact_score": None,
+                "is_stub": False,
+            },
+        )
+        counts = sweep_content_root(root)
+        assert counts["total"] == 0

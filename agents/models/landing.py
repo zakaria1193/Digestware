@@ -28,3 +28,6 @@ class LandingDigest(BimodalBase):
     # omitted the item). Stubs are written to disk so admin can inspect them,
     # but the public site filters them out.
     is_stub: bool = False
+    # Non-empty when is_stub was set by the noise filter rather than an LLM
+    # failure. Values: "low_score", "title-noise", "spam", "bot-author".
+    stub_reason: str = ""

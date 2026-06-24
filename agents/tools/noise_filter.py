@@ -15,7 +15,9 @@ _NOISE_COMMIT_RE = re.compile(
     r"""
     ^(
         Daily\ bump\.?
+      | Automatic\ date\ update.*       # binutils/BFD version.h date bump
       | Update\ copyright\ years?.*
+      | Update\ .*version.*header.*     # generic "Update * version header" bumps
       | Regenerate\ .*
       | Bump\ version.*
       | Merge\ (branch|tag|pull|remote-tracking).*
