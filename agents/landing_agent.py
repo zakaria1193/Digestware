@@ -495,11 +495,11 @@ def _run_batch(
         batches_stubbed += 1
         return _stub_digests(batch)
 
-    append_usage("landing_agent", model_name, result.usage())
+    append_usage("landing_agent", model_name, result.usage)
     data = list(data)
     logger.info(
         "Batch %d: %d digest(s), usage=%s",
-        batch_idx, len(data), result.usage(),
+        batch_idx, len(data), result.usage,
     )
 
     # Correlation: stub any input item the LLM failed to return.
@@ -645,7 +645,7 @@ def _rerun_premium(
             _premium_call,
             label="landing_agent premium rerun",
         )
-        append_usage("landing_agent_premium", premium_model_name, result.usage())
+        append_usage("landing_agent_premium", premium_model_name, result.usage)
         input_shas = {c.sha for c in original_commits}
         for refined in refined_digests:
             if refined.commit_hash not in input_shas:

@@ -242,7 +242,7 @@ def _call_llm(
 
     def _call() -> dict[str, Category]:
         r = agent.run_sync(prompt)
-        append_usage("tag_categorizer", model_name, r.usage())
+        append_usage("tag_categorizer", model_name, r.usage)
         text = _FENCE_RE.sub("", r.output.strip())
         data = json.loads(text)
         if not isinstance(data, dict):
