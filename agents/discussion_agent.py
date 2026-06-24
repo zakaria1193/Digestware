@@ -487,11 +487,11 @@ def _run_batch(
         batches_stubbed += 1
         return _stub_digests(batch)
 
-    append_usage("discussion_agent", model_name, result.usage())
+    append_usage("discussion_agent", model_name, result.usage)
     data = list(data)
     logger.info(
         "Batch %d: %d item(s) digested, usage=%s",
-        batch_idx, len(data), result.usage(),
+        batch_idx, len(data), result.usage,
     )
 
     # Correlation: stub any input item the LLM failed to return.
