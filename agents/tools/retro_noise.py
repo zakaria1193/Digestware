@@ -24,6 +24,9 @@ from agents.tools.noise_filter import (
 
 logger = logging.getLogger(__name__)
 
+# Mirrors the floor in main.py — keep in sync.
+_MIN_LANDING_SCORE = 4
+
 # Pre-compiled here so we don't rebuild it on every file.
 _IS_STUB_LINE_RE = re.compile(r"^is_stub:.*$", re.MULTILINE)
 
@@ -68,9 +71,18 @@ def _process_file(path: Path) -> str | None:
         return None
     if fm.get("is_stub"):
         return None
+
     title = fm.get("title") or fm.get("headline") or ""
     author = fm.get("proposer") or fm.get("author") or ""
     rule = matches_noise_rules(title, author)
+
+    # Score floor for landings — retroactively suppress cosmetic/docs/typo
+    # commits that slipped through before this threshold existed.
+    if rule is None and path.parent.name == "landings":
+        score = fm.get("impact_score")
+        if score is not None and score < _MIN_LANDING_SCORE:
+            rule = "low-score"
+
     if rule is None:
         return None
     new_fm = _set_is_stub_true(parts[1])
@@ -84,7 +96,7 @@ def sweep_content_root(content_root: Path) -> dict[str, int]:
     Returns a counts dict keyed by rule name plus a ``total`` entry. The
     pass is idempotent — files already marked are skipped without rewrite.
     """
-    counts: dict[str, int] = {"title-noise": 0, "spam": 0, "bot-author": 0}
+    counts: dict[str, int] = {"title-noise": 0, "spam": 0, "bot-author": 0, "low-score": 0}
     for subdir in ("discussions", "landings"):
         for path in sorted((content_root / subdir).glob("*.md")):
             rule = _process_file(path)

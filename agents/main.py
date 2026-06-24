@@ -236,11 +236,12 @@ def main() -> int:
     if retro_counts["total"]:
         logger.info(
             "Retro noise sweep marked %d file(s) as stub "
-            "(title-noise=%d, spam=%d, bot-author=%d)",
+            "(title-noise=%d, spam=%d, bot-author=%d, low-score=%d)",
             retro_counts["total"],
             retro_counts["title-noise"],
             retro_counts["spam"],
             retro_counts["bot-author"],
+            retro_counts.get("low-score", 0),
         )
     else:
         logger.info("Retro noise sweep: nothing to mark.")
@@ -342,6 +343,17 @@ def main() -> int:
 
     logger.info(_step_banner("STEP 3 — LANDING AGENT", "blue"))
     landings = run_landing_agent(raw_commits, dry_run=args.dry_run)
+
+    # Drop cosmetic/typo/docs landings (score 1–3) — not feed-worthy.
+    _MIN_LANDING_SCORE = 4
+    low_score = [l for l in landings if l.impact_score is not None and l.impact_score < _MIN_LANDING_SCORE]
+    if low_score:
+        logger.info(
+            "Score floor (< %d) dropped %d landing(s)",
+            _MIN_LANDING_SCORE,
+            len(low_score),
+        )
+    landings = [l for l in landings if l.impact_score is None or l.impact_score >= _MIN_LANDING_SCORE]
 
     # Write output
     logger.info(_step_banner("STEP 4 — WRITER", "green"))
