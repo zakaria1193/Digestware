@@ -29,7 +29,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/7be164d7fc738d51b3ea83f6926d7305c3225e1f
 date: '2026-05-14'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit resolves typos in various files within the libgfortran directory, including files related to coarray Fortran (CAF), intrinsics, I/O, and runtime support. These changes improve code readability and maintainability.

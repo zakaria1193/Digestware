@@ -26,6 +26,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/adf7d6d7ca2fe1f2fd81fefddbd0b491ab5b8374
 date: '2026-05-04'
+is_stub: true
+stub_reason: low-score
 ---
 
 The GCC MAINTAINERS file was updated to reflect that Vijay Shankar is now authorized to commit changes after approval by a designated reviewer. This change acknowledges their contributions and grants them more direct commit access.

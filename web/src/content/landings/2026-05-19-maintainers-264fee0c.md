@@ -28,7 +28,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/264fee0cb090f1d084872f3f24be7f7c38d24e69
 date: '2026-05-19'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 The MAINTAINERS file's "OS Port Maintainers" section is now sorted by operating system and then user. This change improves the organization and readability of the list, making it easier to locate specific maintainers.

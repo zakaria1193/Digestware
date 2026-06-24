@@ -27,7 +27,8 @@ series_id: null
 series_parts: []
 url: https://inbox.sourceware.org/binutils-cvs/20260524000011.959D44BAE7ED@sourceware.org
 date: '2026-05-24'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit automatically updates the build date in the `bfd/version.h` file. This ensures the version information is accurate.

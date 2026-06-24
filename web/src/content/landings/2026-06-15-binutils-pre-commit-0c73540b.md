@@ -41,7 +41,8 @@ series_id: null
 series_parts: []
 url: https://inbox.sourceware.org/binutils-cvs/20260615112452.5A29A4B920C6@sourceware.org
 date: '2026-06-15'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 The Binutils project has streamlined its `codespell` configuration, a tool used for checking common spelling errors. The definition of which files `codespell` should analyze has been moved from the main `.pre-commit-config.yaml` file to `gdb/pyproject.toml`. This change centralizes the file selection and exclusion rules within the GDB specific configuration, making the overall setup cleaner and easier to manage, particularly for developers working on the GDB component.

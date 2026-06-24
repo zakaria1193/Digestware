@@ -41,7 +41,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/9f5f4420659c54cba67e7f86f7d61cd3c2b13b54
 date: '2026-06-09'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This update to GCC's versioning script (git_update_version.py) adds two specific commit hashes to the `ignored_commits` list. These commits will now be excluded from the version string generation process, likely because they represent internal or cosmetic changes that shouldn't affect the user-visible version number. Concurrently, older, no longer relevant commit hashes have been removed from the ignored list, streamlining the script's maintenance.

@@ -33,7 +33,8 @@ series_id: null
 series_parts: []
 url: https://inbox.sourceware.org/binutils-cvs/20260618000044.5D8A44BA540B@sourceware.org
 date: '2026-06-18'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 The internal version date within the Binutils BFD library has been automatically incremented due to a routine update. This change affects the `BFD_VERSION_DATE` macro in `bfd/version.h`, reflecting the current date for the bleeding-edge development branch.

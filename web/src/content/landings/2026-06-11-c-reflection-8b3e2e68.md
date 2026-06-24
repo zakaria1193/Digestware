@@ -38,7 +38,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/8b3e2e68208730dc95a7803a21a545e93c735d5b
 date: '2026-06-11'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit improves the diagnostic message issued by GCC when the `size_of` reflection operation is applied to the reflection of a function type. Previously, the error message ambiguously stated "reflection with incomplete type." The updated diagnostic now specifically clarifies that the issue is with using `size_of` on a function type, providing more helpful feedback to developers.

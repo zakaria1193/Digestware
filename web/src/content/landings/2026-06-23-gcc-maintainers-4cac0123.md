@@ -36,7 +36,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/4cac01232fc42db21b514b74549190773abe8a55
 date: '2026-06-23'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit updates the GCC MAINTAINERS file to correctly list several maintainers' associated Sourceware accounts in the 'Write After' section. This ensures that the record of who is authorized to commit changes to specific areas of the GCC codebase is accurate and complete. Additionally, one maintainer no longer active in the 'nds32 CPU Ports' section has been removed.

@@ -35,7 +35,8 @@ series_id: null
 series_parts: []
 url: https://inbox.sourceware.org/binutils-cvs/20260617194020.CA4EC4BA2E1E@sourceware.org
 date: '2026-06-17'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit eliminates the `pass_filenames: true` setting for the `check-whitespace` pre-commit hook in the `.pre-commit-config.yaml` file. Because `true` is the default value for `pass_filenames`, explicitly stating it is unnecessary. This change simplifies the configuration without affecting the hook's operation.

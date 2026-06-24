@@ -27,7 +27,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/5fcdb98f7ca658f053a2157731080af56550ca2b
 date: '2026-05-12'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 The testcase in gcc.dg/vect/pr94994.c refers to size_t without including stddef.h. This commit adds the necessary include to fix the testcase.

@@ -31,7 +31,8 @@ series_id: null
 series_parts: []
 url: https://inbox.sourceware.org/binutils-cvs/20260526000010.F15C34BA23F1@sourceware.org
 date: '2026-05-26'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 The `BFD_VERSION_DATE` macro in `bfd/version.h` was automatically updated to `20260526`. This change reflects the current date in the version information of the Binary File Descriptor (BFD) library. This update is part of the routine maintenance of the binutils project.

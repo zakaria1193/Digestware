@@ -28,7 +28,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/3b6dbfc2adb0a2e2868c8bd8f2c00fc3f6ddcfd0
 date: '2026-05-11'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit resolves typos across multiple header files within the GCC include directory, improving code readability and developer experience. While these are minor fixes, they contribute to the overall quality and maintainability of the codebase. Clear and accurate code is essential for collaboration and reduces the likelihood of misinterpretations.

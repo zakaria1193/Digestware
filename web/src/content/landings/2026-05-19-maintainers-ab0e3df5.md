@@ -30,7 +30,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/ab0e3df5befcd6f8b163719adb9b9c1301291370
 date: '2026-05-19'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 The MAINTAINERS file's "Write After Approval" section now sorts by email address as a secondary key. This change improves the organization and readability of the list, making it easier to locate specific maintainers.

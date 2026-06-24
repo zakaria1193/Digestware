@@ -28,7 +28,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/d69d2ed43fda2d882d1126d82964c1f52eb10be8
 date: '2026-05-19'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit modifies the MAINTAINERS file to sort the "Contributing under the DCO" section secondarily by email address. This change provides a more organized and easily searchable list of contributors who have signed the Developer Certificate of Origin (DCO).

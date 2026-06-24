@@ -30,7 +30,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/570ebf2ad5c713a1323d80f01ce440fa074633c6
 date: '2026-05-13'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit addresses typos found in multiple files related to GIMPLE, GCC's intermediate representation.  These fixes improve the readability and maintainability of the codebase.

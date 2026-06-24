@@ -30,7 +30,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/07b79a0f673d1b1ccf28bbae9c1189fc0b46e98c
 date: '2026-05-13'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit adds Zhongyao Chen to the `MAINTAINERS` file, granting them "write after approval" privileges and acknowledging their compliance with the Developer Certificate of Origin (DCO). This indicates a new contributor with increased responsibilities within the GCC project.

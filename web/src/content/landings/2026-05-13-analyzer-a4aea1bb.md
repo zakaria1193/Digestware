@@ -32,7 +32,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/a4aea1bb3876ec1be95ff7775cf16426a40d3707
 date: '2026-05-13'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit addresses typographical errors in several files within the GCC analyzer component. The fixes span across access-diagram.cc, analyzer.cc, bounds-checking.cc, constraint-manager.cc, diagnostic-manager.cc, engine.cc, inlining-iterator.h, ops.cc, pending-diagnostic.h, region-model-asm.cc, region-model.cc, region.cc, setjmp-longjmp.cc, sm-fd.cc, sm-malloc.cc, sm-taint.cc, store.cc, and svalue.cc. These corrections enhance the readability and maintainability of the analyzer code, ensuring clarity and reducing potential misinterpretations.

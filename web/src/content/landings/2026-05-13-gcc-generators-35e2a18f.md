@@ -29,7 +29,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/35e2a18fe486256473a724b7a547af2568a5308e
 date: '2026-05-13'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit rectifies typos in several files within the code generator tools of GCC.  These tools are responsible for creating source code from specifications, and these fixes improve the readability and maintainability.

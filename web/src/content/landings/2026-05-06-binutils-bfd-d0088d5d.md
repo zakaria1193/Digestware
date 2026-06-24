@@ -26,6 +26,8 @@ series_id: null
 series_parts: []
 url: https://inbox.sourceware.org/binutils-cvs/20260506000039.438D74BA23C2@sourceware.org
 date: '2026-05-06'
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit automatically updates the `BFD_VERSION_DATE` macro in `bfd/version.h` to `20260506`. This date is used internally for versioning and bug reporting.

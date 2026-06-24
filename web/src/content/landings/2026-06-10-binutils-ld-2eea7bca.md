@@ -40,7 +40,8 @@ series_id: null
 series_parts: []
 url: https://inbox.sourceware.org/binutils-cvs/20260610233750.187E84BA5435@sourceware.org
 date: '2026-06-10'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit harmonizes the Binutils `ld` linker documentation by standardizing the language used to describe options exclusive to PE (Portable Executable) targets. Previously, the documentation used inconsistent or outdated phrases like 'i386 PE targeted', which no longer reflected the modern support for PE on architectures like x86_64 and AArch64. The documentation now consistently states that these options are 'specific to PE targeted ports of the linker,' improving clarity for developers working with Windows binaries across different CPU architectures.

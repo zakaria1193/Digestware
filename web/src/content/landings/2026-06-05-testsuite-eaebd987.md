@@ -43,7 +43,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/eaebd987e5492b23419b5c52482038a94066c640
 date: '2026-06-05'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 The GCC testsuite now includes expanded tests for how built-in functions such as `__builtin_clz`, `__builtin_ctz`, and `__builtin_bswapg` handle enumerated type arguments. This enhancement specifically addresses cases involving enumerations with fixed underlying types, which were previously only partially covered in C++. The improved coverage ensures the compiler's robustness when these built-ins process enum values in both C and C++ code, preventing potential silent miscompilations.

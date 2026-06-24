@@ -26,6 +26,8 @@ series_id: null
 series_parts: []
 url: https://inbox.sourceware.org/binutils-cvs/20260506000026.277F64BA799F@sourceware.org
 date: '2026-05-06'
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit updates the `BFD_VERSION_DATE` macro within `bfd/version.h` to `20260506` on the `gdb-17-branch`. This macro is used for internal version tracking and bug reporting.

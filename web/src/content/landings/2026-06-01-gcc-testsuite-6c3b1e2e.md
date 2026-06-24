@@ -41,7 +41,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/6c3b1e2e972d2fb331b4ea37080c5bf5e4c1d7ae
 date: '2026-06-01'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit updates the GCC C++ testsuite for Darwin to prevent duplicate linking of libraries. On newer versions of Darwin, the linker reports errors when `asan` (AddressSanitizer) and `pthread` libraries are included redundantly. The `asan` library is already provided by the compiler's specifications, and `pthread` is part of `libSystem`, so the test configuration has been adjusted to omit these explicit links, resolving linker complaints and ensuring cleaner test execution.

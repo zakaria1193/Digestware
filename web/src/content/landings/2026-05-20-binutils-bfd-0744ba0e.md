@@ -31,7 +31,8 @@ series_id: null
 series_parts: []
 url: https://inbox.sourceware.org/binutils-cvs/20260520000038.B47ED4BB5888@sourceware.org
 date: '2026-05-20'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 The build date in `bfd/version.h` was automatically updated from 20260519 to 20260520. This change is part of the regular maintenance to keep version information current.

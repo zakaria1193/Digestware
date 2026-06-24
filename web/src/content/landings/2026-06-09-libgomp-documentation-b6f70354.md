@@ -43,7 +43,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/b6f7035408cc08acef6f05a65d5da1d5f9e29a33
 date: '2026-06-09'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit updates the `libgomp.texi` documentation to better explain the use of unified shared memory (USM) with AMD GPUs, particularly on mixed systems. It re-adds a crucial half-sentence that was previously lost, clarifying that `ROCR_VISIBLE_DEVICES` serves as a workaround when not all AMD GPUs support USM, especially in configurations with integrated and discrete GPUs. The wording also now correctly differentiates between USM/SVM support and XNACK capabilities.

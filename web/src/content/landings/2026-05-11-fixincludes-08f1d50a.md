@@ -32,7 +32,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/08f1d50a1ab17ca9d85a90c55386d8682a69b53a
 date: '2026-05-11'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit addresses and corrects typographical errors in several files within the fixincludes component. The changes span across README, fixinc.in, fixincl.c, fixlib.c, and inclhack.def. These corrections improve code readability and maintainability, ensuring clarity and reducing potential misunderstandings.

@@ -29,7 +29,8 @@ series_id: null
 series_parts: []
 url: https://inbox.sourceware.org/binutils-cvs/20260515140827.3025340A1F86@sourceware.org
 date: '2026-05-15'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 The `SM3_IMM2` operand was intended for `sm3tt*` instructions in the AArch64 assembler, but these instructions were implemented using the `Em` operand instead. This commit removes the unused `SM3_IMM2` operand, simplifying the code and removing a potential source of confusion.

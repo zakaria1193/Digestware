@@ -38,7 +38,8 @@ series_id: null
 series_parts: []
 url: https://inbox.sourceware.org/binutils-cvs/20260617194031.0CC924BA2E11@sourceware.org
 date: '2026-06-17'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This change removes the `always_run: true` setting from the `codespell-log` hook definition within the `.pre-commit-config.yaml` file. Since `codespell-log` is configured to run during the `commit-msg` stage, enforcing `always_run` is unnecessary. Removing this superfluous setting simplifies the pre-commit configuration without altering its behavior.

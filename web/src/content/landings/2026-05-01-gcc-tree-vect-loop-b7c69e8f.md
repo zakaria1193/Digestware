@@ -30,6 +30,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/b7c69e8f540ccd41b0368cd5fe650b4aef3758eb
 date: '2026-05-01'
+is_stub: true
+stub_reason: low-score
 ---
 
 A previous change replaced a condition with `&& 1` in the `vectorizable_reduction` function, which served no purpose.  This commit removes the redundant `&& 1`, simplifying the code and improving readability.  This has no functional impact.

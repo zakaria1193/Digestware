@@ -39,7 +39,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/813e1ffdfde31963ccf93af8f786c1903e56e68c
 date: '2026-06-21'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit focuses on improving the readability and maintainability of the Fortran frontend's OpenMP array section translation logic. By adding detailed comments and renaming a variable to be more descriptive within the `gfc_trans_omp_array_section` function, developers can more easily understand the purpose and mechanisms of this complex code. The change is purely internal and has no functional impact on the compiler's output or performance.

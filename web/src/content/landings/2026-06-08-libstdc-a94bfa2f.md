@@ -37,7 +37,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/a94bfa2fba3c7675724c1142789533b28076568e
 date: '2026-06-08'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit standardizes the terminology within the libstdc++ documentation, ensuring that "command-line option" is consistently spelled with a hyphen. Specifically, the `abi.xml` file, which describes the Application Binary Interface for libstdc++, has been updated to reflect this stylistic change. This improves clarity and consistency across the documentation, making it easier for developers to read and understand.

@@ -25,6 +25,8 @@ series_id: null
 series_parts: []
 url: https://inbox.sourceware.org/binutils-cvs/20260502000043.CAB5C4371D6F@sourceware.org
 date: '2026-05-02'
+is_stub: true
+stub_reason: low-score
 ---
 
 The `BFD_VERSION_DATE` macro in `bfd/version.h` was automatically updated to `20260502`. This change is part of the regular maintenance of the build system. It does not affect functionality.

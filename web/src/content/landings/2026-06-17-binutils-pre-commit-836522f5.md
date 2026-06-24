@@ -37,7 +37,8 @@ series_id: null
 series_parts: []
 url: https://inbox.sourceware.org/binutils-cvs/20260617194010.9AD034BA2E11@sourceware.org
 date: '2026-06-17'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This change removes the `types_or: [file]` setting from the `tclint` pre-commit hook in `.pre-commit-config.yaml`. This filter was unnecessary because `tclint` does not have a default file type that `types_or` needed to override. Removing this redundant setting makes the configuration more precise and avoids performing additional, unneeded filtering.

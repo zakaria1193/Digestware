@@ -38,7 +38,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/1c2d07af12b93edf1df4605d295cd4600704d91f
 date: '2026-06-09'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit updates the `MAINTAINERS` file to add Pierre-Emmanuel Patry as a contributor. They have been granted "Write After Approval" status and also listed under the "Contributing under the DCO" section. This formalizes their ability to submit changes to the GCC project after review.

@@ -27,6 +27,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/d3824f42715c7575d4c23e5fac1b6474cca585eb
 date: '2026-04-27'
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit fixes documentation errors in libgdiagnostics. It addresses incorrect indentation in `execution-paths.rst` and replaces a duplicate entry in `message-buffers.rst`, improving the accuracy and usability of the library's documentation.

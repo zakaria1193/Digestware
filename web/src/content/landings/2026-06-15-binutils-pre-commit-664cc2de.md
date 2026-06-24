@@ -37,7 +37,8 @@ series_id: null
 series_parts: []
 url: https://inbox.sourceware.org/binutils-cvs/20260615112447.3F0FE4C3186E@sourceware.org
 date: '2026-06-15'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 The Binutils project has expanded its `codespell` pre-commit checks to include files within the `gdb` directory. Previously, these files were not consistently covered by the spelling checker. This update modifies the `.pre-commit-config.yaml` to ensure broader coverage, enhancing code quality by catching typographical errors in the GDB codebase before commits are finalized.

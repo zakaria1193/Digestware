@@ -28,6 +28,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/d8cde7c0859004e07c0cfd9733a8eb0272b3300a
 date: '2026-05-05'
+is_stub: true
+stub_reason: low-score
 ---
 
 The libstdc++ now has improved Doxygen comments for range access functions in `include/bits/range_access.h`. This enhances the clarity and understandability of these functions.

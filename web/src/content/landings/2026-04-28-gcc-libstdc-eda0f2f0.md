@@ -30,6 +30,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/eda0f2f0ccc76dfcce0a4d8350611039b0762e05
 date: '2026-04-28'
+is_stub: true
+stub_reason: low-score
 ---
 
 The libstdc++ documentation has been updated to accurately describe the default value for the ``-std`` compiler option. This option controls the C++ standard used by the compiler. The update ensures that users understand how the compiler interprets their code by default.

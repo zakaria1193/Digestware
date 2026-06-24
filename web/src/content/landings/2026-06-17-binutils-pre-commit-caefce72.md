@@ -38,7 +38,8 @@ series_id: null
 series_parts: []
 url: https://inbox.sourceware.org/binutils-cvs/20260617194015.B1D8C4BA23C3@sourceware.org
 date: '2026-06-17'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This change removes the `require_serial: true` setting from the `pre-commit-setup` hook definition in `.pre-commit-config.yaml`. This setting was previously necessary when `pass_filenames` was enabled, which required hooks to run sequentially. Now that `pass_filenames` is disabled for `pre-commit-setup` and files are not passed individually, `require_serial` is no longer needed, simplifying the configuration.

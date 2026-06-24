@@ -41,7 +41,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/c3699aaef36a2e3e90a114acedb8436b32fe96b7
 date: '2026-06-15'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit fixes an issue in the `mult-negate-zeroone-1.C` test case within GCC's G++ testsuite. The problem involved incorrect escaping within a regular expression used to scan the compiler's output, leading to potential inaccuracies in verifying multiplication negation. The corrected escaping ensures the test now reliably and accurately checks the compiler's behavior, addressing PR tree-optimization/125750.

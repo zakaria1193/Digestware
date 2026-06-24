@@ -29,7 +29,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/a060a4a52d9d5cf13eb77eb74ffdd3ad1204ceea
 date: '2026-05-14'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit resolves typos in various files within the libbacktrace directory, including `allocfail.sh` and `elf.c`. These changes improve code readability and maintainability.

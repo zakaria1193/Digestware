@@ -28,7 +28,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/b966e87aa42ad43837259b2e89571bbcfdd01ae5
 date: '2026-05-14'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit corrects typos in various files within libdecnumber, a library for decimal arithmetic. The affected files include `decBasic.c`, `decCommon.c`, `decContext.c`, `decNumber.c`, and `decNumberLocal.h`. These changes improve code readability and maintainability.

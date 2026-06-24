@@ -31,7 +31,8 @@ series_id: null
 series_parts: []
 url: https://inbox.sourceware.org/binutils-cvs/20260515140822.107C6490037F@sourceware.org
 date: '2026-05-15'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 The `ADDR_SIMM9_2` operand in the AArch64 assembler has been unused since changes in load/store register handling. This commit removes the operand definition, simplifying the code and reducing potential confusion.

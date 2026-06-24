@@ -35,7 +35,8 @@ series_id: null
 series_parts: []
 url: https://inbox.sourceware.org/binutils-cvs/20260624000027.83E3D4BA2E04@sourceware.org
 date: '2026-06-24'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit is an automatic update to the `bfd/version.h` file within the Binutils project, incrementing the `BFD_VERSION_DATE` macro to `20260624`. This change reflects the current development date for the BFD library. These automatic updates are part of the standard release and development workflow for Binutils, ensuring that internal timestamps are current.

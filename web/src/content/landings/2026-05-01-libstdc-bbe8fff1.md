@@ -32,6 +32,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/bbe8fff16e366976bd95b981c138e5f12caf9010
 date: '2026-05-01'
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit improves the Doxygen documentation for the experimental SIMD (Single Instruction, Multiple Data) features in libstdc++. It defines Doxygen macros for the SIMD namespace and adjusts the placement of these macros and Doxygen comments in the `<experimental/simd>` header. This ensures that the SIMD components are correctly documented within the `std::experimental::parallelism_v2` namespace.

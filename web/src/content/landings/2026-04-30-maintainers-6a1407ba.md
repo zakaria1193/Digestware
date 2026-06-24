@@ -28,6 +28,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/6a1407bac7e334ff04ac668ca9edb1af576110b6
 date: '2026-04-30'
+is_stub: true
+stub_reason: low-score
 ---
 
 The `MAINTAINERS` file has been updated to include Christopher Bazley in the list of contributors who have write access to the GCC repository after approval. This allows them to commit changes following a review process.

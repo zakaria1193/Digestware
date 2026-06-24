@@ -38,7 +38,8 @@ series_id: null
 series_parts: []
 url: https://github.com/gcc-mirror/gcc/commit/e7bac3ec7ebc88e538a0fa53d054b32cdee82978
 date: '2026-06-10'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit updates the `vcond_18.c` test case within GCC's AArch64 test suite. The changes bring the test up to date with expected output or behavior, ensuring it accurately verifies the compiler's functionality for vector conditional operations on AArch64. This is a routine maintenance task to keep the test suite reliable and current.

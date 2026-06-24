@@ -36,7 +36,8 @@ series_id: null
 series_parts: []
 url: https://inbox.sourceware.org/binutils-cvs/20260617194025.E31B54BA2E3E@sourceware.org
 date: '2026-06-17'
-is_stub: false
+is_stub: true
+stub_reason: low-score
 ---
 
 This commit removes the explicit `stages: [pre-commit]` setting from `check-license` and `check-whitespace` pre-commit hooks in `.pre-commit-config.yaml`.  Since the global `default_stages` is also set to `[pre-commit]`, these individual settings were entirely redundant and their removal streamlines the configuration without altering hook behavior.
