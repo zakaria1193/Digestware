@@ -346,14 +346,14 @@ def main() -> int:
 
     # Drop cosmetic/typo/docs landings (score 1–3) — not feed-worthy.
     _MIN_LANDING_SCORE = 4
-    low_score = [l for l in landings if l.impact_score is not None and l.impact_score < _MIN_LANDING_SCORE]
+    low_score = [ld for ld in landings if ld.impact_score is not None and ld.impact_score < _MIN_LANDING_SCORE]
     if low_score:
         logger.info(
             "Score floor (< %d) dropped %d landing(s)",
             _MIN_LANDING_SCORE,
             len(low_score),
         )
-    landings = [l for l in landings if l.impact_score is None or l.impact_score >= _MIN_LANDING_SCORE]
+    landings = [ld for ld in landings if ld.impact_score is None or ld.impact_score >= _MIN_LANDING_SCORE]
 
     # Write output
     logger.info(_step_banner("STEP 4 — WRITER", "green"))
