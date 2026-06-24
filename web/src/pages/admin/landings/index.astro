@@ -57,6 +57,8 @@ const landings = (await getCollection('landings'))
       )}
       <a href="/admin/landings?filter=breaking" class="filter-link" data-filter="breaking">Breaking</a>
       <span>·</span>
+      <a href="/admin/landings?filter=noise" class="filter-link" data-filter="noise">Noise-filtered</a>
+      <span>·</span>
       <a href="/admin/landings?filter=stubs" class="filter-link" data-filter="stubs">Stubs</a>
     </div>
   </div>
@@ -68,6 +70,7 @@ const landings = (await getCollection('landings'))
           <th class="px-4 py-3 text-left font-medium text-xs uppercase tracking-wide">Date</th>
           <th class="px-4 py-3 text-left font-medium text-xs uppercase tracking-wide">Project</th>
           <th class="px-4 py-3 text-left font-medium text-xs uppercase tracking-wide">Subsystem</th>
+          <th class="px-4 py-3 text-left font-medium text-xs uppercase tracking-wide">Headline</th>
           <th class="px-4 py-3 text-left font-medium text-xs uppercase tracking-wide">Commit</th>
           <th class="px-4 py-3 text-left font-medium text-xs uppercase tracking-wide">Author</th>
           {SHOW_IMPACT_SCORE && (
@@ -84,6 +87,7 @@ const landings = (await getCollection('landings'))
             data-impact={e.data.impact_score ?? -1}
             data-breaking={e.data.breaking_change ? '1' : '0'}
             data-stub={e.data.is_stub ? '1' : '0'}
+            data-stub-reason={e.data.stub_reason ?? ''}
           >
             <td class="px-4 py-2.5 font-mono text-xs whitespace-nowrap" style="color: var(--color-muted);">
               {e.data.date.toISOString().slice(0, 10)}
@@ -94,6 +98,21 @@ const landings = (await getCollection('landings'))
               </span>
             </td>
             <td class="px-4 py-2.5 text-xs" style="color: var(--color-muted);">{e.data.subsystem}</td>
+            <td class="px-4 py-2.5 max-w-sm">
+              <a
+                href={`/admin/landings/${e.id}`}
+                class="text-sm line-clamp-1 transition-colors"
+                style="color: var(--color-ink);"
+                title={e.data.headline}
+              >
+                {e.data.headline}
+              </a>
+              {e.data.stub_reason && (
+                <span class="text-xs font-mono ml-1" style="color: #e67e22;">
+                  [{e.data.stub_reason}]
+                </span>
+              )}
+            </td>
             <td class="px-4 py-2.5">
               <a
                 href={`/admin/landings/${e.id}`}
@@ -150,11 +169,13 @@ const landings = (await getCollection('landings'))
     const labels: Record<string, string> = {
       'high-impact': '· filtered: high impact (≥8)',
       breaking: '· filtered: breaking changes',
-      stubs: '· filtered: stubs (failed digests)',
+      noise: '· filtered: noise-filtered (review for over-filtering)',
+      stubs: '· filtered: all stubs (LLM failures + noise-filtered)',
     };
     function rowPasses(r: HTMLTableRowElement, f: string): boolean {
       if (f === 'high-impact') return parseInt(r.dataset.impact ?? '-1') >= 8;
       if (f === 'breaking') return r.dataset.breaking === '1';
+      if (f === 'noise') return !!(r.dataset.stubReason);
       if (f === 'stubs') return r.dataset.stub === '1';
       return true;
     }

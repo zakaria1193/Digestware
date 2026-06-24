@@ -29,6 +29,7 @@ _MIN_LANDING_SCORE = 4
 
 # Pre-compiled here so we don't rebuild it on every file.
 _IS_STUB_LINE_RE = re.compile(r"^is_stub:.*$", re.MULTILINE)
+_STUB_REASON_LINE_RE = re.compile(r"^stub_reason:.*$", re.MULTILINE)
 
 
 def matches_noise_rules(title: str, author: str | None) -> str | None:
@@ -48,10 +49,14 @@ def matches_noise_rules(title: str, author: str | None) -> str | None:
     return None
 
 
-def _set_is_stub_true(frontmatter_text: str) -> str:
+def _set_stub_fields(frontmatter_text: str, reason: str) -> str:
     if _IS_STUB_LINE_RE.search(frontmatter_text):
-        return _IS_STUB_LINE_RE.sub("is_stub: true", frontmatter_text)
-    return frontmatter_text.rstrip("\n") + "\nis_stub: true\n"
+        text = _IS_STUB_LINE_RE.sub("is_stub: true", frontmatter_text)
+    else:
+        text = frontmatter_text.rstrip("\n") + "\nis_stub: true\n"
+    if _STUB_REASON_LINE_RE.search(text):
+        return _STUB_REASON_LINE_RE.sub(f"stub_reason: {reason}", text)
+    return text.rstrip("\n") + f"\nstub_reason: {reason}\n"
 
 
 def _process_file(path: Path) -> str | None:
@@ -85,7 +90,7 @@ def _process_file(path: Path) -> str | None:
 
     if rule is None:
         return None
-    new_fm = _set_is_stub_true(parts[1])
+    new_fm = _set_stub_fields(parts[1], rule)
     path.write_text(f"---{new_fm}---{parts[2]}", encoding="utf-8")
     return rule
 

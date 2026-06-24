@@ -29,6 +29,9 @@ const breakingChanges = landings.filter(e => e.data.breaking_change).length;
 const stubLandings = landings.filter(e => e.data.is_stub).length;
 const stubDiscussions = discussions.filter(e => e.data.is_stub).length;
 const stubTotal = stubLandings + stubDiscussions;
+// Noise-filtered = stubs written by the noise/score filter, not LLM failures.
+// Non-empty stub_reason distinguishes them from plain LLM-failure stubs.
+const noiseFiltered = landings.filter(e => e.data.stub_reason).length;
 ---
 
 <AdminLayout title="Dashboard" section="dashboard">
@@ -87,6 +90,11 @@ const stubTotal = stubLandings + stubDiscussions;
         <a href="/admin/discussions?filter=stubs" style="color: var(--color-accent);">{stubDiscussions} D</a>
       </p>
     </div>
+    <a class="admin-card" href="/admin/landings?filter=noise" title="Landings suppressed by the noise/score filter — review to check for over-filtering">
+      <p class="text-xs uppercase tracking-wide mb-1">Noise-filtered</p>
+      <p class="text-3xl font-bold tabular-nums value" style="color: #e67e22;">{noiseFiltered}</p>
+      <p class="text-xs mt-1" style="color: var(--color-muted);">review for over-filtering</p>
+    </a>
   </div>
 
   <div class="grid grid-cols-1 gap-6 lg:grid-cols-3 mb-8">

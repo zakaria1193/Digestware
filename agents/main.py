@@ -344,16 +344,26 @@ def main() -> int:
     logger.info(_step_banner("STEP 3 — LANDING AGENT", "blue"))
     landings = run_landing_agent(raw_commits, dry_run=args.dry_run)
 
-    # Drop cosmetic/typo/docs landings (score 1–3) — not feed-worthy.
+    # Mark cosmetic/typo/docs landings (score 1–3) as stubs so they are
+    # written to disk (admin-visible) but hidden from the public site.
+    # Dropping them outright would make the admin blind to over-filtering.
     _MIN_LANDING_SCORE = 4
-    low_score = [ld for ld in landings if ld.impact_score is not None and ld.impact_score < _MIN_LANDING_SCORE]
-    if low_score:
+    noise_filtered = sum(
+        1 for ld in landings
+        if ld.impact_score is not None and ld.impact_score < _MIN_LANDING_SCORE
+    )
+    if noise_filtered:
         logger.info(
-            "Score floor (< %d) dropped %d landing(s)",
+            "Score floor (< %d) noise-filtered %d landing(s) → written as stubs",
             _MIN_LANDING_SCORE,
-            len(low_score),
+            noise_filtered,
         )
-    landings = [ld for ld in landings if ld.impact_score is None or ld.impact_score >= _MIN_LANDING_SCORE]
+    landings = [
+        ld.model_copy(update={"is_stub": True, "stub_reason": "low_score"})
+        if (ld.impact_score is not None and ld.impact_score < _MIN_LANDING_SCORE)
+        else ld
+        for ld in landings
+    ]
 
     # Write output
     logger.info(_step_banner("STEP 4 — WRITER", "green"))

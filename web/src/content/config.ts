@@ -46,6 +46,7 @@ const discussions = defineCollection({
     bugzilla_url: z.string().url().nullable().optional(),
     date: z.coerce.date(),
     is_stub: z.boolean().optional().default(false),
+    stub_reason: z.string().optional().default(""),
   }),
 });
 
@@ -75,6 +76,7 @@ const landings = defineCollection({
     url: z.string().url(),
     date: z.coerce.date(),
     is_stub: z.boolean().optional().default(false),
+    stub_reason: z.string().optional().default(""),
   }),
 });
 
