@@ -164,6 +164,7 @@
     "avx-512": "architectures",
     "avx512": "architectures",
     "backend": "components",
+    "backport": "other",
     "backtrace": "components",
     "big-endian": "topics",
     "bison": "components",
@@ -212,6 +213,7 @@
     "c++23": "topics",
     "c++26": "topics",
     "c-family": "components",
+    "c-interop": "components",
     "c-interoperability": "topics",
     "c-language": "components",
     "c-standard": "topics",
@@ -248,6 +250,7 @@
     "code-generation": "topics",
     "code-quality": "topics",
     "code-safety": "topics",
+    "code-size": "other",
     "code_generation": "topics",
     "codegen": "components",
     "codepeer": "components",
@@ -565,7 +568,9 @@
     "instantiation": "topics",
     "instruction scheduling": "topics",
     "instruction selection": "topics",
+    "instruction-encoding": "other",
     "instruction-scheduling": "topics",
+    "instrumentation": "other",
     "integer types": "topics",
     "integer-overflow": "topics",
     "integral": "topics",
@@ -902,6 +907,7 @@
     "scalar evolution": "topics",
     "scalarizer": "components",
     "scev": "components",
+    "scheduler": "other",
     "scheduling": "topics",
     "scope": "topics",
     "script": "other",
@@ -1014,6 +1020,7 @@
     "test": "topics",
     "test case": "topics",
     "test suite": "topics",
+    "test-infrastructure": "other",
     "testcase": "topics",
     "testing": "topics",
     "testing-tool": "components",
@@ -1120,6 +1127,6 @@
     "zstd": "components",
     "zvl": "architectures"
   },
-  "generated_at": "2026-06-26T03:12:14.722884Z",
-  "model": "google/gemini-2.5-flash"
+  "generated_at": "2026-06-27T03:06:23.772245Z",
+  "model": "fallback-previous"
 }
