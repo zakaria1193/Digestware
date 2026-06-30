@@ -2,6 +2,7 @@ import rss from '@astrojs/rss';
 import { getCollection } from 'astro:content';
 import type { APIContext } from 'astro';
 import { PROJECTS, getProject } from '../../config/projects';
+import { isPublic } from '../../lib/visibility';
 
 export async function getStaticPaths() {
   return PROJECTS.map(p => ({ params: { project: p.slug }, props: { projectSlug: p.slug } }));
@@ -12,8 +13,8 @@ export async function GET(context: APIContext) {
   const project = getProject(projectSlug)!;
 
   const [discussions, landings] = await Promise.all([
-    getCollection('discussions', ({ data }) => data.project === projectSlug),
-    getCollection('landings', ({ data }) => data.project === projectSlug),
+    getCollection('discussions', ({ data }) => data.project === projectSlug && isPublic(data)),
+    getCollection('landings', ({ data }) => data.project === projectSlug && isPublic(data)),
   ]);
 
   const discussionItems = discussions.map(e => ({
