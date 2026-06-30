@@ -18,9 +18,16 @@ BASE_URL = "https://openrouter.ai/api/v1"
 # are overridable per run via the SUMMARISER_MODEL / BENTO_MODEL env vars.
 #
 # NOTE: google/gemini-2.0-flash-001 was retired by Google on 2026-06-01
-# (OpenRouter then returns 404 "No endpoints found"). google/gemini-2.5-flash
-# is the documented 1:1 replacement — same cheap Flash tier, 1M-token context.
-DEFAULT_SUMMARISER_MODEL = "google/gemini-2.5-flash"
+# (OpenRouter then returns 404 "No endpoints found").
+#
+# We use the *-lite* tier for the bulk summariser path: google/gemini-2.5-flash
+# is a reasoning model that emits billed "thinking" tokens by default, which
+# blew the €5/month budget (~$3.46 in a single cycle). gemini-2.5-flash-lite is
+# the cheap, non-reasoning Flash tier (thinking off by default) — same 1M-token
+# context, a fraction of the per-call cost — and is the right fit for the
+# high-volume per-item digest work. Premium depth still comes from the Sonnet
+# re-run on impact_score >= 9 items.
+DEFAULT_SUMMARISER_MODEL = "google/gemini-2.5-flash-lite"
 DEFAULT_PREMIUM_MODEL = "anthropic/claude-sonnet-4-5"
 
 

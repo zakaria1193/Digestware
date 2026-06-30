@@ -1,6 +1,6 @@
 """Lab agent — digests mailing-list / PR discussions into DiscussionDigest.
 
-Model: google/gemini-2.5-flash (cheap, fast, good at long context).
+Model: google/gemini-2.5-flash-lite (cheap, non-reasoning, long context).
 Batching: 10 discussions per LLM call to stay within budget.
 Token usage is appended as a JSON line to agents/output/usage.log.
 """

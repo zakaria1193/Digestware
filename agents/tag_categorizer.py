@@ -13,7 +13,7 @@ those to group the overflow chips revealed by "Show all" under human-readable
 category headers. If a project's JSON is missing the UI degrades gracefully to
 the flat behaviour, so this module is best-effort — never raises into main.py.
 
-Model: google/gemini-2.5-flash (cheap, one batched call per project).
+Model: google/gemini-2.5-flash-lite (cheap, one batched call per project).
 """
 
 from __future__ import annotations
