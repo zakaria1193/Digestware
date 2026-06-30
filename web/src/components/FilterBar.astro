@@ -66,9 +66,9 @@ const initialSliderValue = SHOW_IMPACT_SCORE ? '30' : '10';
       <span class="filter-cell-label">Date</span>
       <div class="filter-cell-control">
         <div class="date-pills">
-          <button type="button" class="date-pill" data-days="" data-active="true">All time</button>
+          <button type="button" class="date-pill" data-days="">All time</button>
           <button type="button" class="date-pill" data-days="1">Last day</button>
-          <button type="button" class="date-pill" data-days="3">Last 3 days</button>
+          <button type="button" class="date-pill" data-days="3" data-active="true">Last 3 days</button>
           <button type="button" class="date-pill" data-days="7">Last week</button>
           <button type="button" class="date-pill" data-days="30">Last month</button>
         </div>
@@ -156,9 +156,37 @@ const initialSliderValue = SHOW_IMPACT_SCORE ? '30' : '10';
     // it must stay in the sidebar even when filters would hide it.
     const currentWire = document.querySelector<HTMLElement>('[data-current="true"] .wire');
 
-    let selectedDays: number | null = null;
+    // Default date window: last 3 days. Persisted per-browser in
+    // localStorage; an explicit `d` query param (shared link) overrides it.
+    const DATE_STORAGE_KEY = 'digest-date-filter';
+    let selectedDays: number | null = 3;
     const NOW = Date.now();
     const DAY_MS = 86400000;
+
+    function setActiveDays(days: number | null): void {
+      selectedDays = days;
+      for (const p of datePills) {
+        const v = p.dataset.days ?? '';
+        const isActive = v === '' ? days === null : parseInt(v) === days;
+        p.dataset.active = isActive ? 'true' : 'false';
+      }
+    }
+
+    function persistDays(days: number | null): void {
+      try {
+        localStorage.setItem(DATE_STORAGE_KEY, days === null ? '' : String(days));
+      } catch (_) { /* localStorage may be unavailable */ }
+    }
+
+    function restoreDaysFromStorage(): boolean {
+      let stored: string | null = null;
+      try {
+        stored = localStorage.getItem(DATE_STORAGE_KEY);
+      } catch (_) { /* localStorage may be unavailable */ }
+      if (stored === null) return false;
+      setActiveDays(stored === '' ? null : parseInt(stored));
+      return true;
+    }
 
     // "Last day" (selectedDays === 1) means yesterday only — the digester
     // runs early in the morning, so today's window is empty. Other ranges
@@ -401,8 +429,8 @@ const initialSliderValue = SHOW_IMPACT_SCORE ? '30' : '10';
     for (const pill of datePills) {
       pill.addEventListener('click', () => {
         const v = pill.dataset.days ?? '';
-        selectedDays = v === '' ? null : parseInt(v);
-        for (const p of datePills) p.dataset.active = p === pill ? 'true' : 'false';
+        setActiveDays(v === '' ? null : parseInt(v));
+        persistDays(selectedDays);
         userAdjusted = false;
         apply(parseInt(slider.value));
         autoAdjust();
@@ -461,8 +489,12 @@ const initialSliderValue = SHOW_IMPACT_SCORE ? '30' : '10';
           .map(c => c.dataset.tag ?? '');
         if (selected.length) params.set('t', selected.join('|'));
       }
-      if (selectedDays !== null) {
-        const dMap: Record<number, string> = { 1: 'lastday', 3: '3d', 7: '7d', 30: '30d' };
+      // Default window is 3 days, so only serialise when it differs.
+      // `all` makes the "All time" choice explicit in shared links.
+      if (selectedDays === null) {
+        params.set('d', 'all');
+      } else if (selectedDays !== 3) {
+        const dMap: Record<number, string> = { 1: 'lastday', 7: '7d', 30: '30d' };
         if (dMap[selectedDays]) params.set('d', dMap[selectedDays]);
       }
       return params.toString();
@@ -492,12 +524,9 @@ const initialSliderValue = SHOW_IMPACT_SCORE ? '30' : '10';
       }
       const d = params.get('d');
       if (d) {
-        const reverseMap: Record<string, number> = { lastday: 1, today: 1, '3d': 3, '7d': 7, '30d': 30 };
+        const reverseMap: Record<string, number> = { lastday: 1, today: 1, '3d': 3, '7d': 7, '30d': 30, all: -1 };
         if (reverseMap[d] !== undefined) {
-          selectedDays = reverseMap[d];
-          for (const p of datePills) {
-            p.dataset.active = p.dataset.days === String(selectedDays) ? 'true' : 'false';
-          }
+          setActiveDays(reverseMap[d] === -1 ? null : reverseMap[d]);
         }
       }
       if (iv) userAdjusted = true; // explicit impact in URL is intentional
@@ -524,6 +553,9 @@ const initialSliderValue = SHOW_IMPACT_SCORE ? '30' : '10';
     // default threshold would otherwise flash in fully expanded and
     // then animate down.
     document.documentElement.classList.add('filter-init');
+    // Stored per-browser preference first; an explicit `d` in the URL
+    // (shared/bookmarked link) overrides it inside restoreFromUrl().
+    restoreDaysFromStorage();
     restoreFromUrl();
     apply(parseInt(slider.value));
     updateTicks(parseInt(slider.value));
