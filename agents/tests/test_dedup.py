@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
-from agents.dedup import build_seen_index, filter_raw
+from agents.dedup import build_seen_index, filter_raw, latest_content_date
 from agents.models.raw import RawCommit, RawDiscussion
 from agents.writer import write_discussion, write_landing
 
@@ -59,6 +59,48 @@ class TestBuildSeenIndex:
         assert ids == set()
         assert shas == set()
         assert series == set()
+
+
+class TestLatestContentDate:
+    def test_none_when_empty(self, tmp_path):
+        root = _content_root(tmp_path)
+        assert latest_content_date(root) is None
+
+    def test_none_when_dirs_missing(self, tmp_path):
+        assert latest_content_date(tmp_path / "nope") is None
+
+    def test_returns_max_across_subdirs(self, tmp_path):
+        root = _content_root(tmp_path)
+        (root / "discussions" / "a.md").write_text(
+            "---\ndiscussion_id: a\ndate: 2026-06-20\n---\n\nbody\n"
+        )
+        (root / "landings" / "b.md").write_text(
+            "---\ncommit_hash: b\ndate: 2026-06-27\n---\n\nbody\n"
+        )
+        (root / "landings" / "c.md").write_text(
+            "---\ncommit_hash: c\ndate: 2026-06-24\n---\n\nbody\n"
+        )
+        assert latest_content_date(root) == date(2026, 6, 27)
+
+    def test_accepts_datetime_strings(self, tmp_path):
+        root = _content_root(tmp_path)
+        (root / "landings" / "b.md").write_text(
+            '---\ncommit_hash: b\ndate: "2026-06-29T12:34:56+00:00"\n---\n\nbody\n'
+        )
+        assert latest_content_date(root) == date(2026, 6, 29)
+
+    def test_ignores_undated_and_malformed(self, tmp_path):
+        root = _content_root(tmp_path)
+        (root / "discussions" / "no-date.md").write_text(
+            "---\ndiscussion_id: a\n---\n\nbody\n"
+        )
+        (root / "landings" / "bad-date.md").write_text(
+            "---\ncommit_hash: b\ndate: not-a-date\n---\n\nbody\n"
+        )
+        (root / "landings" / "ok.md").write_text(
+            "---\ncommit_hash: c\ndate: 2026-06-15\n---\n\nbody\n"
+        )
+        assert latest_content_date(root) == date(2026, 6, 15)
 
 
 class TestFilterRaw:

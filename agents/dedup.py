@@ -16,6 +16,7 @@ the LLM-generated ``subsystem`` component of landing filenames.
 from __future__ import annotations
 
 import logging
+from datetime import date, datetime
 from pathlib import Path
 
 import yaml
@@ -47,6 +48,48 @@ def _read_frontmatter(path: Path) -> dict | None:
         logger.debug("dedup: malformed frontmatter in %s: %s", path, exc)
         return None
     return fm if isinstance(fm, dict) else None
+
+
+def _coerce_date(value: object) -> date | None:
+    """Best-effort parse of a frontmatter ``date`` value into a ``date``.
+
+    Frontmatter dates are written day-granular (``YYYY-MM-DD``), which
+    ``yaml.safe_load`` already returns as a ``datetime.date``. We still accept
+    ``datetime`` and ISO-ish strings so older or hand-edited files don't break
+    the scan.
+    """
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            return date.fromisoformat(value.strip()[:10])
+        except ValueError:
+            return None
+    return None
+
+
+def latest_content_date(content_root: Path) -> date | None:
+    """Return the newest ``date`` across all on-disk digests, or ``None``.
+
+    Deterministic (no LLM): reads the ``date`` frontmatter field of every
+    ``discussions/*.md`` and ``landings/*.md`` file and returns the maximum.
+    Used to bound how far back ingestion reaches — there is no point pulling
+    history older than the newest article we already have, since dedup would
+    drop it anyway. Returns ``None`` when there is no dated content yet (e.g.
+    a first run or a purged tree), which callers treat as "no cap".
+    """
+    latest: date | None = None
+    for subdir in ("discussions", "landings"):
+        for path in (content_root / subdir).glob("*.md"):
+            fm = _read_frontmatter(path)
+            if not fm:
+                continue
+            d = _coerce_date(fm.get("date"))
+            if d is not None and (latest is None or d > latest):
+                latest = d
+    return latest
 
 
 def build_seen_index(

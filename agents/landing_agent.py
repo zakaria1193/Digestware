@@ -1,7 +1,7 @@
 """Factory agent — digests landed commits into LandingDigest.
 
 Model strategy (budget-aware):
-- google/gemini-2.5-flash for all bulk processing.
+- google/gemini-2.5-flash-lite for all bulk processing.
 - anthropic/claude-sonnet-4-5 only when impact_score >= 9 (re-run single item).
 
 Batching: 8 commits per LLM call (down from 15 after observing Gemini Flash
