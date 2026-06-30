@@ -1,6 +1,7 @@
 ---
 import type { CollectionEntry } from 'astro:content';
 import { SHOW_IMPACT_SCORE } from '../config/features';
+import { relativeDate } from '../lib/dates';
 
 interface Props {
   entry: CollectionEntry<'landings'>;
@@ -10,7 +11,7 @@ interface Props {
 const { entry, projectSlug } = Astro.props;
 const d = entry.data;
 
-const dateStr = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
+const dateStr = relativeDate(d.date, { month: 'short', day: 'numeric' }).toUpperCase();
 const impactScore = SHOW_IMPACT_SCORE ? d.impact_score : null;
 const isHigh = (impactScore ?? 0) >= 8;
 const isLow = impactScore != null && impactScore <= 2;
