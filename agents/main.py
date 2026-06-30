@@ -19,8 +19,10 @@ from __future__ import annotations
 
 import argparse
 import logging
+import math
 import os
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import yaml
@@ -31,7 +33,7 @@ from agents import landing_agent as landing_agent_module
 from agents.adapters.github import GitHubAdapter
 from agents.adapters.plain_git import PlainGitAdapter
 from agents.adapters.public_inbox import PublicInboxAdapter
-from agents.dedup import build_seen_index, filter_raw
+from agents.dedup import build_seen_index, filter_raw, latest_content_date
 from agents.discussion_agent import run_discussion_agent
 from agents.ingestion.engine import IngestionEngine
 from agents.landing_agent import run_landing_agent
@@ -59,6 +61,12 @@ def _step_banner(title: str, color: str = "cyan") -> str:
     bar = "═" * inner
     padded = title.upper().center(inner)
     return f"\n{code}╔{bar}╗\n║{padded}║\n╚{bar}╝{_ANSI_RESET}"
+
+# When clamping the lookback to the newest article on disk, reach back this
+# many extra hours before that article's (day-granular) date. Re-pulled items
+# are dropped by dedup, so the overlap is a cheap guard against boundary items
+# (out-of-order push dates, same-day activity) being missed.
+_DATE_CAP_OVERLAP_HOURS = 24
 
 _SOURCES_YML = Path(__file__).parent / "sources.yml"
 _CACHE_DIR = Path(__file__).parent / "cache"
@@ -137,7 +145,9 @@ def main() -> int:
         "--since-hours",
         type=int,
         default=24,
-        help="How many hours back to fetch (default: 24)",
+        help="How many hours back to fetch (default: 24). Automatically "
+        "clamped so the lookback never reaches further back than the newest "
+        "article already on disk (use --force to ignore the cap).",
     )
     parser.add_argument(
         "--dry-run",
@@ -246,10 +256,39 @@ def main() -> int:
     else:
         logger.info("Retro noise sweep: nothing to mark.")
 
+    # Bound the lookback by the newest article already on disk. There is no
+    # point pulling (and re-ingesting) history older than what we already have
+    # — dedup would drop it anyway — so any requested window wider than the gap
+    # to the newest article is clamped down to it. Deterministic: reads
+    # frontmatter dates, never the LLM. Bypassed by --force (purge re-ingests
+    # from scratch).
+    effective_since_hours = args.since_hours
+    if not args.force:
+        latest = latest_content_date(args.content_root)
+        if latest is not None:
+            cap_anchor = datetime(
+                latest.year, latest.month, latest.day, tzinfo=timezone.utc
+            ) - timedelta(hours=_DATE_CAP_OVERLAP_HOURS)
+            cap_hours = max(
+                1,
+                math.ceil(
+                    (datetime.now(timezone.utc) - cap_anchor).total_seconds() / 3600
+                ),
+            )
+            if cap_hours < effective_since_hours:
+                logger.info(
+                    "Date cap: newest article is %s — clamping lookback "
+                    "%d h → %d h (nothing older is unprocessed; --force to override)",
+                    latest.isoformat(),
+                    effective_since_hours,
+                    cap_hours,
+                )
+                effective_since_hours = cap_hours
+
     # Ingest
     logger.info(_step_banner("STEP 1 — INGESTION", "cyan"))
     engine = IngestionEngine(discussion_sources, commit_sources)
-    raw = engine.run(since_hours=args.since_hours)
+    raw = engine.run(since_hours=effective_since_hours)
     raw_discussions = raw["discussions"]
     raw_commits = raw["commits"]
     logger.info(
