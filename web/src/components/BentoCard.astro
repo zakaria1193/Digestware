@@ -6,15 +6,20 @@ interface Props {
   entry: CollectionEntry<'discussions'>;
   projectSlug: string;
   clusterCount?: number;
+  /** Subsystem lead tile: gets featured layout so every block has a focal
+   *  story, even when no discussion scores high enough to self-promote. */
+  featured?: boolean;
 }
 
-const { entry, projectSlug, clusterCount = 1 } = Astro.props;
+const { entry, projectSlug, clusterCount = 1, featured = false } = Astro.props;
 const d = entry.data;
 
 const impactScore = SHOW_IMPACT_SCORE ? d.impact_score : null;
 const score = impactScore ?? d.sentiment_score ?? -1;
-const isHigh = score >= 7;
 const isLow = score > 0 && score <= 3;
+// High-scoring stories self-promote; a passed-in lead is promoted too, but we
+// never elevate low-value content — that would undercut the noise-dimming pass.
+const isHigh = score >= 7 || (featured && !isLow);
 
 const outcomeLabels: Record<string, string> = {
   committed: 'Committed',

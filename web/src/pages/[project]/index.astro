@@ -139,8 +139,8 @@ const totalItems = allDiscussions.length + landings.length;
               <span class="wsj-section-rule"></span>
             </div>
             <div class="bento-grid">
-              {visibleEntries.map(entry => (
-                <BentoCard entry={entry} projectSlug={project.slug} clusterCount={clusterMap.get(entry.id)?.count ?? 1} />
+              {visibleEntries.map((entry, i) => (
+                <BentoCard entry={entry} projectSlug={project.slug} clusterCount={clusterMap.get(entry.id)?.count ?? 1} featured={i === 0} />
               ))}
             </div>
           </section>
