@@ -3,6 +3,7 @@ import PublicLayout from '../../../layouts/PublicLayout.astro';
 import { getCollection } from 'astro:content';
 import { PROJECTS, getProject } from '../../../config/projects';
 import { SHOW_IMPACT_SCORE } from '../../../config/features';
+import { isPublic } from '../../../lib/visibility';
 
 export async function getStaticPaths() {
   const paths = [];
@@ -10,7 +11,7 @@ export async function getStaticPaths() {
     // Stubs are admin-only; don't generate public detail pages for them.
     const entries = await getCollection(
       'discussions',
-      ({ data }) => data.project === p.slug && !data.is_stub,
+      ({ data }) => data.project === p.slug && isPublic(data),
     );
     for (const entry of entries) {
       paths.push({
@@ -30,7 +31,7 @@ const { Content } = await entry.render();
 // Prev/next stays within the same project — no cross-project merging.
 const all = (await getCollection(
   'discussions',
-  ({ data }) => data.project === projectSlug && !data.is_stub,
+  ({ data }) => data.project === projectSlug && isPublic(data),
 ))
   .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
 const idx = all.findIndex(e => e.id === entry.id);

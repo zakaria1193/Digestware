@@ -6,6 +6,7 @@ import FilterBar from '../../components/FilterBar.astro';
 import { getCollection } from 'astro:content';
 import { PROJECTS, getProject } from '../../config/projects';
 import { rankTags, groupTags } from '../../lib/filterTags';
+import { isPublic } from '../../lib/visibility';
 
 export async function getStaticPaths() {
   return PROJECTS.map(p => ({ params: { project: p.slug }, props: { projectSlug: p.slug } }));
@@ -19,7 +20,7 @@ const project = getProject(projectSlug)!;
 // public site; they remain visible under /admin for ops triage.
 const allDiscussions = (await getCollection(
   'discussions',
-  ({ data }) => data.project === projectSlug && !data.is_stub,
+  ({ data }) => data.project === projectSlug && isPublic(data),
 ))
   .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
 
@@ -65,7 +66,7 @@ function clusterGroup(entries: typeof allDiscussions): Map<string, { count: numb
 
 const landings = (await getCollection(
   'landings',
-  ({ data }) => data.project === projectSlug && !data.is_stub,
+  ({ data }) => data.project === projectSlug && isPublic(data),
 ))
   .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
 
