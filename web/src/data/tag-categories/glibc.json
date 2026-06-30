@@ -4,6 +4,6 @@
     "documentation": "other",
     "errno": "components"
   },
-  "generated_at": "2026-06-27T03:06:29.881741Z",
-  "model": "fallback-previous"
+  "generated_at": "2026-06-30T10:50:40.592214Z",
+  "model": "google/gemini-2.5-flash-lite"
 }
