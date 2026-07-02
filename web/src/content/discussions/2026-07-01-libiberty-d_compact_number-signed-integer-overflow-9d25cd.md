@@ -1,40 +1,60 @@
 ---
 project: binutils
-subsystem: cp-demangle.c
+subsystem: binutils
 patch_id: null
 tags:
-- binutils
-- gcc
+- security
+- bugfix
 - libiberty
-- integer overflow
-- c++ demangling
+- c++
+- demangler
 discussion_id: akRw-8BLQ-FkUM9O@squeak.grove.modra.org
 source_type: public_inbox
 title: libiberty d_compact_number signed integer overflow
 headline: libiberty d_compact_number signed integer overflow
-tldr: Fixes a signed integer overflow in libiberty's `d_compact_number` by using unsigned
-  arithmetic for an addition.
+tldr: Fixes signed integer overflow in `libiberty`'s C++ demangler.
 proposer: Alan Modra <amodra@gmail.com>
 consensus: Proposed
 outcome: proposed
-impact_score: 3
+impact_score: 7
 sentiment_score: null
-technical_tradeoffs: []
+technical_tradeoffs:
+- Fixes a security vulnerability.
+- Ensures correct behavior in the C++ demangler.
 exchanges:
 - author: Alan Modra
   role: proposer
-  position: Submits a patch to fix a signed integer overflow in `d_compact_number`
-    by using unsigned arithmetic for an addition, applying it to binutils and gcc.
-  quote: Fix this by doing the addition in unsigned arithmetic.
-primer_expert: This patch in libiberty's C++ demangling code (cp-demangle.c) addresses
-  a signed integer overflow in `d_compact_number`. The arithmetic `d_number(di) +
-  1` can overflow if `d_number(di)` returns `INT_MAX`. The fix `d_number(di) + 1u`
-  promotes the addition to unsigned arithmetic, preventing the overflow.
-primer_general: This change corrects a potential bug in the code that processes C++
-  function names. When decoding certain number formats, an arithmetic operation could
-  lead to an overflow if the number was close to its maximum value. This could cause
-  unexpected behavior or errors. The fix ensures that the calculation is performed
-  in a way that prevents this overflow, making the C++ name decoding more robust.
+  position: Submits a fix for a signed integer overflow in `libiberty's` C++ demangler,
+    applying it to binutils and gcc.
+  quote: 'Fix this by doing the addition in unsigned arithmetic.
+
+
+    Applying to binutils and gcc as obvious.'
+primer_expert: A signed integer overflow vulnerability in `libiberty/cp-demangle.c`'s
+  `d_compact_number` function is addressed by switching the addition of `1` to unsigned
+  arithmetic (`+ 1u`). This prevents the overflow that could occur when `d_number()`
+  returns a value close to the maximum for a signed integer, ensuring the demangler
+  operates correctly and securely under all valid input conditions.
+primer_glossary:
+- term: libiberty
+  definition: A collection of utility functions used by GCC and other GNU projects,
+    providing common routines like string manipulation, memory allocation, and demangling.
+- term: C++ demangler
+  definition: A tool that converts mangled C++ symbol names (which are made unreadable
+    by the compiler for C++ name mangling) back into their original, human-readable
+    form.
+- term: signed integer overflow
+  definition: An error condition that occurs when an arithmetic operation attempts
+    to create a value that is too large to be represented by a signed integer type.
+    This can lead to unexpected behavior and security vulnerabilities.
+- term: unsigned arithmetic
+  definition: Arithmetic operations performed on integer types that do not use the
+    most significant bit to represent the sign. This allows for a larger positive
+    range compared to signed integers of the same size.
+- term: compiler
+  definition: A program that translates source code written in a high-level programming
+    language into a lower-level language, such as machine code or an intermediate
+    representation.
 series_id: null
 series_role: standalone
 series_parts: []
@@ -45,4 +65,4 @@ is_stub: false
 stub_reason: ''
 ---
 
-Alan Modra identifies and fixes a signed integer overflow in the `d_compact_number` function within libiberty's C++ demangling code. The fix involves changing a standard addition to an unsigned addition to prevent potential overflow issues. The patch is being applied to both binutils and GCC.
+This patch addresses a signed integer overflow vulnerability in the `d_compact_number` function within `libiberty/cp-demangle.c`. The overflow occurs during the addition of 1 to a number obtained from `d_number`. The fix converts this addition to use unsigned arithmetic (`+ 1u`), preventing the overflow and ensuring correct behavior for the C++ demangler.

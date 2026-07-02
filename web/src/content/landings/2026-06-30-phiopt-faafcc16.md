@@ -3,34 +3,44 @@ project: gcc
 subsystem: phiopt
 patch_id: null
 tags:
-- phiopt
 - optimization
+- compiler
 - memory management
-- bugfix
 commit_hash: faafcc163b261d640aad43dacc645fbc43db757c
 source_type: github
 author: Andrew Pinski
-headline: 'phiopt: use remove_phi_node instead of gsi_remove for phi node [PR125961]'
-tldr: GCC's phiopt pass now correctly reuses phi nodes for efficiency.
+headline: 'phiopt: Use remove_phi_node for efficiency'
+tldr: Replaces `gsi_remove` with `remove_phi_node` in the phiopt pass for better memory
+  management of PHI nodes.
 impact_score: 4
-performance_win: false
+performance_win: true
 breaking_change: false
 outcome: committed
-primer_expert: This commit resolves PR tree-optimization/125961 by correcting the
-  deallocation and reuse of phi nodes within the `tree-ssa-phiopt.cc` pass. It replaces
-  calls to `gsi_remove` with `remove_phi_node` in `factor_out_conditional_operation`
-  and `factor_out_conditional_load`. `gsi_remove` only removes the node from the basic
-  block's instruction list but does not free its memory, leading to a leak until the
-  next GC pass. `remove_phi_node` correctly handles deallocation and allows immediate
-  reuse of the phi node, improving SSA form manipulation efficiency.
-primer_general: In the GCC compiler, an optimization phase called `phiopt` deals with
-  'phi nodes,' which are special constructs used in intermediate code to represent
-  values that can come from different code paths. This commit fixes a bug where these
-  phi nodes were not being properly cleaned up after use. Instead of being immediately
-  discarded and made available for reuse, they were temporarily kept in memory, leading
-  to a form of memory leak during compilation. The fix ensures that phi nodes are
-  correctly managed, allowing them to be reused more efficiently, which can lead to
-  faster compilation times for complex code.
+primer_expert: This commit replaces calls to `gsi_remove` with `remove_phi_node` in
+  `factor_out_conditional_operation` and `factor_out_conditional_load` within the
+  `phiopt` pass. The former leaves the PHI node allocated, leading to delayed garbage
+  collection. `remove_phi_node`, when called with `false` (indicating the PHI node's
+  result is still used), correctly removes the PHI node from the GSI graph while ensuring
+  its resources are managed efficiently.
+primer_glossary:
+- term: PHI node
+  definition: A node in Static Single Assignment (SSA) form that represents the merging
+    of values from different control flow paths. It determines which value to use
+    based on which path was taken to reach the node.
+- term: SSA form
+  definition: Static Single Assignment form is an intermediate representation property
+    where each variable is assigned a value exactly once. This simplifies many compiler
+    optimizations.
+- term: phiopt
+  definition: An optimization pass in GCC that focuses on simplifying and optimizing
+    PHI nodes in the SSA representation.
+- term: gsi_remove
+  definition: A function in GCC's internal representation often used to remove an
+    instruction or node from the instruction stream without necessarily freeing its
+    associated data structures immediately.
+- term: remove_phi_node
+  definition: A specific function in GCC's SSA infrastructure designed to correctly
+    remove a PHI node from the graph, managing its associated memory and data structures.
 discussion_id_link: null
 bugzilla_pr: null
 series_id: null
@@ -41,4 +51,4 @@ is_stub: false
 stub_reason: ''
 ---
 
-The `phiopt` optimization pass in GCC has been corrected to properly reuse phi nodes, preventing memory leaks and improving efficiency. Previously, it used `gsi_remove` which did not immediately free the phi node, causing it to be temporarily leaked until the next garbage collection. This commit replaces `gsi_remove` with `remove_phi_node` in two critical areas of `phiopt`. This ensures that phi nodes are correctly deallocated and can be immediately reused, addressing PR tree-optimization/125961.
+The phiopt optimization pass in GCC has been refactored to use `remove_phi_node` instead of `gsi_remove` when processing PHI nodes. This change ensures that PHI nodes are immediately freed or made available for reuse, rather than remaining in memory until the next garbage collection cycle. This improves the efficiency of the phiopt pass.

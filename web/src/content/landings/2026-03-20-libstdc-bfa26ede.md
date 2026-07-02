@@ -4,33 +4,42 @@ subsystem: libstdc++
 patch_id: null
 tags:
 - libstdc++
-- simd
-- refactoring
+- SIMD
+- ABI
 commit_hash: bfa26edeed6c88d96ae8d83c605f98d40f56394d
 source_type: github
 author: Matthias Kretz
-headline: 'libstdc++: SIMD scalar ABI refactored'
-tldr: SIMD scalar ABI handling in libstdc++ is refactored, with `_ScalarAbi<N>` replaced
-  by `_Abi<N, N>`, improving logic for bitmask usage and scalar type identific…
+headline: 'libstdc++: Refactor ScalarAbi into Abi<N, N>'
+tldr: SIMD ABI definitions are refactored to unify scalar and vector representations,
+  improving consistency.
 impact_score: 4
 performance_win: false
 breaking_change: false
 outcome: committed
-primer_expert: The refactoring consolidates SIMD ABI traits by removing `_ScalarAbi<N>`
-  in favor of `_Abi<N, N>`. The `__scalar_abi_tag` now correctly identifies `_Abi<N,
-  N>` as scalar. This necessitated changes to `_S_is_bitmask` logic in `simd_mask.h`
-  and `simd_vec.h`; it's now only true if `!_S_is_scalar`, preventing incorrect short-circuiting.
-  For `_S_nreg == 1` specializations, explicit checks `!__scalar_abi_tag<_Ap>` are
-  used. The `_S_is_bitmask` bit is retained in `__scalar_abi_tag` for `__abi_rebind`
-  compatibility. Test cases in `traits_impl.cc` were updated.
-primer_general: This commit revises how the C++ Standard Library (libstdc++) internally
-  represents and manages vectorized data types for SIMD (Single Instruction, Multiple
-  Data) operations. The concept of a 'scalar ABI' (how single, non-vectorized values
-  are handled) has been updated. Previously, a separate category `_ScalarAbi` existed;
-  it's now integrated into the more general `_Abi` structure. This change cleans up
-  the internal logic, ensuring that SIMD operations correctly identify whether they
-  are dealing with a truly scalar type versus a vector type, which impacts how certain
-  optimizations, like bitmask operations, are applied.
+primer_expert: The `_ScalarAbi` class, previously used to tag scalar SIMD types, has
+  been removed and its functionality merged into the `_Abi` class. The `__scalar_abi_tag`
+  trait now correctly identifies `_Abi<N, N>` types. This change fixes a bug where
+  `_Ap::_S_is_bitmask` would incorrectly evaluate to true for scalar ABIs by adding
+  a `!__scalar_abi_tag<_Ap>` condition. It also adjusts `_M_and_neighbors` and `_M_or_neighbors`
+  in `simd_mask.h` to handle scalar bitmasks correctly.
+primer_glossary:
+- term: SIMD
+  definition: Single Instruction, Multiple Data. A type of parallel processing where
+    a single operation is performed on multiple data points simultaneously, significantly
+    speeding up computations on large datasets. In GCC, SIMD support is integrated
+    into <code>libstdc++</code> for vectorized types.
+- term: ABI
+  definition: Application Binary Interface. Defines how software components interact
+    at the machine code level. In the context of SIMD, ABI variants specify how data
+    is laid out and manipulated in vector registers.
+- term: _ScalarAbi
+  definition: A previous helper class in <code>libstdc++</code>'s SIMD implementation
+    that specifically marked scalar types within the SIMD framework. It has been removed
+    and its logic integrated into the more general `_Abi` template class.
+- term: _Abi<N, N>
+  definition: A refactored ABI tag in <code>libstdc++</code>'s SIMD implementation
+    that represents both scalar and vector types, where N denotes the number of elements.
+    This unification simplifies the ABI logic.
 discussion_id_link: null
 bugzilla_pr: null
 series_id: null
@@ -41,4 +50,4 @@ is_stub: false
 stub_reason: ''
 ---
 
-The handling of scalar ABI traits within libstdc++'s SIMD infrastructure has been refactored. The `_ScalarAbi<N>` class has been removed and replaced by `_Abi<N, N>`, where `N` represents the number of elements. This change clarifies the distinction between scalar and vectorized types, ensuring that bitmask behaviors are correctly determined, particularly when dealing with scalar types that do not use bitmask optimizations. The test suite has been updated to reflect these changes.
+This commit refactors the SIMD infrastructure by replacing `_ScalarAbi<N>` with a more general `_Abi<N, N>` template. This change unifies the representation of scalar and vector types within the ABI definitions, addressing issues where scalar ABI properties were incorrectly applied to vector types. The refactoring improves the accuracy of bitmask detection and rebind operations for SIMD types.

@@ -3,51 +3,71 @@ project: binutils
 subsystem: binutils
 patch_id: null
 tags:
-- binutils
 - aarch64
+- elf
 - linker
-- TLS
+- tls
 - bugfix
 discussion_id: akTVYb32aOjEDV8W@squeak.grove.modra.org
 source_type: public_inbox
 title: PR 34165 aarch64 assertion fail and segv
 headline: PR 34165 aarch64 assertion fail and segv
-tldr: Fixes aarch64 TLS segfault by removing assertion and returning 0 for undefined
-  sections.
+tldr: Fixes an assertion failure and segfault in aarch64 ELF linking related to weak
+  undefined TLS symbols.
 proposer: Alan Modra <amodra@gmail.com>
 consensus: Proposed
 outcome: proposed
 impact_score: 6
 sentiment_score: null
 technical_tradeoffs:
-- Removes a strict assertion to improve robustness.
-- Aligns aarch64 TLS handling with x86 behavior for weak undefined symbols.
-- Acknowledges potential underlying issues with weak undefined TLS symbols.
+- Fixes a crash by relaxing an assertion, potentially masking underlying issues with
+  weak undefined TLS symbol handling.
+- Aligns AArch64 behavior with x86 for specific TLS symbol scenarios.
 exchanges:
-- author: Alan Modra <amodra@gmail.com>
+- author: Alan Modra
   role: proposer
-  position: Applies a fix for PR 34165 that resolves a segfault on aarch64 by removing
-    an assertion and returning 0 for undefined TLS sections.
-  quote: 'I''m going to apply this as a fix for pr34165.  It fixes the segv and results
-    in a zero .got entry for the weak undefined tls syms, the same as x86.
+  position: Applies a fix for PR34165, addressing a segfault and assertion failure
+    in aarch64 ELF linking related to weak undefined TLS symbols.
+  quote: 'I''m going to apply this as a fix for pr34165.  It fixes the segv and
+
+    results in a zero .got entry for the weak undefined tls syms, the same
+
+    as x86.
 
 
-    It seems to me that weak undefined and tls don''t work together very well, as
-    the address of such a sym includes the thread pointer.  So I don''t think there
-    is a reliable machine independent way to test whether the sym is defined.'
-primer_expert: This change modifies the aarch64 ELF backend in binutils' BFD library.
-  It removes an assertion in `dtpoff_base` and `tpoff_base` that previously required
-  `tls_sec` to be non-NULL. The fix replaces this assertion with a check that returns
-  0 if `tls_sec` is NULL, resolving a segfault observed in PR 34165 when dealing with
-  weak undefined TLS symbols. The author notes potential issues with the interaction
-  of weak undefined symbols and TLS on aarch64.
-primer_general: This is a fix for a bug in the binutils software, specifically affecting
-  the AArch64 (a 64-bit ARM architecture) version. The bug caused the linker to crash
-  (segmentation fault) and display an error message (assertion failure) when compiling
-  certain types of code that use Thread-Local Storage (TLS). TLS is a way for each
-  thread in a program to have its own private copy of a variable. The fix prevents
-  the crash by adjusting how the linker handles situations where TLS-related information
-  is missing, making the process more robust.
+    It seems to me that weak undefined and tls don''t work together very
+
+    well, as the address of such a sym includes the thread pointer.  So
+
+    I don''t think there is a reliable machine independent way to test
+
+    whether the sym is defined.'
+primer_expert: This patch addresses a segfault and assertion failure in the AArch64
+  ELF linker backend of binutils. The problem occurs when weak, undefined TLS symbols
+  are encountered. The linker was asserting that the TLS section (`tls_sec`) must
+  be non-NULL, but in cases involving weak undefined TLS symbols, `tls_sec` can legitimately
+  be NULL. This patch changes the behavior from an assertion to returning 0, which
+  correctly handles these symbols and produces a zero `.got` entry, aligning behavior
+  with the x86 backend.
+primer_glossary:
+- term: TLS
+  definition: Thread-Local Storage, a mechanism that allows variables to have different
+    values for each thread in a multi-threaded program.
+- term: weak undefined symbol
+  definition: A symbol that is declared but not defined, and has weak linkage. This
+    means a definition may be provided elsewhere, but if not, the program can still
+    link and potentially run, often with default or zero values.
+- term: AArch64
+  definition: The 64-bit execution state of the ARM architecture.
+- term: ELF
+  definition: Executable and Linkable Format, a standard file format for executables,
+    object code, shared libraries, and core dumps on many Unix-like systems.
+- term: segfault
+  definition: A segmentation fault, an error that occurs when a program accesses a
+    memory location that it's not allowed to access.
+- term: .got
+  definition: Global Offset Table, a section in ELF executables and dynamic libraries
+    used to store pointers to dynamically resolved external function or variable references.
 series_id: null
 series_role: standalone
 series_parts: []
@@ -58,4 +78,4 @@ is_stub: false
 stub_reason: ''
 ---
 
-This patch addresses a segmentation fault and assertion failure in binutils' aarch64 ELF linker related to Thread-Local Storage (TLS). It modifies the linker to return 0 instead of asserting when a TLS section is not found, aligning its behavior with x86 for weak undefined TLS symbols. The author notes that weak undefined and TLS symbols may not work reliably together due to thread pointer inclusion.
+This patch resolves an assertion failure and subsequent segmentation fault in binutils' AArch64 ELF linker. The issue arises when weak undefined TLS symbols are used, as their addresses are tied to the thread pointer. The fix modifies the `dtpoff_base` and `tpoff_base` functions to return 0 instead of asserting that `tls_sec` is non-NULL, thus preventing the crash and resulting in a zero `.got` entry for these symbols, consistent with x86 behavior.
