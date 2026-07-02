@@ -31,6 +31,13 @@ class Outcome(str, Enum):
     STALLED = "stalled"
 
 
+class GlossaryEntry(BaseModel):
+    """One `{term, definition}` pair for the "For Context" glossary block."""
+
+    term: str = Field(..., max_length=80)
+    definition: str = Field(..., max_length=400)
+
+
 class BimodalBase(BaseModel):
     project: str
     subsystem: str
@@ -45,9 +52,12 @@ class BimodalBase(BaseModel):
     #   already recognises compiler passes, ELF/DWARF, relocations, PIC, the
     #   usual subsystem vocabulary. It situates *this* subsystem inside that
     #   mental model and may name specific files, passes, or invariants.
-    # - ``primer_general`` is for a competent software engineer who does not
-    #   work on toolchains. It unpacks the jargon the expert version takes
-    #   for granted, explains why the subsystem exists at all, and gives
-    #   enough footing to follow the rest of the article.
+    # - ``primer_glossary`` is the "For Context" block for a systems
+    #   programmer who is NOT a toolchain expert. Rather than a prose
+    #   paragraph, it's a series of `{term, definition}` entries — one per
+    #   toolchain-specific concept used in the article that such a reader
+    #   would not already know. It assumes general systems-programming
+    #   literacy (pointers, processes, syscalls) and does not re-define
+    #   that; it only unpacks the toolchain-specific jargon.
     primer_expert: str | None = Field(default=None, max_length=600)
-    primer_general: str | None = Field(default=None, max_length=1000)
+    primer_glossary: list[GlossaryEntry] = Field(default_factory=list, max_length=10)

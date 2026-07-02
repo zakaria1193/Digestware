@@ -99,18 +99,23 @@ FIELDS (all required unless noted):
   ``malloc/tcache.c`` and the per-thread ``tcache_entry`` list for glibc
   malloc), note why a toolchain dev outside this subsystem still wouldn't
   instantly know it, and flag any non-obvious interaction with neighbours.
-- ``primer_general`` — the same section written FOR a competent software
-  engineer who does NOT work on toolchains. 4–6 sentences, ≤ 800 chars.
-  Explain the subsystem from first principles: what problem it exists to
-  solve, where it sits in the pipeline (source → IR → object → binary →
-  runtime), and every piece of jargon the expert version assumes. No
-  hand-waving, no dumbing down — just enough context that a working dev
-  who has never opened a compiler or libc source tree can follow the rest
-  of the article.
-- For BOTH primers: call the ``search_context`` tool with the subsystem +
-  key terms (e.g. "glibc malloc tcache concurrency") once and reuse the
-  grounding for both versions. Do NOT restate the proposal or the TL;DR
-  in either primer; focus on background.
+- ``primer_glossary`` — the "For Context" block: 3–8 ``{term, definition}``
+  entries for a systems programmer who does NOT work on toolchains day to
+  day. Assume the reader already knows general low-level plumbing
+  (pointers, processes, syscalls, the build pipeline in outline) — do NOT
+  define those. Only define toolchain-specific jargon that actually
+  appears in this article: compiler passes, IR forms, subsystem names,
+  flags, ABI/ELF/DWARF terms, data structures. ``term`` is the exact
+  spelling as it appears elsewhere in the digest (e.g. "tcache",
+  "malloc_consolidate", "ELF relocation"). ``definition`` is 1–3
+  sentences: what it is, what problem it solves, and where it sits in the
+  pipeline (source → IR → object → binary → runtime) when that context
+  matters. Do NOT restate the proposal or the TL;DR — background only.
+  Return an empty list only when the thread genuinely has nothing to
+  unpack.
+- For ``primer_expert`` and ``primer_glossary``: call the
+  ``search_context`` tool with the subsystem + key terms (e.g. "glibc
+  malloc tcache concurrency") once and reuse the grounding for both.
 - ``tags`` — up to 5 topic tags.
 - ``technical_tradeoffs`` — bullet list; never empty for a non-trivial RFC.
 - ``impact_score`` 1–10. How significant would this change be if it landed?
@@ -152,7 +157,9 @@ _TLDR_MAX = 160
 # the whole batch fail validation. Kept in one place for easy upkeep.
 _TAGS_MAX = 5
 _PRIMER_EXPERT_MAX = 600
-_PRIMER_GENERAL_MAX = 1000
+_GLOSSARY_MAX_ENTRIES = 10
+_GLOSSARY_TERM_MAX = 80
+_GLOSSARY_DEF_MAX = 400
 _EXCHANGE_POSITION_MAX = 320
 _EXCHANGE_QUOTE_MAX = 400
 _VALID_ROLES = {"proposer", "reviewer", "maintainer", "contributor", "other"}
@@ -164,7 +171,9 @@ def _repair_discussion_item(item: dict) -> None:
     These are the recurring failure modes observed in production logs:
     - ``tags`` length > 5 (schema caps at 5).
     - ``exchanges[*].role`` outside the allowed enum (e.g. "author").
-    - ``primer_expert`` > 600 chars / ``primer_general`` > 1000 chars.
+    - ``primer_expert`` > 600 chars.
+    - ``primer_glossary`` > 10 entries, or a ``term``/``definition`` that
+      overruns its cap.
     - ``exchanges[*].position`` > 320 chars / ``exchanges[*].quote`` > 400
       chars — long multi-participant threads (e.g. gcc-patches) push the
       model past these limits, which previously dropped the whole batch
@@ -176,13 +185,25 @@ def _repair_discussion_item(item: dict) -> None:
     if isinstance(tags, list) and len(tags) > _TAGS_MAX:
         item["tags"] = tags[:_TAGS_MAX]
 
-    for field, limit in (
-        ("primer_expert", _PRIMER_EXPERT_MAX),
-        ("primer_general", _PRIMER_GENERAL_MAX),
-    ):
-        val = item.get(field)
-        if isinstance(val, str) and len(val) > limit:
-            item[field] = val[: limit - 1].rstrip() + "…"
+    val = item.get("primer_expert")
+    if isinstance(val, str) and len(val) > _PRIMER_EXPERT_MAX:
+        item["primer_expert"] = val[: _PRIMER_EXPERT_MAX - 1].rstrip() + "…"
+
+    glossary = item.get("primer_glossary")
+    if isinstance(glossary, list):
+        if len(glossary) > _GLOSSARY_MAX_ENTRIES:
+            glossary = glossary[:_GLOSSARY_MAX_ENTRIES]
+        for entry in glossary:
+            if not isinstance(entry, dict):
+                continue
+            for field, limit in (
+                ("term", _GLOSSARY_TERM_MAX),
+                ("definition", _GLOSSARY_DEF_MAX),
+            ):
+                text = entry.get(field)
+                if isinstance(text, str) and len(text) > limit:
+                    entry[field] = text[: limit - 1].rstrip() + "…"
+        item["primer_glossary"] = glossary
 
     exchanges = item.get("exchanges")
     if isinstance(exchanges, list):
