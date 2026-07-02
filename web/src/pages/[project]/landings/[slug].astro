@@ -62,6 +62,22 @@ if (!linkedDiscussion && discussionIdLink) {
     e => e.data.discussion_id === discussionIdLink,
   ) ?? null;
 }
+// Last resort: discussion_id_link is sometimes a synthesized reference like
+// "public_inbox:binutils#34165" (a PR number) rather than a real
+// discussion_id, so it never matches the exact lookup above. The same PR
+// number does appear in the discussion's headline/title (e.g. "PR 34165 …"),
+// so fall back to matching on that. If several threads mention the same PR,
+// prefer the earliest one — the original report is what "birthed" the fix.
+if (!linkedDiscussion && discussionIdLink) {
+  const prMatch = discussionIdLink.match(/#(\d+)$/);
+  if (prMatch) {
+    const prRe = new RegExp(`\\bPR\\s*0*${prMatch[1]}\\b`, 'i');
+    const candidates = sameProjectDiscussions
+      .filter(e => prRe.test(e.data.headline ?? '') || prRe.test(e.data.title ?? ''))
+      .sort((a, b) => a.data.date.getTime() - b.data.date.getTime());
+    linkedDiscussion = candidates[0] ?? null;
+  }
+}
 
 const dateStr = relativeDate(d.date, { year: 'numeric', month: 'long', day: 'numeric' });
 const dateStrShort = relativeDate(d.date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase();
