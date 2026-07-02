@@ -82,17 +82,21 @@ technical source material:
   `IPA_PARAM_DESCRIPTOR`), note why a toolchain dev outside this subsystem
   still wouldn't instantly recognise it, and flag non-obvious interactions
   with neighbouring subsystems.
-- **`primer_glossary` — Glossary block (devs who are not toolchain experts).**
-  An array of `{ term, definition }` objects rendered as a labelled glossary.
-  Include every non-obvious component, concept, flag, or subsystem name that
-  appears in the article and that a competent software engineer outside the
-  toolchain world would not immediately know. Many items are expected — err on
-  the side of more entries, not fewer. Each `term` should be the exact name as
-  it appears in the article (e.g. `IPA`, `SRA`, `-fipa-sra`, `ELF relocations`,
-  `THP`). Each `definition` should be 1–3 sentences: what it is, what problem
-  it solves, and where it sits in the pipeline (source → IR → object → binary →
-  runtime) when that context matters. Do NOT restate the commit's effect — only
-  background. Example frontmatter:
+- **`primer_glossary` — "For Context" block (systems programmers who aren't
+  toolchain experts).** Rendered as a series of definitions, not prose — an
+  array of `{ term, definition }` objects. The reader is a working systems
+  programmer: assume they already know pointers, processes, syscalls, the
+  stack/heap, and the source → object → binary → runtime pipeline in
+  outline. Do NOT define those. Only include toolchain-specific jargon that
+  appears in the article and that a systems programmer outside this
+  subsystem would not immediately recognise — compiler passes, IR forms,
+  ABI/ELF/DWARF terms, subsystem names, flags, data structures. Many items
+  are expected — err on the side of more entries, not fewer. Each `term`
+  should be the exact name as it appears in the article (e.g. `IPA`, `SRA`,
+  `-fipa-sra`, `ELF relocations`, `THP`). Each `definition` should be 1–3
+  sentences: what it is, what problem it solves, and where it sits in the
+  pipeline when that context matters. Do NOT restate the commit's effect —
+  only background. Example frontmatter:
   ```yaml
   primer_glossary:
     - term: "IPA (Interprocedural Analysis)"

@@ -165,10 +165,20 @@ function inlineCode(text: string | null | undefined): string {
       </section>
     )}
 
-    {d.primer_general && (
-      <section class="extra">
-        <h2>For Context</h2>
-        <p set:html={inlineCode(d.primer_general)} />
+    {(d.primer_glossary ?? []).length > 0 && (
+      <section class="glossary">
+        <div class="glossary-head">
+          <span class="glossary-label">For Context</span>
+          <span class="glossary-rule"></span>
+        </div>
+        <dl class="glossary-list">
+          {d.primer_glossary!.map((item: any) => (
+            <>
+              <dt class="glossary-term">{item.term}</dt>
+              <dd class="glossary-def" set:html={inlineCode(item.definition)} />
+            </>
+          ))}
+        </dl>
       </section>
     )}
 
@@ -193,23 +203,6 @@ function inlineCode(text: string | null | undefined): string {
     <div class="source">
       <a href={d.url} target="_blank" rel="noopener">View Original Thread &rarr;</a>
     </div>
-
-    {(d.primer_glossary ?? []).length > 0 && (
-      <section class="glossary">
-        <div class="glossary-head">
-          <span class="glossary-label">Glossary</span>
-          <span class="glossary-rule"></span>
-        </div>
-        <dl class="glossary-list">
-          {d.primer_glossary!.map((item: any) => (
-            <>
-              <dt class="glossary-term">{item.term}</dt>
-              <dd class="glossary-def" set:html={inlineCode(item.definition)} />
-            </>
-          ))}
-        </dl>
-      </section>
-    )}
 
     <nav class="prevnext">
       {next && (

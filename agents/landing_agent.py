@@ -105,18 +105,23 @@ FIELDS (all required unless noted):
   ``IPA_PARAM_DESCRIPTOR`` for GCC IPA-SRA), note why a toolchain dev
   outside the subsystem still wouldn't instantly know it, and flag any
   non-obvious interaction with neighbouring subsystems.
-- ``primer_general`` — the same section written FOR a competent software
-  engineer who does NOT work on toolchains. 4–6 sentences, ≤ 800 chars.
-  Explain the subsystem from first principles: what problem it exists to
-  solve, where it sits in the pipeline (source → IR → object → binary →
-  runtime), and every piece of jargon the expert version assumes. No
-  hand-waving, no dumbing down — just enough context that a working dev
-  who has never opened a compiler source tree can follow the rest of the
-  article.
-- For BOTH primers: call the ``search_context`` tool with the subsystem +
-  key terms (e.g. "GCC IPA-SRA inter-procedural scalar replacement") once
-  and reuse the grounding for both versions. Do NOT restate the commit's
-  effect or the TL;DR in either primer; focus on background.
+- ``primer_glossary`` — the "For Context" block: 3–8 ``{term, definition}``
+  entries for a systems programmer who does NOT work on toolchains day to
+  day. Assume the reader already knows general low-level plumbing
+  (pointers, processes, syscalls, the build pipeline in outline) — do NOT
+  define those. Only define toolchain-specific jargon that actually
+  appears in this article: compiler passes, IR forms, subsystem names,
+  flags, ABI/ELF/DWARF terms, data structures. ``term`` is the exact
+  spelling as it appears elsewhere in the digest (e.g. "IPA-SRA",
+  "-fipa-sra", "ELF relocation"). ``definition`` is 1–3 sentences: what it
+  is, what problem it solves, and where it sits in the pipeline (source →
+  IR → object → binary → runtime) when that context matters. Do NOT
+  restate the commit's effect or the TL;DR — background only. Return an
+  empty list only when the article genuinely has nothing to unpack.
+- For ``primer_expert`` and ``primer_glossary``: call the
+  ``search_context`` tool with the subsystem + key terms (e.g. "GCC
+  IPA-SRA inter-procedural scalar replacement") once and reuse the
+  grounding for both.
 - ``tags`` — up to 5 short topic tags (e.g. ["optimization", "risc-v"]).
 - ``impact_score`` 1–10. Rubric:
     9–10 : CVE, ABI break, perf ≥ 10%, new arch / language feature.
@@ -150,7 +155,9 @@ _TLDR_MAX = 160
 # the whole batch fail validation.
 _TAGS_MAX = 5
 _PRIMER_EXPERT_MAX = 600
-_PRIMER_GENERAL_MAX = 1000
+_GLOSSARY_MAX_ENTRIES = 10
+_GLOSSARY_TERM_MAX = 80
+_GLOSSARY_DEF_MAX = 400
 
 
 def _repair_landing_item(item: dict) -> None:
@@ -158,19 +165,33 @@ def _repair_landing_item(item: dict) -> None:
 
     Observed failure modes (from production logs):
     - ``tags`` length > 5 (schema caps at 5).
-    - ``primer_expert`` > 600 chars / ``primer_general`` > 1000 chars.
+    - ``primer_expert`` > 600 chars.
+    - ``primer_glossary`` > 10 entries, or a ``term``/``definition`` that
+      overruns its cap.
     """
     tags = item.get("tags")
     if isinstance(tags, list) and len(tags) > _TAGS_MAX:
         item["tags"] = tags[:_TAGS_MAX]
 
-    for field, limit in (
-        ("primer_expert", _PRIMER_EXPERT_MAX),
-        ("primer_general", _PRIMER_GENERAL_MAX),
-    ):
-        val = item.get(field)
-        if isinstance(val, str) and len(val) > limit:
-            item[field] = val[: limit - 1].rstrip() + "…"
+    val = item.get("primer_expert")
+    if isinstance(val, str) and len(val) > _PRIMER_EXPERT_MAX:
+        item["primer_expert"] = val[: _PRIMER_EXPERT_MAX - 1].rstrip() + "…"
+
+    glossary = item.get("primer_glossary")
+    if isinstance(glossary, list):
+        if len(glossary) > _GLOSSARY_MAX_ENTRIES:
+            glossary = glossary[:_GLOSSARY_MAX_ENTRIES]
+        for entry in glossary:
+            if not isinstance(entry, dict):
+                continue
+            for field, limit in (
+                ("term", _GLOSSARY_TERM_MAX),
+                ("definition", _GLOSSARY_DEF_MAX),
+            ):
+                text = entry.get(field)
+                if isinstance(text, str) and len(text) > limit:
+                    entry[field] = text[: limit - 1].rstrip() + "…"
+        item["primer_glossary"] = glossary
 
 
 def _fill_required_from_raw(item: dict, raw: RawCommit) -> None:
