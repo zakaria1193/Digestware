@@ -153,6 +153,8 @@ _TLDR_MAX = 160
 _TAGS_MAX = 5
 _PRIMER_EXPERT_MAX = 600
 _PRIMER_GENERAL_MAX = 1000
+_EXCHANGE_POSITION_MAX = 320
+_EXCHANGE_QUOTE_MAX = 400
 _VALID_ROLES = {"proposer", "reviewer", "maintainer", "contributor", "other"}
 
 
@@ -163,6 +165,10 @@ def _repair_discussion_item(item: dict) -> None:
     - ``tags`` length > 5 (schema caps at 5).
     - ``exchanges[*].role`` outside the allowed enum (e.g. "author").
     - ``primer_expert`` > 600 chars / ``primer_general`` > 1000 chars.
+    - ``exchanges[*].position`` > 320 chars / ``exchanges[*].quote`` > 400
+      chars — long multi-participant threads (e.g. gcc-patches) push the
+      model past these limits, which previously dropped the whole batch
+      with a non-retryable ``string_too_long`` ValidationError.
     Rather than burn retries on a prompt the model won't self-correct, we
     clamp the output in place before validation.
     """
@@ -186,6 +192,12 @@ def _repair_discussion_item(item: dict) -> None:
             role = ex.get("role")
             if role is not None and role not in _VALID_ROLES:
                 ex["role"] = "other"
+            position = ex.get("position")
+            if isinstance(position, str) and len(position) > _EXCHANGE_POSITION_MAX:
+                ex["position"] = position[: _EXCHANGE_POSITION_MAX - 1].rstrip() + "…"
+            quote = ex.get("quote")
+            if isinstance(quote, str) and len(quote) > _EXCHANGE_QUOTE_MAX:
+                ex["quote"] = quote[: _EXCHANGE_QUOTE_MAX - 1].rstrip() + "…"
 
 
 def _fill_required_from_raw(item: dict, raw: RawDiscussion) -> None:
