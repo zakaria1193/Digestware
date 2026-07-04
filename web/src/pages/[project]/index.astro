@@ -119,13 +119,13 @@ const totalItems = allDiscussions.length + landings.length;
     <!-- Right: Bento Grid -->
     <div class="main-col">
       <div class="wsj-section-head">
-        <h2>Ongoing Discussions</h2>
+        <h2>Active Discussions</h2>
         <span class="wsj-section-rule"></span>
         <span class="wsj-meta">{allDiscussions.length} discussions</span>
       </div>
 
       {subsystemKeys.length === 0 && (
-        <p class="empty">No ongoing discussions in the current window.</p>
+        <p class="empty">No active discussions in the current window.</p>
       )}
 
       {subsystemKeys.map(sub => {
