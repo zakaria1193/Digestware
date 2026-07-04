@@ -557,8 +557,23 @@ const initialSliderValue = SHOW_IMPACT_SCORE ? '30' : '10';
     // (shared/bookmarked link) overrides it inside restoreFromUrl().
     restoreDaysFromStorage();
     restoreFromUrl();
-    apply(parseInt(slider.value));
+    let dateBumpVisible = apply(parseInt(slider.value));
     updateTicks(parseInt(slider.value));
+
+    // The default 3-day window can land on a quiet stretch with nothing to
+    // show. Rather than render an empty page, widen it in steps — last
+    // week, then last month — until something turns up. This only kicks
+    // in for the 3-day state; an explicit narrower choice (e.g. "Last
+    // day") is left alone, and the widened window isn't persisted, so the
+    // next visit re-evaluates from the same 3-day default.
+    if (selectedDays === 3 && dateBumpVisible === 0 && (wires.length > 0 || stories.length > 0)) {
+      setActiveDays(7);
+      dateBumpVisible = apply(parseInt(slider.value));
+      if (dateBumpVisible === 0) {
+        setActiveDays(30);
+        apply(parseInt(slider.value));
+      }
+    }
     const anyWireVisible = wires.some(w => !w.classList.contains('is-filtered'));
     if (!anyWireVisible && wires.length > 0 && !userAdjusted) {
       slider.value = '10';
