@@ -560,19 +560,36 @@ const initialSliderValue = SHOW_IMPACT_SCORE ? '30' : '10';
     let dateBumpVisible = apply(parseInt(slider.value));
     updateTicks(parseInt(slider.value));
 
-    // The default 3-day window can land on a quiet stretch with nothing to
-    // show. Rather than render an empty page, widen it in steps — last
-    // week, then last month — until something turns up. This only kicks
-    // in for the 3-day state; an explicit narrower choice (e.g. "Last
+    // The default 3-day window can land on a quiet stretch where the commit
+    // stream, the discussion grid, or both come up empty. The two sections
+    // are counted independently: a page can have a fresh commit but no
+    // recent discussion (or vice versa), and either empty half should widen
+    // the window. Step out — last week, then last month — and settle on the
+    // smallest window that lights up the most sections. Because we prefer
+    // the smallest window at the best score, a section that is genuinely
+    // empty (e.g. a project with no discussions at all within a month)
+    // never forces a needlessly wide window on the other. Only kicks in for
+    // the default 3-day state; an explicit narrower choice (e.g. "Last
     // day") is left alone, and the widened window isn't persisted, so the
     // next visit re-evaluates from the same 3-day default.
-    if (selectedDays === 3 && dateBumpVisible === 0 && (wires.length > 0 || stories.length > 0)) {
-      setActiveDays(7);
-      dateBumpVisible = apply(parseInt(slider.value));
-      if (dateBumpVisible === 0) {
-        setActiveDays(30);
+    function litSections(): number {
+      const wiresLit = wires.length > 0 && wires.some(w => !w.classList.contains('is-filtered'));
+      const storiesLit = stories.length > 0 && stories.some(s => !s.classList.contains('is-filtered'));
+      return (wiresLit ? 1 : 0) + (storiesLit ? 1 : 0);
+    }
+    if (selectedDays === 3 && (wires.length > 0 || stories.length > 0)) {
+      const presentSections = (wires.length > 0 ? 1 : 0) + (stories.length > 0 ? 1 : 0);
+      let bestDays = 3;
+      let bestLit = -1;
+      for (const days of [3, 7, 30]) {
+        setActiveDays(days);
         apply(parseInt(slider.value));
+        const lit = litSections();
+        if (lit > bestLit) { bestLit = lit; bestDays = days; }
+        if (lit >= presentSections) break; // every present section is populated
       }
+      setActiveDays(bestDays);
+      dateBumpVisible = apply(parseInt(slider.value));
     }
     const anyWireVisible = wires.some(w => !w.classList.contains('is-filtered'));
     if (!anyWireVisible && wires.length > 0 && !userAdjusted) {
