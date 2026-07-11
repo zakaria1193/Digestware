@@ -699,11 +699,9 @@ const initialSliderValue = SHOW_IMPACT_SCORE ? '30' : '10';
       border-color 0.32s cubic-bezier(0.4, 0, 0.2, 1),
       border-style 0s;
   }
-  @media (hover: hover) and (pointer: fine) {
-    .filter-cell-labels[data-expanded="true"] {
-      border-color: var(--color-accent);
-      border-style: solid;
-    }
+  .filter-cell-labels[data-expanded="true"] {
+    border-color: var(--color-accent);
+    border-style: solid;
   }
   .filter-cell-label-row {
     display: flex;
@@ -742,14 +740,12 @@ const initialSliderValue = SHOW_IMPACT_SCORE ? '30' : '10';
     color: var(--color-muted);
     white-space: nowrap;
   }
-  @media (hover: hover) and (pointer: fine) {
-    .filter-cell-chevron {
-      transform: rotate(-90deg);
-    }
-    .filter-cell-labels[data-expanded="true"] .filter-cell-chevron {
-      transform: rotate(0deg);
-      color: var(--color-accent);
-    }
+  .filter-cell-chevron {
+    transform: rotate(-90deg);
+  }
+  .filter-cell-labels[data-expanded="true"] .filter-cell-chevron {
+    transform: rotate(0deg);
+    color: var(--color-accent);
   }
   .filter-toggles {
     display: inline-flex;
@@ -919,17 +915,15 @@ const initialSliderValue = SHOW_IMPACT_SCORE ? '30' : '10';
     flex-direction: column;
     gap: 0.55rem;
   }
-  @media (hover: hover) and (pointer: fine) {
-    .filter-groups {
-      grid-template-rows: 0fr;
-      opacity: 0;
-      pointer-events: none;
-    }
-    .filter-cell-labels[data-expanded="true"] .filter-groups {
-      grid-template-rows: 1fr;
-      opacity: 1;
-      pointer-events: auto;
-    }
+  .filter-groups {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .filter-cell-labels[data-expanded="true"] .filter-groups {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    pointer-events: auto;
   }
   @media (max-width: 700px) {
     .filter-group { grid-template-columns: 1fr; }
