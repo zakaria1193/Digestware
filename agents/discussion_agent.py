@@ -19,6 +19,7 @@ from agents._retry import retry_with_backoff
 from agents.models.base import Outcome
 from agents.models.discussion import DiscussionDigest
 from agents.models.raw import RawDiscussion
+from agents.tools.glossary_filter import filter_glossary
 from agents.tools.headline import clean_subject
 from agents.tools.outcome import derive_discussion_outcome
 from agents.tools.patch_id import extract_patch_id
@@ -112,7 +113,9 @@ FIELDS (all required unless noted):
   pipeline (source → IR → object → binary → runtime) when that context
   matters. Do NOT restate the proposal or the TL;DR — background only.
   Return an empty list only when the thread genuinely has nothing to
-  unpack.
+  unpack. Never define the top-level project itself (e.g. "GCC",
+  "binutils", "GNU Binutils", "glibc", "GDB", "LLVM", "Clang", "Linux") —
+  the reader already knows what project this digest is about.
 - For ``primer_expert`` and ``primer_glossary``: call the
   ``search_context`` tool with the subsystem + key terms (e.g. "glibc
   malloc tcache concurrency") once and reuse the grounding for both.
@@ -203,7 +206,7 @@ def _repair_discussion_item(item: dict) -> None:
                 text = entry.get(field)
                 if isinstance(text, str) and len(text) > limit:
                     entry[field] = text[: limit - 1].rstrip() + "…"
-        item["primer_glossary"] = glossary
+        item["primer_glossary"] = filter_glossary(glossary)
 
     exchanges = item.get("exchanges")
     if isinstance(exchanges, list):
