@@ -40,6 +40,7 @@ from agents._retry import retry_with_backoff
 from agents.models.base import Outcome
 from agents.models.landing import LandingDigest
 from agents.models.raw import RawCommit
+from agents.tools.glossary_filter import filter_glossary
 from agents.tools.headline import clean_subject
 from agents.tools.patch_id import extract_patch_id
 from agents.tools.series import parse_patch_tag, series_id_for, split_canonical
@@ -118,6 +119,9 @@ FIELDS (all required unless noted):
   IR → object → binary → runtime) when that context matters. Do NOT
   restate the commit's effect or the TL;DR — background only. Return an
   empty list only when the article genuinely has nothing to unpack.
+  Never define the top-level project itself (e.g. "GCC", "binutils",
+  "GNU Binutils", "glibc", "GDB", "LLVM", "Clang", "Linux") — the reader
+  already knows what project this digest is about.
 - For ``primer_expert`` and ``primer_glossary``: call the
   ``search_context`` tool with the subsystem + key terms (e.g. "GCC
   IPA-SRA inter-procedural scalar replacement") once and reuse the
@@ -191,7 +195,7 @@ def _repair_landing_item(item: dict) -> None:
                 text = entry.get(field)
                 if isinstance(text, str) and len(text) > limit:
                     entry[field] = text[: limit - 1].rstrip() + "…"
-        item["primer_glossary"] = glossary
+        item["primer_glossary"] = filter_glossary(glossary)
 
 
 def _fill_required_from_raw(item: dict, raw: RawCommit) -> None:
