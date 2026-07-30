@@ -19,7 +19,10 @@ breaking_change: false
 outcome: committed
 primer_expert: This commit cleans up the `.pre-commit-config.yaml` file by resolving
   issues reported by `yamllint`. The changes involve correcting indentation, ensuring
-  proper document start markers (`---`), and fixing whitespace errors, which are crucial
+  proper document start markers (`
+is_stub: true
+stub_reason: low-score
+---`), and fixing whitespace errors, which are crucial
   for maintaining the readability and correct parsing of the pre-commit configuration.
 primer_glossary:
 - term: pre-commit hook
