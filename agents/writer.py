@@ -25,10 +25,9 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-import yaml
-
 from agents.models.discussion import DiscussionDigest
 from agents.models.landing import LandingDigest
+from agents.tools.frontmatter import dump_frontmatter
 
 logger = logging.getLogger(__name__)
 
@@ -228,10 +227,4 @@ def write_landing(
 # ---------------------------------------------------------------------------
 
 def _render(frontmatter: dict, body: str) -> str:
-    fm_str = yaml.dump(
-        frontmatter,
-        default_flow_style=False,
-        allow_unicode=True,
-        sort_keys=False,
-    )
-    return f"---\n{fm_str}---\n\n{body}\n"
+    return f"---\n{dump_frontmatter(frontmatter)}---\n\n{body}\n"

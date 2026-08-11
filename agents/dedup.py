@@ -19,9 +19,8 @@ import logging
 from datetime import date, datetime
 from pathlib import Path
 
-import yaml
-
 from agents.models.raw import RawCommit, RawDiscussion
+from agents.tools.frontmatter import load_frontmatter
 from agents.tools.series import series_id_for
 
 logger = logging.getLogger(__name__)
@@ -37,17 +36,11 @@ def _read_frontmatter(path: Path) -> dict | None:
 
     # Frontmatter convention: file starts with `---\n`, fences a YAML block,
     # then another `---\n`, then the body.
-    if not text.startswith("---"):
+    parsed = load_frontmatter(text)
+    if parsed is None:
+        logger.debug("dedup: missing or malformed frontmatter in %s", path)
         return None
-    parts = text.split("---", 2)
-    if len(parts) < 3:
-        return None
-    try:
-        fm = yaml.safe_load(parts[1])
-    except yaml.YAMLError as exc:
-        logger.debug("dedup: malformed frontmatter in %s: %s", path, exc)
-        return None
-    return fm if isinstance(fm, dict) else None
+    return parsed[0]
 
 
 def _coerce_date(value: object) -> date | None:
