@@ -19,10 +19,7 @@ breaking_change: false
 outcome: committed
 primer_expert: This commit cleans up the `.pre-commit-config.yaml` file by resolving
   issues reported by `yamllint`. The changes involve correcting indentation, ensuring
-  proper document start markers (`
-is_stub: true
-stub_reason: low-score
----`), and fixing whitespace errors, which are crucial
+  proper document start markers (`---`), and fixing whitespace errors, which are crucial
   for maintaining the readability and correct parsing of the pre-commit configuration.
 primer_glossary:
 - term: pre-commit hook
@@ -45,7 +42,7 @@ series_parts: []
 url: https://inbox.sourceware.org/binutils-cvs/20260728074356.86A004BB1C26@sourceware.org
 date: '2026-07-28'
 is_stub: true
-stub_reason: low_score
+stub_reason: low-score
 ---
 
 This commit addresses several YAML formatting errors detected by `yamllint` within the `.pre-commit-config.yaml` file. The fixes include adding a missing document start marker, correcting indentation, and resolving whitespace issues, ensuring the configuration file is properly formatted and lintable.

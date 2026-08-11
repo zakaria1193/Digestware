@@ -11,11 +11,9 @@ links or RSS history.
 from __future__ import annotations
 
 import logging
-import re
 from pathlib import Path
 
-import yaml
-
+from agents.tools.frontmatter import load_frontmatter, render
 from agents.tools.noise_filter import (
     _NOISE_AUTHOR_RE,
     _NOISE_DISCUSSION_TITLE_RE,
@@ -26,10 +24,6 @@ logger = logging.getLogger(__name__)
 
 # Mirrors the floor in main.py — keep in sync.
 _MIN_LANDING_SCORE = 4
-
-# Pre-compiled here so we don't rebuild it on every file.
-_IS_STUB_LINE_RE = re.compile(r"^is_stub:.*$", re.MULTILINE)
-_STUB_REASON_LINE_RE = re.compile(r"^stub_reason:.*$", re.MULTILINE)
 
 
 def matches_noise_rules(title: str, author: str | None) -> str | None:
@@ -49,16 +43,6 @@ def matches_noise_rules(title: str, author: str | None) -> str | None:
     return None
 
 
-def _set_stub_fields(frontmatter_text: str, reason: str) -> str:
-    if _IS_STUB_LINE_RE.search(frontmatter_text):
-        text = _IS_STUB_LINE_RE.sub("is_stub: true", frontmatter_text)
-    else:
-        text = frontmatter_text.rstrip("\n") + "\nis_stub: true\n"
-    if _STUB_REASON_LINE_RE.search(text):
-        return _STUB_REASON_LINE_RE.sub(f"stub_reason: {reason}", text)
-    return text.rstrip("\n") + f"\nstub_reason: {reason}\n"
-
-
 def _process_file(path: Path) -> str | None:
     """Mark a single file as stub when it matches a noise rule.
 
@@ -66,14 +50,11 @@ def _process_file(path: Path) -> str | None:
     None (already stub, no match, or unparseable).
     """
     text = path.read_text(encoding="utf-8")
-    parts = text.split("---", 2)
-    if len(parts) < 3:
-        return None
-    try:
-        fm = yaml.safe_load(parts[1]) or {}
-    except yaml.YAMLError:
+    parsed = load_frontmatter(text)
+    if parsed is None:
         logger.warning("retro_noise: skipping unparseable frontmatter in %s", path)
         return None
+    fm, body = parsed
     if fm.get("is_stub"):
         return None
 
@@ -90,8 +71,13 @@ def _process_file(path: Path) -> str | None:
 
     if rule is None:
         return None
-    new_fm = _set_stub_fields(parts[1], rule)
-    path.write_text(f"---{new_fm}---{parts[2]}", encoding="utf-8")
+
+    # Re-serialise the whole mapping rather than splicing text in: that keeps
+    # values containing `---` correctly quoted instead of turning them into
+    # stray document separators.
+    fm["is_stub"] = True
+    fm["stub_reason"] = rule
+    path.write_text(render(fm, body), encoding="utf-8")
     return rule
 
 

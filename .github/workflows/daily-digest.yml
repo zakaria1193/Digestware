@@ -44,6 +44,13 @@ jobs:
           cache: pip
           cache-dependency-path: agents/requirements.txt
 
+      # Needed by the pre-commit site build below.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
       - name: Install dependencies
         run: pip install -r agents/requirements.txt
 
@@ -135,6 +142,19 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           python -m agents.tag_categorizer
+
+      # Gate: never commit content that would break the Cloudflare Pages build.
+      # The pipeline pushes straight to master, so a malformed frontmatter block
+      # takes the public site down until someone notices the failed deploy.
+      - name: Validate generated content
+        run: |
+          python -m agents.tools.validate_content
+
+      - name: Build site (same check Cloudflare Pages runs)
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
 
       - name: Commit generated content
         run: |

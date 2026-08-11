@@ -6,6 +6,7 @@ from pathlib import Path
 
 import yaml
 
+from agents.tools.frontmatter import load_frontmatter
 from agents.tools.retro_noise import (
     matches_noise_rules,
     sweep_content_root,
@@ -19,8 +20,9 @@ def _write_md(path: Path, frontmatter: dict, body: str = "Body text.\n") -> None
 
 
 def _read_fm(path: Path) -> dict:
-    text = path.read_text(encoding="utf-8")
-    return yaml.safe_load(text.split("---", 2)[1])
+    parsed = load_frontmatter(path.read_text(encoding="utf-8"))
+    assert parsed is not None
+    return parsed[0]
 
 
 class TestMatchesNoiseRules:
@@ -135,6 +137,40 @@ class TestSweepContentRoot:
         counts = sweep_content_root(root)
         assert counts["total"] == 0
         assert _read_fm(f)["is_stub"] is False
+
+    def test_value_containing_marker_survives_stamping(self, tmp_path: Path):
+        """Regression: stamping used to splice at a `---` inside a value.
+
+        The result truncated the frontmatter, dropping `url`/`date` and
+        breaking the site build.
+        """
+        root = tmp_path
+        f = root / "landings" / "2026-07-28-binutils-pre-commit-9dd9c104.md"
+        _write_md(
+            f,
+            {
+                "project": "binutils",
+                "headline": "Fix yamllint errors in pre-commit configuration.",
+                "impact_score": 3,
+                "primer_expert": (
+                    "The changes involve ensuring proper document start "
+                    "markers (`---`), and fixing whitespace errors."
+                ),
+                "url": "https://example.com/a",
+                "date": "2026-07-28",
+                "is_stub": False,
+            },
+        )
+        counts = sweep_content_root(root)
+        assert counts["low-score"] == 1
+
+        fm = _read_fm(f)
+        assert fm["is_stub"] is True
+        assert fm["stub_reason"] == "low-score"
+        # The keys that used to vanish.
+        assert fm["url"] == "https://example.com/a"
+        assert str(fm["date"]) == "2026-07-28"
+        assert "`---`" in fm["primer_expert"]
 
     def test_marks_landing_low_score(self, tmp_path: Path):
         root = tmp_path
