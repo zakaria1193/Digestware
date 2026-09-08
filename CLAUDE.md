@@ -10,6 +10,8 @@ Digestware/
 ├── agents/          # Python — PydanticAI digest engine
 │   ├── tools/       # individual tool modules (git fetch, web search, …)
 │   ├── models/      # Pydantic output schemas (BentoDigest, …)
+│   ├── index/       # derived SQLite search index over the Markdown corpus
+│   ├── mcp/         # MCP server exposing that index to agents
 │   └── output/      # local Markdown output for dev/testing
 ├── web/             # Astro 6 — Bento Grid + Pulse Stream UI
 │   └── src/
@@ -31,6 +33,28 @@ Digestware/
 | Frontend | Astro 6 + Tailwind 4 | Static-first, Content Collections, fast |
 | Newsletter | Resend API + React Email | Developer-friendly, generous free tier |
 | Storage | Markdown files in Git | Zero infra cost, version-controlled history |
+
+## Search Index & MCP (`agents/index/`, `agents/mcp/`)
+The Markdown corpus doubles as a queryable record of GCC/binutils change history.
+`python -m agents.index.build` derives `agents/index/pulse.db` (SQLite + FTS5) from
+`web/src/content/**`, and `python -m agents.mcp.server` serves it over MCP so an agent
+can search changes, look up identifiers, and pull candidate leads for a regression.
+
+- **The index is derived and disposable.** Markdown remains the sole source of truth;
+  nothing in `agents/index/` ever writes back to it, and the `.db` is gitignored.
+- **No LLM calls at query time.** The MCP server does retrieval only — the calling
+  agent supplies the reasoning — so query volume cannot affect the budget.
+- **The corpus holds no diffs or test results.** Tools must present hits as leads to
+  verify upstream, never as proof that a change caused a regression.
+
+### Embeddings — the one exception to "OpenRouter only"
+OpenRouter exposes no embeddings endpoint, so `agents/index/embed.py` talks to an
+OpenAI-compatible `/embeddings` provider configured by `EMBEDDING_BASE_URL` /
+`EMBEDDING_MODEL` / `EMBEDDING_API_KEY`. This is the **only** sanctioned non-OpenRouter
+provider, it is confined to that one module behind the `EmbeddingProvider` protocol, and
+its spend is logged to `agents/output/usage.log` like every other call. Embedding the
+whole corpus costs roughly $0.02; the nightly delta is a fraction of a cent. All
+*generation* still goes through OpenRouter, without exception.
 
 ## Budget Constraints — HARD LIMITS
 - **Total AI spend: ≤ €5 / month**
@@ -108,6 +132,6 @@ technical source material:
 ## What Claude Should NOT Do
 - Do not add features beyond the current phase.
 - Do not change the storage format (stay Markdown).
-- Do not use any LLM provider other than OpenRouter.
+- Do not use any LLM provider other than OpenRouter (embeddings excepted — see above).
 - Do not install heavy ML frameworks (torch, transformers, etc.).
 - Do not hardcode API keys or tokens anywhere.

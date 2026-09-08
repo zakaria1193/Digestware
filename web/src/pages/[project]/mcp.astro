@@ -1,0 +1,316 @@
+---
+// "The Wire" — the paper's archive exposed as an MCP server.
+//
+// A newspaper syndicates its reporting over a wire service; this is the
+// machine-readable edition of the same archive. It lives beside RSS in the
+// footer because both are the same kind of thing: a way to consume the paper
+// without reading it.
+//
+// Every number on this page is computed from the content collections at build
+// time rather than written by hand, so the stated coverage cannot drift away
+// from what the index will actually contain.
+import PublicLayout from '../../layouts/PublicLayout.astro';
+import { getCollection } from 'astro:content';
+import { PROJECTS, getProject } from '../../config/projects';
+import { isPublic } from '../../lib/visibility';
+
+export async function getStaticPaths() {
+  return PROJECTS.map(p => ({ params: { project: p.slug }, props: { projectSlug: p.slug } }));
+}
+
+const { projectSlug } = Astro.props as { projectSlug: string };
+const project = getProject(projectSlug)!;
+
+const landings = await getCollection('landings', ({ data }) => data.project === projectSlug && isPublic(data));
+const discussions = await getCollection('discussions', ({ data }) => data.project === projectSlug && isPublic(data));
+
+const dates = [...landings, ...discussions].map(e => e.data.date.getTime()).sort((a, b) => a - b);
+const fmt = (t: number | undefined) =>
+  t === undefined ? '—' : new Date(t).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+const coverage = dates.length ? `${fmt(dates[0])} – ${fmt(dates[dates.length - 1])}` : '—';
+
+const subsystems = new Set([...landings, ...discussions].map(e => e.data.subsystem).filter(Boolean));
+
+const stats = [
+  { figure: landings.length.toLocaleString(), label: 'Commits' },
+  { figure: discussions.length.toLocaleString(), label: 'Discussions' },
+  { figure: subsystems.size.toLocaleString(), label: 'Subsystems' },
+  { figure: coverage, label: 'Coverage' },
+];
+
+const tools = [
+  { name: 'search_changes', desc: 'Hybrid search across commits and threads, filtered by subsystem, date, or outcome.' },
+  { name: 'find_by_symbol', desc: 'Exact lookup of a function, file path, flag, relocation or PR number.' },
+  { name: 'suspects', desc: 'Changes plausibly related to a regression symptom, weighted toward the recent.' },
+  { name: 'timeline', desc: 'Chronological activity for one subsystem or a single patch series.' },
+  { name: 'get_change', desc: 'One article in full — by commit SHA, discussion id, or URL.' },
+  { name: 'related_discussion', desc: 'The mailing-list thread behind a landed commit.' },
+  { name: 'corpus_info', desc: 'What the archive covers, so an agent knows when not to answer.' },
+];
+
+const repoUrl = 'https://github.com/zakaria1193/Digestware';
+---
+
+<PublicLayout
+  project={project}
+  title="The Wire"
+  description={`Query the ${project.short} archive from your own agent over MCP — search commits, mailing-list threads, and subsystem history.`}
+>
+  <article class="wire">
+    <header class="wire-head">
+      <div class="wsj-kicker">Machine-Readable Edition</div>
+      <h1>The Wire</h1>
+      <p class="wire-deck">
+        Everything this paper has reported on <strong>{project.short}</strong>, served to your
+        coding agent over the <a href="https://modelcontextprotocol.io" rel="noopener noreferrer" target="_blank">Model
+        Context&nbsp;Protocol</a>. Ask it what changed in a subsystem, who reviewed it, or which
+        recent commits touch the thing that just broke.
+      </p>
+      <div class="wire-rule"></div>
+    </header>
+
+    <dl class="wire-stats">
+      {stats.map(s => (
+        <div class="wire-stat">
+          <dt>{s.label}</dt>
+          <dd>{s.figure}</dd>
+        </div>
+      ))}
+    </dl>
+
+    <div class="wire-body">
+      <section class="wire-main">
+        <div class="wsj-section-head"><h2>Wiring it up</h2><span class="wsj-section-rule"></span></div>
+
+        <p class="wire-step"><span class="wire-num">1</span> Clone the repository and install the Python dependencies.</p>
+<pre class="wire-code"><code>git clone {repoUrl}
+cd Digestware
+pip install -r agents/requirements.txt</code></pre>
+
+        <p class="wire-step"><span class="wire-num">2</span> Build the index from the published archive. This
+          needs no API key and takes about ten seconds.</p>
+<pre class="wire-code"><code>python -m agents.index.build --full --no-embeddings</code></pre>
+
+        <p class="wire-step"><span class="wire-num">3</span> Register the server with your agent.</p>
+<pre class="wire-code"><code>claude mcp add pulse -- python -m agents.mcp.server</code></pre>
+
+        <p class="wire-note">
+          Search works on exact terms out of the box. Setting <code>EMBEDDING_API_KEY</code> and
+          rebuilding without <code>--no-embeddings</code> adds semantic matching, for when you can
+          only describe a symptom rather than name it.
+        </p>
+
+        <div class="wsj-section-head wire-tools-head"><h2>What it answers</h2><span class="wsj-section-rule"></span></div>
+        <dl class="wire-tools">
+          {tools.map(t => (
+            <div class="wire-tool">
+              <dt><code>{t.name}</code></dt>
+              <dd>{t.desc}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+
+      <aside class="wire-aside">
+        <div class="wire-box">
+          <div class="wsj-section-label">Corrections &amp; Clarifications</div>
+          <div class="wire-box-rule"></div>
+          <p>
+            This archive holds <em>reporting</em> on changes — headlines, summaries, the argument on
+            the list. It holds no diffs, no test results, no build logs.
+          </p>
+          <p>
+            So it cannot tell you which commit broke your build, and the <code>suspects</code> tool
+            does not claim to. It returns leads ranked by similarity, each with the upstream URL
+            attached. Check them with <code>git&nbsp;show</code> before believing any of them.
+          </p>
+          <p class="wire-box-last">
+            Ask a question the archive does not cover and it returns nothing rather than a
+            confident guess. That is the intended behaviour.
+          </p>
+        </div>
+
+        <div class="wire-links">
+          <a href={`/${project.slug}/rss.xml`}>RSS Feed</a>
+          <a href={repoUrl} rel="noopener noreferrer" target="_blank">Source on GitHub</a>
+        </div>
+      </aside>
+    </div>
+  </article>
+</PublicLayout>
+
+<style>
+  .wire { max-width: 1100px; margin: 0 auto; }
+
+  .wire-head { text-align: center; padding: 0.5rem 0 0; }
+  .wire-head h1 {
+    font-family: var(--font-serif-display);
+    font-weight: 900;
+    font-size: clamp(2.4rem, 6vw, 4rem);
+    line-height: 1;
+    letter-spacing: -0.03em;
+    margin: 0.35rem 0 0;
+  }
+  .wire-deck {
+    font-family: var(--font-serif);
+    font-size: 1.05rem;
+    line-height: 1.6;
+    color: var(--color-muted);
+    max-width: 42rem;
+    margin: 0.85rem auto 0;
+  }
+  .wire-deck a { color: var(--color-accent); text-decoration: underline; text-underline-offset: 2px; }
+  .wire-rule {
+    border-top: 1px solid var(--color-rule-strong);
+    border-bottom: 3px double var(--color-rule-strong);
+    height: 6px;
+    margin: 1.5rem 0 0;
+  }
+
+  /* -------- Coverage figures, set like a markets strip -------- */
+  .wire-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    margin: 0;
+    border-bottom: 1px solid var(--color-rule-strong);
+  }
+  .wire-stat { padding: 0.9rem 0.5rem; text-align: center; border-right: 1px solid var(--color-rule); }
+  .wire-stat:last-child { border-right: none; }
+  .wire-stat dt {
+    font-family: var(--font-sans);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--color-dim);
+  }
+  .wire-stat dd {
+    font-family: var(--font-serif-display);
+    font-weight: 700;
+    font-size: 1.5rem;
+    margin: 0.2rem 0 0;
+    letter-spacing: -0.01em;
+  }
+
+  .wire-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr);
+    gap: 2.5rem;
+    padding-top: 1.75rem;
+  }
+
+  .wire-main :global(.wsj-section-head) { margin-bottom: 1.1rem; }
+  .wire-tools-head { margin-top: 2.25rem; }
+
+  .wire-step {
+    font-family: var(--font-serif);
+    font-size: 0.98rem;
+    margin: 1.25rem 0 0.55rem;
+  }
+  .wire-step:first-of-type { margin-top: 0; }
+  .wire-num {
+    font-family: var(--font-sans);
+    font-weight: 800;
+    font-size: 0.7rem;
+    color: var(--color-paper);
+    background: var(--color-accent);
+    border-radius: 50%;
+    width: 1.35rem;
+    height: 1.35rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 0.5rem;
+    vertical-align: 0.05rem;
+  }
+
+  .wire-code {
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    line-height: 1.65;
+    background: var(--color-paper-alt);
+    border-left: 3px solid var(--color-accent);
+    padding: 0.85rem 1rem;
+    margin: 0;
+    overflow-x: auto;
+  }
+  .wire-code code { white-space: pre; }
+
+  .wire-note {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.9rem;
+    color: var(--color-muted);
+    margin-top: 1.1rem;
+    padding-left: 0.9rem;
+    border-left: 1px solid var(--color-rule);
+  }
+  .wire-note code, .wire-box code {
+    font-family: var(--font-mono);
+    font-style: normal;
+    font-size: 0.85em;
+    background: var(--color-paper-alt);
+    padding: 0.05em 0.3em;
+  }
+
+  .wire-tools { margin: 0; }
+  .wire-tool {
+    display: grid;
+    grid-template-columns: minmax(0, 13rem) minmax(0, 1fr);
+    gap: 1rem;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--color-rule);
+    align-items: baseline;
+  }
+  .wire-tool:last-child { border-bottom: none; }
+  .wire-tool dt code {
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--color-accent);
+  }
+  .wire-tool dd {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-size: 0.92rem;
+    color: var(--color-muted);
+  }
+
+  /* -------- The caveat box, set as a standing correction notice -------- */
+  .wire-box {
+    background: var(--color-paper-alt);
+    border-top: 3px solid var(--color-rule-strong);
+    padding: 1rem 1.1rem 1.1rem;
+  }
+  .wire-box-rule { border-top: 1px solid var(--color-rule); margin: 0.5rem 0 0.85rem; }
+  .wire-box p {
+    font-family: var(--font-serif);
+    font-size: 0.88rem;
+    line-height: 1.6;
+    color: var(--color-muted);
+    margin: 0 0 0.7rem;
+  }
+  .wire-box-last { margin-bottom: 0 !important; }
+
+  .wire-links {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 1.25rem;
+    font-family: var(--font-sans);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .wire-links a { text-decoration: none; color: var(--color-ink); }
+  .wire-links a:hover { color: var(--color-accent); }
+
+  @media (max-width: 900px) {
+    .wire-body { grid-template-columns: 1fr; gap: 2rem; }
+    .wire-stats { grid-template-columns: repeat(2, 1fr); }
+    .wire-stat:nth-child(2) { border-right: none; }
+    .wire-stat:nth-child(-n+2) { border-bottom: 1px solid var(--color-rule); }
+    .wire-tool { grid-template-columns: 1fr; gap: 0.15rem; }
+  }
+</style>

@@ -164,3 +164,33 @@ jobs:
           [ -d .old ] && git add -f .old/ || true
           git diff --cached --quiet && echo "No content change." || \
             git commit -m "chore(digest): nightly refresh $(date -u +%Y-%m-%d)" && git push
+
+      # ── Pulse search index ────────────────────────────────────────────────
+      # Derived from the Markdown just committed, so it runs last. The .db is
+      # never committed (it is regenerable and would make every nightly diff
+      # binary) — it ships as a workflow artifact instead, which is what lets
+      # someone run the MCP server without re-embedding the corpus themselves.
+      - name: Build Pulse index
+        env:
+          EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
+          EMBEDDING_MODEL: ${{ vars.EMBEDDING_MODEL }}
+          EMBEDDING_BASE_URL: ${{ vars.EMBEDDING_BASE_URL }}
+        run: |
+          set -euo pipefail
+          # Without a key the index is still fully usable for lexical and
+          # symbol search — only the semantic recall channel is absent — so a
+          # missing secret degrades the index rather than failing the night.
+          if [ -z "${EMBEDDING_API_KEY:-}" ]; then
+            echo "::notice::EMBEDDING_API_KEY not set — building a lexical-only index."
+            python -m agents.index.build --full --no-embeddings
+          else
+            python -m agents.index.build --full
+          fi
+
+      - name: Upload Pulse index artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pulse-index
+          path: agents/index/pulse.db
+          retention-days: 14
+          if-no-files-found: error

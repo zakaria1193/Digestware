@@ -439,3 +439,69 @@ end-to-end wiring tests.
 2. Add the field(s) to the corresponding frontmatter dict in `writer.py`.
 3. Mirror the field in `web/src/content/config.ts`.
 4. Run `pytest agents/tests` — writer tests will flag frontmatter mismatches.
+
+---
+
+## Pulse Index & MCP Server (`index/`, `mcp/`)
+
+The Markdown corpus is also a queryable record of GCC/binutils change history.
+Two modules turn it into one:
+
+- **`index/`** derives `index/pulse.db` (SQLite + FTS5) from `web/src/content/**`.
+- **`mcp/`** serves that database over MCP so an agent can search it.
+
+### Build the index
+
+```bash
+python -m agents.index.build --full --no-embeddings   # lexical only, no API key
+python -m agents.index.build --full                   # adds semantic search
+python -m agents.index.build                          # nightly: only what changed
+```
+
+Rebuilding is incremental by content hash, so a nightly run touches the ~30
+changed files rather than all ~2,950. `pulse.db` is gitignored: it is derived,
+disposable, and regenerable from the Markdown at any time.
+
+### Run the server
+
+```bash
+claude mcp add pulse -- /path/to/python -m agents.mcp.server
+```
+
+`PULSE_DB` overrides the database location. Tools exposed:
+
+| Tool | Use it for |
+|---|---|
+| `corpus_info` | Coverage and freshness — check before answering from the corpus |
+| `search_changes` | General hybrid search with project/subsystem/date/outcome filters |
+| `find_by_symbol` | Exact lookup of a function, file, flag, relocation or PR number |
+| `suspects` | Candidate changes related to a regression symptom, newest-weighted |
+| `timeline` | Chronological activity for a subsystem or patch series |
+| `get_change` | One article in full, by SHA, discussion id, path or URL |
+| `related_discussion` | The mailing-list thread behind a landed commit |
+
+### Design constraints
+
+- **No LLM calls at query time.** The server retrieves; the calling agent
+  reasons. Query volume therefore cannot affect the €5/month budget.
+- **The corpus has no diffs or test results.** `suspects` returns *leads*, and
+  says so in its payload and its tool description. Nothing here can establish
+  that a change caused a regression — every hit is something to verify with
+  `git show <sha>` upstream.
+- **A miss is reported as a miss.** Retrieval weights query terms by inverse
+  document frequency and drops documents that miss the rare, discriminating
+  ones, so a query about a topic the corpus does not cover returns nothing
+  rather than a plausible-looking irrelevance.
+- **Embeddings are the one non-OpenRouter provider** (OpenRouter has no
+  embeddings endpoint). Confined to `index/embed.py` behind the
+  `EmbeddingProvider` protocol, configured by `EMBEDDING_*` env vars, and logged
+  to `output/usage.log` like every other call. See root `CLAUDE.md`.
+
+### Known data gaps
+
+`series_id` is populated on only ~1% of landings and ~21% of discussions, and
+`patch_id` / `bugzilla_pr` / `discussion_id_link` are null corpus-wide. De-duplication
+therefore falls back to a normalised headline key, and `related_discussion` infers
+the commit↔thread link rather than reading it. Populating these at ingest —
+along with touched files and test names from the diff — is the single biggest
+available improvement to `suspects` result quality.

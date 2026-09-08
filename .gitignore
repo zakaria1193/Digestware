@@ -37,3 +37,13 @@ agents/output/usage.log
 # Agent cache (raw mbox files and bare git clones)
 agents/cache/**/*.mbox
 agents/cache/**/*.git/
+
+# Pulse index — derived from web/src/content/**, rebuilt by
+# `python -m agents.index.build`. Never committed: it is regenerable, it would
+# churn on every nightly run, and it would turn a clean text diff into a binary one.
+agents/index/*.db
+agents/index/*.db-wal
+agents/index/*.db-shm
+
+# Local virtualenv
+.venv/

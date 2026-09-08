@@ -67,8 +67,11 @@ const longDate = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric'
             <div class="footer-brand">{project.name.toUpperCase()}</div>
             <div class="footer-sub">{project.footerBlurb}</div>
           </div>
+          <!-- The Wire sits beside RSS because they are the same kind of
+               thing: ways to consume the paper without reading it. -->
           <div class="footer-right">
             <a href={`/${project.slug}/rss.xml`}>RSS</a>
+            <a href={`/${project.slug}/mcp`}>MCP</a>
             <a href="/admin">Newsroom</a>
           </div>
         </div>
