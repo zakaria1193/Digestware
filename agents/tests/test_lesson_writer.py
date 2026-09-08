@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -25,7 +26,9 @@ def _paragraph(words: int) -> str:
 
 
 def _lesson(**overrides) -> LessonDigest:
-    defaults = dict(
+    # Annotated because a bare dict literal infers a union of every value type,
+    # which makes `**defaults` unassignable to any single parameter.
+    defaults: dict[str, Any] = dict(
         lesson_id="gcc:2026-W36",
         commit_hash="a" * 40,
         project="gcc",
@@ -75,7 +78,9 @@ def test_two_projects_same_week_do_not_collide(tmp_path: Path):
 
 def test_frontmatter_roundtrips(tmp_path: Path):
     path = write_lesson(_lesson(), output_dir=tmp_path)
-    fm, body = load_frontmatter(path.read_text(encoding="utf-8"))
+    parsed = load_frontmatter(path.read_text(encoding="utf-8"))
+    assert parsed is not None, "writer emitted unparseable frontmatter"
+    fm, body = parsed
 
     assert fm["lesson_id"] == "gcc:2026-W36"
     assert fm["project"] == "gcc"
@@ -143,7 +148,9 @@ def test_stub_lesson_writes_without_error(tmp_path: Path):
     """A stub must reach disk — that is how a failure stays visible in /admin."""
     lesson = _lesson(sections=[], is_stub=True, stub_reason="research_failed")
     path = write_lesson(lesson, output_dir=tmp_path)
-    fm, body = load_frontmatter(path.read_text(encoding="utf-8"))
+    parsed = load_frontmatter(path.read_text(encoding="utf-8"))
+    assert parsed is not None, "writer emitted unparseable frontmatter"
+    fm, body = parsed
     assert fm["is_stub"] is True
     assert fm["stub_reason"] == "research_failed"
     assert "Summary unavailable" in body

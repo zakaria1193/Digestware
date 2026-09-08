@@ -18,20 +18,22 @@ from __future__ import annotations
 
 import json
 from datetime import date
+from typing import cast
 
 import pytest
 
 from agents.lesson_agent import (
-    _ToolBudget,
     _build_tools,
     _drop_unread_code_refs,
     _parse_lesson,
     _render_dossier,
     _repair_lesson_item,
+    _ToolBudget,
     stub_lesson,
 )
 from agents.lesson_picker import LessonSubject, previous_complete_week
 from agents.models.lesson import LessonResearch, SourceExcerpt
+from agents.tools.source_repo import SourceRepo
 
 WEEK = previous_complete_week(date(2026, 9, 9))     # 2026-W36, Aug 31 – Sep 6
 SHA = "a" * 40
@@ -84,6 +86,16 @@ class FakeRepo:
 
     def find_symbol(self, sha, name, paths):
         return "hit"
+
+
+def _fake_repo(present: set[str] | None = None) -> SourceRepo:
+    """A FakeRepo typed as SourceRepo.
+
+    The functions under test only ever call `read_file` / `changed_dirs`, so a
+    stand-in is enough at runtime; the cast is what tells the type checker
+    that. One cast here beats eight suppressions at the call sites.
+    """
+    return cast(SourceRepo, FakeRepo(present))
 
 
 def _writer_output(**overrides) -> str:
@@ -178,7 +190,7 @@ def test_overlong_lists_are_truncated(subject):
 
 def test_fabricated_paths_are_dropped():
     """The writer never opened a file, so its citations are verified, not trusted."""
-    repo = FakeRepo(present={"gcc/ipa-sra.cc"})
+    repo = _fake_repo(present={"gcc/ipa-sra.cc"})
     item = {"code_tour": [
         {"path": "gcc/ipa-sra.cc", "why": "real"},
         {"path": "gcc/totally-made-up.cc", "why": "invented"},
@@ -189,14 +201,14 @@ def test_fabricated_paths_are_dropped():
 
 
 def test_malformed_code_refs_are_dropped():
-    repo = FakeRepo()
+    repo = _fake_repo()
     item = {"code_tour": [{"why": "no path"}, "not-a-dict", {"path": ""}]}
     _drop_unread_code_refs(item, repo, SHA)
     assert item["code_tour"] == []
 
 
 def test_parse_lesson_end_to_end(subject):
-    repo = FakeRepo()
+    repo = _fake_repo()
     lesson = _parse_lesson(_writer_output(), subject, repo)
 
     assert lesson.lesson_id == "gcc:2026-W36"
@@ -207,21 +219,21 @@ def test_parse_lesson_end_to_end(subject):
 
 
 def test_parse_lesson_strips_markdown_fences(subject):
-    repo = FakeRepo()
+    repo = _fake_repo()
     fenced = "```json\n" + _writer_output() + "\n```"
     assert _parse_lesson(fenced, subject, repo).commit_hash == SHA
 
 
 def test_parse_lesson_unwraps_a_single_element_array(subject):
     """Models wrap a lone object in an array surprisingly often."""
-    repo = FakeRepo()
+    repo = _fake_repo()
     wrapped = "[" + _writer_output() + "]"
     assert _parse_lesson(wrapped, subject, repo).commit_hash == SHA
 
 
 @pytest.mark.parametrize("bad", ["[]", '"a string"', "not json at all"])
 def test_parse_lesson_rejects_unusable_output(subject, bad):
-    repo = FakeRepo()
+    repo = _fake_repo()
     with pytest.raises((ValueError, json.JSONDecodeError)):
         _parse_lesson(bad, subject, repo)
 
@@ -238,7 +250,7 @@ def test_budget_stops_at_the_limit():
 
 def test_tools_refuse_to_run_once_the_budget_is_spent():
     """The cap is the dominant cost lever — it has to actually bind."""
-    repo = FakeRepo()
+    repo = _fake_repo()
     budget = _ToolBudget(limit=2)
     tools = {t.__name__: t for t in _build_tools(repo, SHA, budget)}
 
@@ -250,7 +262,7 @@ def test_tools_refuse_to_run_once_the_budget_is_spent():
 
 
 def test_grep_defaults_to_the_commits_own_directories():
-    repo = FakeRepo()
+    repo = _fake_repo()
     captured = {}
     repo.grep_repo = lambda sha, pattern, paths: captured.setdefault("paths", paths)
     tools = {t.__name__: t for t in _build_tools(repo, SHA, _ToolBudget())}
