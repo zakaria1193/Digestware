@@ -54,6 +54,20 @@ jobs:
       - name: Install dependencies
         run: pip install -r agents/requirements.txt
 
+      # The Lesson of the Week reads the projects' real source trees from bare,
+      # blobless clones under agents/cache (~640 MB for gcc). Caching them turns
+      # the nightly cost into an incremental `git fetch` instead of a fresh
+      # clone. The run_id key always misses so the cache is rewritten each night
+      # with the newly-fetched objects; the prefix restore is what actually
+      # supplies the previous night's clone.
+      - name: Restore source-repo clones
+        uses: actions/cache@v4
+        with:
+          path: agents/cache
+          key: lesson-repos-${{ github.run_id }}
+          restore-keys: |
+            lesson-repos-
+
       - name: Check required secrets
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -124,7 +138,7 @@ jobs:
 
           for hours in 48 168 720 2160; do
             echo "::group::digest run (--since-hours ${hours})"
-            python -m agents.main --since-hours "${hours}" --skip-categorize ${DEBUG_FLAG} ${FORCE_FLAG}
+            python -m agents.main --since-hours "${hours}" --skip-categorize --skip-lesson ${DEBUG_FLAG} ${FORCE_FLAG}
             echo "::endgroup::"
 
             d=$(count web/src/content/discussions)
@@ -142,6 +156,24 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           python -m agents.tag_categorizer
+
+      # Lesson of the Week — one long-form, source-grounded piece per project
+      # per ISO week. Runs once, after the backfill loop, against the final
+      # content set. Nightly invocation is fine: the picker no-ops on a week
+      # that already has its lesson, so this produces output roughly once a
+      # week and is self-healing if a night fails.
+      #
+      # `continue-on-error`: a lesson is editorial garnish on the digest. A
+      # model outage or a mirror that hasn't caught up must not block the
+      # nightly content refresh from being committed.
+      - name: Lesson of the Week
+        continue-on-error: true
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          LESSON_RESEARCH_MODEL: ${{ vars.LESSON_RESEARCH_MODEL }}
+          LESSON_WRITER_MODEL: ${{ vars.LESSON_WRITER_MODEL }}
+        run: |
+          python -m agents.main --lesson-only ${{ inputs.debug && '--debug' || '' }}
 
       # Gate: never commit content that would break the Cloudflare Pages build.
       # The pipeline pushes straight to master, so a malformed frontmatter block

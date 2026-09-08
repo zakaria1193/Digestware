@@ -12,9 +12,10 @@ export async function GET(context: APIContext) {
   const { projectSlug } = context.props as { projectSlug: string };
   const project = getProject(projectSlug)!;
 
-  const [discussions, landings] = await Promise.all([
+  const [discussions, landings, lessons] = await Promise.all([
     getCollection('discussions', ({ data }) => data.project === projectSlug && isPublic(data)),
     getCollection('landings', ({ data }) => data.project === projectSlug && isPublic(data)),
+    getCollection('lessons', ({ data }) => data.project === projectSlug && isPublic(data)),
   ]);
 
   const discussionItems = discussions.map(e => ({
@@ -31,7 +32,16 @@ export async function GET(context: APIContext) {
     pubDate: e.data.date,
   }));
 
-  const items = [...discussionItems, ...landingItems].sort(
+  // The lesson leads with its hook rather than its tldr: in a reader's feed
+  // the hook is what distinguishes it from the commit digest beside it.
+  const lessonItems = lessons.map(e => ({
+    title: `Lesson: ${e.data.headline}`,
+    description: e.data.hook,
+    link: `/${projectSlug}/lessons/${e.id}`,
+    pubDate: e.data.date,
+  }));
+
+  const items = [...discussionItems, ...landingItems, ...lessonItems].sort(
     (a, b) => b.pubDate.getTime() - a.pubDate.getTime()
   );
 

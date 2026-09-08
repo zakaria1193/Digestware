@@ -2,6 +2,7 @@
 import PublicLayout from '../../layouts/PublicLayout.astro';
 import BentoCard from '../../components/BentoCard.astro';
 import CommitRow from '../../components/CommitRow.astro';
+import LessonHero from '../../components/LessonHero.astro';
 import FilterBar from '../../components/FilterBar.astro';
 import { getCollection } from 'astro:content';
 import { PROJECTS, getProject } from '../../config/projects';
@@ -88,6 +89,14 @@ const tagCategoryModules = import.meta.glob<TagCategoryFile>(
 const tagCategoryFile = tagCategoryModules[`../../data/tag-categories/${projectSlug}.json`];
 const tagAssignments: Record<string, string> = tagCategoryFile?.assignments ?? {};
 
+// The week's lesson. Newest wins; absent is normal (no eligible commit that
+// week, or a mirror that hasn't caught up yet) and simply renders nothing.
+const latestLesson = (await getCollection(
+  'lessons',
+  ({ data }) => data.project === projectSlug && isPublic(data),
+))
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime())[0] ?? null;
+
 const rankedTags = rankTags([...allDiscussions, ...landings]);
 const groupedTags = groupTags(rankedTags, tagAssignments);
 const totalItems = allDiscussions.length + landings.length;
@@ -116,8 +125,13 @@ const totalItems = allDiscussions.length + landings.length;
       </div>
     </aside>
 
-    <!-- Right: Bento Grid -->
+    <!-- Right: Lesson of the Week, then the Bento Grid -->
     <div class="main-col">
+      <!-- Sits outside [data-subsystem-block], so the tag filter never
+           collapses it. Intentional: the lesson is the week's editorial
+           anchor, not one more filterable item in the feed. -->
+      {latestLesson && <LessonHero entry={latestLesson} projectSlug={project.slug} />}
+
       <div class="wsj-section-head">
         <h2>Active Discussions</h2>
         <span class="wsj-section-rule"></span>

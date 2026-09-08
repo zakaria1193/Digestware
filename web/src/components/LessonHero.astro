@@ -1,0 +1,214 @@
+---
+// The week's Lesson — pinned above Active Discussions on the front page.
+//
+// Deliberately not a BentoCard. A lesson is not a discussion competing for a
+// slot in the grid: it is the paper's editorial anchor for the week, so it gets
+// a full-width band, a display-serif headline, and none of the grid's status
+// furniture (no outcome dot, no impact pill, no score-based dimming). Those
+// signals answer "where is this patch in its lifecycle?", which is the wrong
+// question to ask of an explainer.
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+  entry: CollectionEntry<'lessons'>;
+  projectSlug: string;
+}
+
+const { entry, projectSlug } = Astro.props;
+const d = entry.data;
+
+// A weekly hero sits on the front page for seven days, so it is labelled with
+// the span it covers rather than a single date — "Sep 1-7" stays accurate all
+// week where "September 1" would read as stale by Friday. Deliberately not
+// `relativeDate`: "Today"/"Yesterday" are wrong for a period.
+function weekRange(start: Date, end: Date): string {
+  const sameMonth = start.getMonth() === end.getMonth()
+    && start.getFullYear() === end.getFullYear();
+  const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const endStr = end.toLocaleDateString(
+    'en-US',
+    sameMonth ? { day: 'numeric' } : { month: 'short', day: 'numeric' },
+  );
+  return `Week of ${startStr}\u2013${endStr}`;
+}
+const dateStr = weekRange(d.week_start, d.week_end);
+// The code tour is the piece's evidence; showing the paths up front is the
+// fastest way for a reader to judge whether it goes where they need it to.
+const tourPaths = (d.code_tour ?? []).map(c => c.path).slice(0, 4);
+---
+
+<section class="lesson-hero">
+  <div class="lesson-head">
+    <span class="lesson-label">Lesson of the Week</span>
+    <span class="lesson-rule"></span>
+    <span class="lesson-date">{dateStr}</span>
+  </div>
+
+  <a href={`/${projectSlug}/lessons/${entry.id}`} class="lesson-link">
+    <h2 class="lesson-headline">{d.headline}</h2>
+  </a>
+
+  <p class="lesson-hook">{d.hook}</p>
+
+  <div class="lesson-foot">
+    <div class="lesson-concept">
+      <span class="lesson-concept-label">The idea</span>
+      <span class="lesson-concept-text">{d.concept}</span>
+    </div>
+
+    {tourPaths.length > 0 && (
+      <ul class="lesson-tour">
+        {tourPaths.map(p => <li class="lesson-path">{p}</li>)}
+      </ul>
+    )}
+  </div>
+
+  <a href={`/${projectSlug}/lessons/${entry.id}`} class="lesson-cta">
+    Read the lesson &rsaquo;
+  </a>
+</section>
+
+<style>
+  .lesson-hero {
+    border-top: 3px double var(--color-rule-strong);
+    border-bottom: 1px solid var(--color-rule-strong);
+    padding: 0.75rem 0 1.25rem;
+    margin-bottom: 1.75rem;
+  }
+
+  .lesson-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .lesson-label {
+    font-family: var(--font-sans);
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    white-space: nowrap;
+  }
+
+  .lesson-rule {
+    flex: 1;
+    border-top: 1px solid var(--color-rule);
+  }
+
+  .lesson-date {
+    font-family: var(--font-sans);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-dim);
+    white-space: nowrap;
+  }
+
+  .lesson-link {
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .lesson-headline {
+    font-family: var(--font-serif-display);
+    font-weight: 900;
+    font-size: clamp(1.6rem, 3.4vw, 2.5rem);
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.5rem;
+    color: var(--color-ink);
+  }
+
+  .lesson-link:hover .lesson-headline {
+    color: var(--color-accent);
+  }
+
+  .lesson-hook {
+    font-family: var(--font-serif);
+    font-size: 1.02rem;
+    line-height: 1.5;
+    color: var(--color-muted);
+    margin: 0 0 0.9rem;
+    max-width: 62ch;
+  }
+
+  .lesson-foot {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--color-rule);
+  }
+
+  .lesson-concept-label {
+    display: block;
+    font-family: var(--font-sans);
+    font-size: 0.58rem;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-dim);
+    margin-bottom: 0.2rem;
+  }
+
+  .lesson-concept-text {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.95rem;
+    line-height: 1.45;
+    color: var(--color-ink);
+  }
+
+  .lesson-tour {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    align-content: start;
+  }
+
+  .lesson-path {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--color-muted);
+    background: var(--color-paper-alt);
+    border: 1px solid var(--color-rule);
+    padding: 0.12rem 0.4rem;
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .lesson-cta {
+    display: inline-block;
+    margin-top: 0.9rem;
+    font-family: var(--font-sans);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    text-decoration: none;
+    border-bottom: 2px solid var(--color-accent);
+    padding-bottom: 1px;
+  }
+
+  .lesson-cta:hover {
+    color: var(--color-ink);
+    border-bottom-color: var(--color-ink);
+  }
+
+  @media (min-width: 900px) {
+    .lesson-foot {
+      grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+      gap: 1.5rem;
+    }
+  }
+</style>

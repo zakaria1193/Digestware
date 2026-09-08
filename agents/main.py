@@ -12,7 +12,9 @@ Steps:
 6. write_discussion() / write_landing() for each result
 7. Tag categorizer → web/src/data/tag-categories/<project>.json
    (skipped with --skip-categorize; the workflow runs it once at the end)
-8. Print summary
+8. Lesson of the Week — one long-form, source-grounded piece per project per
+   ISO week (skipped with --skip-lesson; --lesson-only runs just this step)
+9. Print summary
 """
 
 from __future__ import annotations
@@ -22,7 +24,7 @@ import logging
 import math
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import yaml
@@ -37,10 +39,19 @@ from agents.dedup import build_seen_index, filter_raw, latest_content_date
 from agents.discussion_agent import run_discussion_agent
 from agents.ingestion.engine import IngestionEngine
 from agents.landing_agent import run_landing_agent
+from agents.lesson_agent import run_lesson_agent
+from agents.lesson_picker import (
+    LessonWeek,
+    latest_landing_date,
+    parse_week,
+    pick_subject,
+    previous_complete_week,
+)
 from agents.tag_categorizer import run_tag_categorizer
 from agents.tools.noise_filter import filter_noise
 from agents.tools.retro_noise import sweep_content_root
-from agents.writer import write_discussion, write_landing
+from agents.tools.source_repo import SourceRepoError, load_source_repos
+from agents.writer import write_discussion, write_landing, write_lesson
 
 logger = logging.getLogger("agents.main")
 
@@ -129,6 +140,110 @@ def _build_sources(
 
 
 # ---------------------------------------------------------------------------
+# Lesson of the Week
+# ---------------------------------------------------------------------------
+
+def _resolve_lesson_week(args) -> LessonWeek | None:
+    """The ISO week whose landed commits the lesson is chosen from.
+
+    Defaults to the most recent COMPLETE week — never the current one, which
+    on a Monday-morning run would be an empty pool. Anchored on the newest
+    landing on disk rather than the wall clock so a backfill or a replayed
+    archive picks the week its content actually belongs to.
+    """
+    if args.lesson_week:
+        week = parse_week(args.lesson_week)
+        if week is not None:
+            return week
+        logger.warning(
+            "--lesson-week %r is not YYYY-Www (e.g. 2026-W36) — falling back "
+            "to the newest complete week on disk",
+            args.lesson_week,
+        )
+
+    anchor = latest_landing_date(args.content_root, args.lesson_project)
+    if anchor is None:
+        return None
+    # +1 day so a tree whose newest landing IS the last day of a complete week
+    # resolves to that week rather than skipping back another seven days.
+    return previous_complete_week(anchor + timedelta(days=1))
+
+
+def _run_lesson_step(
+    config: dict,
+    content_root: Path,
+    week: LessonWeek | None,
+    only_project: str | None = None,
+    dry_run: bool = False,
+) -> int:
+    """Generate one lesson per project that has a readable source repo.
+
+    Runs nightly but produces at most one lesson per project per week: the
+    picker skips a week that already has a lesson on disk, so the first run of
+    a new week writes it and the rest are no-ops. That is what makes the
+    cadence weekly without a day-of-week check, and it self-heals — a failed
+    Monday run is simply picked up on Tuesday.
+
+    Returns the number of lessons written. Never raises: a lesson is the
+    editorial cherry on top of the digest, and a clone failure or a model
+    outage must not take the nightly refresh down with it.
+    """
+    repos = load_source_repos(config, cache_dir=_CACHE_DIR)
+    if not repos:
+        logger.info(
+            "No `source_repos:` configured in sources.yml — skipping lessons. "
+            "(A lesson reads the project's real source tree; without a repo "
+            "there is nothing to read.)"
+        )
+        return 0
+
+    if week is None:
+        logger.info("No dated landings on disk — nothing to build a lesson from.")
+        return 0
+    logger.info("Lesson target week: %s", week)
+
+    written = 0
+    for project, repo in repos.items():
+        if only_project and project != only_project:
+            continue
+        try:
+            # Cloning GCC blobless is slow the first time and ~instant after,
+            # so only pay it once we know the project has a candidate at all.
+            # This first call also short-circuits on "this week already has a
+            # lesson", which is the common case six nights out of seven.
+            if pick_subject(content_root, project, week) is None:
+                continue
+
+            repo.ensure()
+            subject = pick_subject(
+                content_root, project, week, resolve=repo.resolve
+            )
+            if subject is None:
+                continue
+
+            lesson = run_lesson_agent(subject, repo, dry_run=dry_run)
+            path = write_lesson(lesson, output_dir=content_root / "lessons")
+            written += 1
+            logger.info(
+                "Lesson of the Week (%s, %s): %s → %s",
+                project,
+                week.key,
+                subject.commit_hash[:12],
+                path,
+            )
+        except SourceRepoError as exc:
+            logger.warning(
+                "Lesson skipped for %s — source repo unavailable: %s", project, exc
+            )
+        except Exception as exc:  # noqa: BLE001 — never fail the nightly run
+            logger.warning("Lesson failed for %s (%s) — continuing.", project, exc)
+
+    if not written:
+        logger.info("No lesson written for %s.", week.key)
+    return written
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -197,6 +312,33 @@ def main() -> int:
         default=_DEFAULT_TAG_CATEGORIES_DIR,
         help=f"Output dir for tag-category JSON (default: {_DEFAULT_TAG_CATEGORIES_DIR})",
     )
+    parser.add_argument(
+        "--skip-lesson",
+        action="store_true",
+        help="Skip the Lesson of the Week step. Intended for the backfill "
+        "loop in daily-digest.yml, which re-invokes main.py across widening "
+        "windows; the workflow then runs --lesson-only once at the end.",
+    )
+    parser.add_argument(
+        "--lesson-only",
+        action="store_true",
+        help="Run ONLY the Lesson of the Week step against the content already "
+        "on disk — no ingestion, no digest agents, no categorization.",
+    )
+    parser.add_argument(
+        "--lesson-week",
+        type=str,
+        default=None,
+        help="ISO week (e.g. 2026-W36) whose landed commits the lesson is "
+        "chosen from. Defaults to the newest COMPLETE week present in the "
+        "landings on disk.",
+    )
+    parser.add_argument(
+        "--lesson-project",
+        type=str,
+        default=None,
+        help="Only generate a lesson for this project (e.g. 'gcc').",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -229,6 +371,21 @@ def main() -> int:
     except FileNotFoundError:
         logger.error("sources.yml not found at %s", _SOURCES_YML)
         return 1
+
+    # The lesson step reads content already on disk rather than ingesting, so
+    # it can run standalone. The nightly workflow uses this: the backfill loop
+    # runs with --skip-lesson across widening windows, then this once at the
+    # end, against the final content set.
+    if args.lesson_only:
+        logger.info(_step_banner("LESSON OF THE WEEK", "magenta"))
+        _run_lesson_step(
+            config,
+            args.content_root,
+            _resolve_lesson_week(args),
+            only_project=args.lesson_project,
+            dry_run=args.dry_run,
+        )
+        return 0
 
     discussion_sources, commit_sources = _build_sources(config)
     logger.info(
@@ -442,6 +599,23 @@ def main() -> int:
         except Exception as exc:
             logger.warning("Tag categorizer raised (%s) — continuing.", exc)
 
+    # Lesson of the Week — one in-depth piece per project, chosen from the
+    # commits that landed that week and written against the project's real
+    # source tree. Runs last because it reads the landings this run just wrote,
+    # and no-ops on the six nights a week that already have their lesson.
+    lessons_written = 0
+    if args.skip_lesson:
+        logger.info("Skipping Lesson of the Week (--skip-lesson).")
+    else:
+        logger.info(_step_banner("STEP 6 — LESSON OF THE WEEK", "magenta"))
+        lessons_written = _run_lesson_step(
+            config,
+            args.content_root,
+            _resolve_lesson_week(args),
+            only_project=args.lesson_project,
+            dry_run=args.dry_run,
+        )
+
     # Summary
     bento_worthy = sum(1 for landing in landings if landing.impact_score is not None and landing.impact_score >= 7)
     d_stubbed = discussion_agent_module.batches_stubbed
@@ -454,6 +628,7 @@ def main() -> int:
         f"\n{'─'*60}\n"
         f"  Discussions written : {written_discussions}\n"
         f"  Landings written    : {written_landings}\n"
+        f"  Lessons written     : {lessons_written}\n"
         f"  Skipped (dedup)     : {skipped_discussions} discussions, "
         f"{skipped_commits} commits\n"
         f"  Bento-worthy (≥7)   : {bento_worthy}\n"

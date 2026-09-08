@@ -1,3 +1,19 @@
+# Repos the pipeline READS but does not ingest. The lesson agent navigates
+# these to ground its explanations in the real source tree, instead of
+# fetching sourceware pages one at a time.
+#
+# Both are direct git mirrors of the sourceware repositories, so a commit SHA
+# seen on gcc-cvs / binutils-cvs resolves here verbatim. They are cloned bare
+# and blobless (see agents/tools/source_repo.py), which is what keeps GCC in
+# the hundreds of MB rather than gigabytes.
+source_repos:
+  gcc:
+    url: https://github.com/gcc-mirror/gcc.git
+    branch: master
+  binutils:
+    url: https://github.com/bminor/binutils-gdb.git
+    branch: master
+
 sources:
   - type: github
     project: gcc

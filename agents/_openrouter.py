@@ -30,6 +30,44 @@ BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_SUMMARISER_MODEL = "google/gemini-2.5-flash-lite"
 DEFAULT_PREMIUM_MODEL = "anthropic/claude-sonnet-4-5"
 
+# ── Lesson of the Week ──────────────────────────────────────────────────────
+#
+# Generating a lesson is split across TWO models, and the split is the whole
+# reason the feature fits the budget.
+#
+# A lesson is written by navigating the project's real source tree: many turns,
+# each one resending the entire conversation so far. Token spend therefore
+# grows *quadratically* with tool calls — the worst possible shape to pay
+# premium rates for. Running a top-tier model through a 16-call loop costs
+# several euro per article; the whole project's ceiling is EUR 5/month.
+#
+# So: a cheap reasoning model does the exploring and hands over a structured
+# dossier (agents.models.lesson.LessonResearch), then ONE call to a top-tier
+# model turns that dossier into the article. The reader gets premium prose; we
+# pay premium rates for a single non-agentic call.
+#
+# RESEARCH — needs reliable multi-turn tool-calling and enough context to hold
+# several source files. The -lite tier used for bulk summarising is not up to
+# it. This runs at most twice a week, so the reasoning tier is affordable here
+# in a way it never was in the per-article digest path.
+DEFAULT_LESSON_RESEARCH_MODEL = "google/gemini-2.5-flash"
+#
+# WRITER — one call, no tools, no conversation to resend. Opus-tier by explicit
+# request: the lesson is the only long-form prose on the site and it is what a
+# reader judges the publication by.
+#
+# BUDGET: ~2 lessons/week is ~8-9 runs/month. Verify real spend in the
+# ``lesson_research`` / ``lesson_writer`` rows of agents/output/usage.log
+# BEFORE enabling the nightly step. If it overruns, the levers in order are
+# (1) _MAX_TOOL_CALLS in lesson_agent.py and (2) the dossier size caps in
+# models/lesson.py — which drive the writer's input tokens. Do not silently
+# downgrade the writer; Opus-level prose is the requirement.
+#
+# NOTE: confirm this slug against https://openrouter.ai/api/v1/models before
+# the first paid run. Anthropic's own id is ``claude-opus-5``; OpenRouter
+# namespaces it under the provider.
+DEFAULT_LESSON_WRITER_MODEL = "anthropic/claude-opus-5"
+
 
 def _api_key() -> str:
     return os.environ.get("OPENROUTER_API_KEY", "")
