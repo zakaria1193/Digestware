@@ -52,9 +52,17 @@ OpenRouter exposes no embeddings endpoint, so `agents/index/embed.py` talks to a
 OpenAI-compatible `/embeddings` provider configured by `EMBEDDING_BASE_URL` /
 `EMBEDDING_MODEL` / `EMBEDDING_API_KEY`. This is the **only** sanctioned non-OpenRouter
 provider, it is confined to that one module behind the `EmbeddingProvider` protocol, and
-its spend is logged to `agents/output/usage.log` like every other call. Embedding the
-whole corpus costs roughly $0.02; the nightly delta is a fraction of a cent. All
-*generation* still goes through OpenRouter, without exception.
+its spend is logged to `agents/output/usage.log` like every other call. All *generation*
+still goes through OpenRouter, without exception.
+
+**Cost, and the one thing that controls it.** The corpus is ~1.4M characters (~400k
+tokens), so embedding all of it is well under a cent. The nightly run must stay
+*incremental* for that to remain true: the CI job restores `pulse.db` from
+`actions/cache` and runs the build **without `--full`**, so only files whose content hash
+changed are re-embedded — a few thousand tokens a night, flat regardless of how large the
+archive grows. Remove the cache step or add `--full` back and every run re-embeds the
+entire corpus instead, which costs ~30x more today and scales linearly with the archive.
+Set no `EMBEDDING_API_KEY` at all and the build is lexical-only and free.
 
 ## Budget Constraints — HARD LIMITS
 - **Total AI spend: ≤ €5 / month**

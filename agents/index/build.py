@@ -263,20 +263,44 @@ def build_index(
     }
 
 
+def _drop_foreign_model_vectors(conn: sqlite3.Connection, model: str) -> int:
+    """Delete stored vectors produced by a different embedding model.
+
+    Vectors from two models are not comparable, and two models rarely share a
+    dimension — a mixed table would either rank nonsensically or silently drop
+    the minority dimension at query time. Because the nightly build now restores
+    a cached database, a model change is a live possibility rather than a
+    hypothetical, so re-embed from scratch when one is detected.
+    """
+    stale = conn.execute(
+        "SELECT COUNT(*) FROM embeddings WHERE model != ?", (model,)
+    ).fetchone()[0]
+    if stale:
+        logger.warning(
+            "Embedding model changed to %s — discarding %d vector(s) from the previous model",
+            model, stale,
+        )
+        conn.execute("DELETE FROM embeddings")
+        conn.commit()
+    return stale
+
+
 def embed_missing(conn: sqlite3.Connection, provider=None) -> int:
     """Embed every document that has no current vector. Returns the count."""
+    if provider is None:
+        from agents.index.embed import build_provider
+
+        provider = build_provider()
+    from agents.index.embed import pack_vector
+
+    _drop_foreign_model_vectors(conn, provider.model)
+
     rows = conn.execute(
         "SELECT d.id, d.headline, d.tldr, d.subsystem, d.body FROM docs d "
         "LEFT JOIN embeddings e ON e.doc_id = d.id WHERE e.doc_id IS NULL"
     ).fetchall()
     if not rows:
         return 0
-
-    if provider is None:
-        from agents.index.embed import build_provider
-
-        provider = build_provider()
-    from agents.index.embed import pack_vector
 
     # Lead with subsystem and headline: the embedding should capture "what area
     # of the toolchain is this and what happened", not the prose style.
