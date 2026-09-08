@@ -15,6 +15,12 @@ the first nightly run of a new week writes the lesson, and the other six find
 it already on disk and skip. It is self-healing for free — if Monday's run
 fails, Tuesday's picks the same week up.
 
+**One lesson per week TOTAL, alternating projects.** Not one per project —
+the article is written by a premium model and volume is the dominant cost
+lever, so gcc and binutils take turns. Whose turn it is falls out of the
+calendar (``project_for_week``), and the "already done this week" check is
+therefore scoped to the week rather than to the project.
+
 The one non-local input is the source repo: a commit is only a viable subject
 if its SHA actually resolves in the mirror. Mirror lag is routine, so the
 picker walks the ranked list and takes the first commit it can actually read.
@@ -93,6 +99,23 @@ def previous_complete_week(today: date) -> LessonWeek:
     """
     this_monday = today - timedelta(days=today.isocalendar()[2] - 1)
     return week_of(this_monday - timedelta(days=1))
+
+
+def project_for_week(week: LessonWeek, projects: list[str]) -> str | None:
+    """Whose turn it is this week, rotating stably forever.
+
+    Keyed on the Monday's ordinal rather than ``iso_week``: a naive
+    ``iso_week % n`` hands two consecutive weeks to the same project whenever a
+    52-week year rolls into week 1, because 52 and 1 are both even/odd in the
+    same way. Counting weeks since the epoch has no such seam.
+
+    Deterministic and stateless, so the rotation cannot drift and does not need
+    to be recorded anywhere. ``projects`` must be in a stable order — the
+    caller passes ``sorted()`` output for that reason.
+    """
+    if not projects:
+        return None
+    return projects[(week.start.toordinal() // 7) % len(projects)]
 
 
 def parse_week(text: str) -> LessonWeek | None:
@@ -223,6 +246,28 @@ def existing_lesson_id(content_root: Path, lesson_id: str) -> bool:
         if fm and fm.get("lesson_id") == lesson_id:
             return True
     return False
+
+
+def existing_lesson_for_week(content_root: Path, week: LessonWeek) -> str | None:
+    """The project that already has this week's lesson, or None.
+
+    Week-scoped rather than project-scoped because there is only ONE lesson a
+    week across all projects. Asking "does gcc have this week's lesson?" would
+    let binutils write a second one the same week and double the bill.
+    """
+    lessons_dir = Path(content_root) / "lessons"
+    if not lessons_dir.is_dir():
+        return None
+    suffix = f":{week.key}"
+    for path in sorted(lessons_dir.glob("*.md")):
+        fm = _read_frontmatter(path)
+        if not fm:
+            continue
+        lesson_id = fm.get("lesson_id")
+        if isinstance(lesson_id, str) and lesson_id.endswith(suffix):
+            project = fm.get("project")
+            return str(project) if project else lesson_id.split(":", 1)[0]
+    return None
 
 
 def recent_subsystems(content_root: Path, project: str) -> set[str]:

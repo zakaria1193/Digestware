@@ -13,18 +13,20 @@ Two areas carry real risk:
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
 
 from agents.lesson_picker import (
     candidates,
+    existing_lesson_for_week,
     existing_lesson_id,
     latest_landing_date,
     parse_week,
     pick_subject,
     previous_complete_week,
+    project_for_week,
     recent_subsystems,
     week_of,
 )
@@ -297,3 +299,90 @@ def test_latest_landing_date_filters_by_project(tmp_path: Path):
 
     assert latest_landing_date(tmp_path) == date(2026, 9, 5)
     assert latest_landing_date(tmp_path, "gcc") == date(2026, 9, 2)
+
+
+# ---------------------------------------------------------------------------
+# Project rotation — one lesson per week TOTAL, not one per project
+# ---------------------------------------------------------------------------
+
+PROJECTS = ["binutils", "gcc"]
+
+
+def test_rotation_alternates_week_to_week():
+    weeks = [previous_complete_week(date(2026, 9, 9) - timedelta(days=7 * i))
+             for i in range(8)]
+    picks = [project_for_week(w, PROJECTS) for w in weeks]
+
+    # Every adjacent pair differs — that is the whole point of the rotation.
+    assert all(a != b for a, b in zip(picks, picks[1:])), picks
+    assert set(picks) == set(PROJECTS)
+
+
+def test_rotation_survives_the_year_boundary():
+    """The case a naive `iso_week % n` gets wrong.
+
+    A 53-week year rolls W53 into W01; both are odd, so modulo-on-week-number
+    hands the same project two weeks running. Counting weeks since the epoch
+    has no such seam.
+    """
+    consecutive = [
+        week_of(date(2026, 12, 21)),   # 2026-W52
+        week_of(date(2026, 12, 28)),   # 2026-W53
+        week_of(date(2027, 1, 4)),     # 2027-W01
+        week_of(date(2027, 1, 11)),    # 2027-W02
+    ]
+    picks = [project_for_week(w, PROJECTS) for w in consecutive]
+    assert all(a != b for a, b in zip(picks, picks[1:])), picks
+
+    # Demonstrate the bug this guards against, so the test explains itself.
+    naive = [PROJECTS[w.iso_week % 2] for w in consecutive]
+    assert naive[1] == naive[2], "expected the naive scheme to repeat here"
+
+
+def test_rotation_is_stable_for_a_given_week():
+    week = previous_complete_week(date(2026, 9, 9))
+    assert project_for_week(week, PROJECTS) == project_for_week(week, PROJECTS)
+
+
+def test_rotation_edge_cases():
+    week = previous_complete_week(date(2026, 9, 9))
+    assert project_for_week(week, []) is None
+    assert project_for_week(week, ["gcc"]) == "gcc"
+
+
+# ---------------------------------------------------------------------------
+# The week-scoped guard — what stops a second lesson (and a second bill)
+# ---------------------------------------------------------------------------
+
+def test_week_guard_fires_across_projects(tmp_path: Path):
+    """A gcc lesson must block binutils from also writing one that week."""
+    week = previous_complete_week(date(2026, 9, 9))
+    assert existing_lesson_for_week(tmp_path, week) is None
+
+    _lesson(tmp_path, lesson_id="gcc:2026-W36", project="gcc",
+            subsystem="gcc/ipa", d="2026-09-06")
+
+    assert existing_lesson_for_week(tmp_path, week) == "gcc"
+
+
+def test_week_guard_ignores_other_weeks(tmp_path: Path):
+    week = previous_complete_week(date(2026, 9, 9))          # 2026-W36
+    _lesson(tmp_path, lesson_id="gcc:2026-W35", project="gcc",
+            subsystem="gcc/ipa", d="2026-08-30")
+
+    assert existing_lesson_for_week(tmp_path, week) is None
+
+
+def test_week_guard_does_not_confuse_similar_week_keys(tmp_path: Path):
+    """`:2026-W3` must not match `:2026-W36` — suffix, not substring."""
+    week = parse_week("2026-W03")
+    assert week is not None
+    _lesson(tmp_path, lesson_id="gcc:2026-W36", project="gcc",
+            subsystem="gcc/ipa", d="2026-09-06")
+
+    assert existing_lesson_for_week(tmp_path, week) is None
+
+
+def test_week_guard_on_missing_directory(tmp_path: Path):
+    week = previous_complete_week(date(2026, 9, 9))
+    assert existing_lesson_for_week(tmp_path, week) is None

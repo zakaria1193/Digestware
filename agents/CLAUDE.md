@@ -29,7 +29,7 @@ Sitting on top of both is a third, deliberately different producer:
 
 | Agent | Handles | Output Model | Source data |
 |-------|---------|--------------|-------------|
-| **Lesson** (`lesson_agent.py`) | One landed commit per project per ISO week | `LessonDigest` | A `LandingDigest` on disk + the project's **real source tree** |
+| **Lesson** (`lesson_agent.py`) | One landed commit per ISO week, projects alternating | `LessonDigest` | A `LandingDigest` on disk + the project's **real source tree** |
 
 The Lab and the Factory *report* — a headline, a ≤160-char TL;DR, 2–4
 sentences, written from a commit message or an email thread. The Lesson
@@ -296,11 +296,25 @@ Skippable with `--skip-lesson`; runnable on its own with `--lesson-only`.
 
 ### Weekly, enforced by idempotence rather than a schedule
 
-The job runs **nightly**, but produces **one lesson per project per ISO week**.
-There is no day-of-week check anywhere. Instead `lesson_picker.pick_subject()`
-looks for a lesson whose `lesson_id` (`"gcc:2026-W36"`) is already on disk and
-returns `None` if it finds one. The first run of a new week writes the lesson;
-the other six are no-ops.
+The job runs **nightly**, but produces **one lesson per ISO week, total** —
+not one per project. There is no day-of-week check anywhere. Instead
+`existing_lesson_for_week()` looks for any lesson whose `lesson_id` ends in
+this week's key (`"…:2026-W36"`) and skips if it finds one. The first run of a
+new week writes the lesson; the other six are no-ops.
+
+**Projects alternate.** The article is written by a premium model, so volume is
+the dominant cost lever; gcc and binutils take turns rather than each getting a
+weekly piece. `project_for_week()` derives whose turn it is from the Monday's
+ordinal — deterministic, stateless, and free of the year-boundary seam that
+`iso_week % n` has (a 53-week year would otherwise hand the same project two
+weeks running).
+
+Rotation is a preference, not a straitjacket: if the week's project has no
+eligible landing — or its mirror is unreachable — `_run_lesson_step` falls
+through to the others rather than burning the slot. Whoever writes it takes the
+week. Watch for a repeated `"Lesson skipped for X — source repo unavailable"`
+in the nightly logs: that means the rotation is silently degrading to a single
+project.
 
 This is deliberate and has a useful property: it **self-heals**. If Monday's
 run fails, Tuesday's picks the same week up. A cron expression pinned to Monday
@@ -491,6 +505,15 @@ and hundreds of MB.
 - **The weekly cadence lives in the idempotence guard, not a schedule.** Don't
   "fix" the nightly invocation by adding a day-of-week condition — you'd lose
   the self-healing property and gain nothing.
+- **That guard is week-scoped, not project-scoped.** `existing_lesson_for_week`
+  asks "does *any* project have this week's lesson?" Narrowing it back to one
+  project would let the second project write a second lesson the same week and
+  double the premium-model bill — the exact thing the alternation exists to
+  avoid.
+- **A repeated "source repo unavailable" warning means the rotation has
+  silently collapsed.** The fallback keeps a week from being wasted when one
+  project's mirror is unreachable, which is right — but if it fires every week,
+  one project is quietly never getting a lesson. Check the nightly logs.
 - **The writer's citations are verified, not trusted.** It works entirely from
   the dossier and never opens a file, so `_drop_unread_code_refs()` checks
   every `code_tour` path against the tree. Removing that check is how a

@@ -42,10 +42,12 @@ from agents.landing_agent import run_landing_agent
 from agents.lesson_agent import run_lesson_agent
 from agents.lesson_picker import (
     LessonWeek,
+    existing_lesson_for_week,
     latest_landing_date,
     parse_week,
     pick_subject,
     previous_complete_week,
+    project_for_week,
 )
 from agents.tag_categorizer import run_tag_categorizer
 from agents.tools.noise_filter import filter_noise
@@ -176,15 +178,19 @@ def _run_lesson_step(
     only_project: str | None = None,
     dry_run: bool = False,
 ) -> int:
-    """Generate one lesson per project that has a readable source repo.
+    """Generate at most ONE lesson for *week*, alternating between projects.
 
-    Runs nightly but produces at most one lesson per project per week: the
-    picker skips a week that already has a lesson on disk, so the first run of
-    a new week writes it and the rest are no-ops. That is what makes the
-    cadence weekly without a day-of-week check, and it self-heals — a failed
-    Monday run is simply picked up on Tuesday.
+    Runs nightly but writes at most one lesson a week in total: the week-scoped
+    guard skips a week that already has one, so the first run of a new week
+    writes it and the rest are no-ops. That is what makes the cadence weekly
+    without a day-of-week check, and it self-heals — a failed Monday run is
+    simply picked up on Tuesday.
 
-    Returns the number of lessons written. Never raises: a lesson is the
+    One lesson a week across all projects, not one each: the article is written
+    by a premium model, so volume is the dominant cost lever. gcc and binutils
+    take turns, with the turn derived from the calendar.
+
+    Returns 1 if a lesson was written, else 0. Never raises: a lesson is the
     editorial cherry on top of the digest, and a clone failure or a model
     outage must not take the nightly refresh down with it.
     """
@@ -202,15 +208,36 @@ def _run_lesson_step(
         return 0
     logger.info("Lesson target week: %s", week)
 
-    written = 0
-    for project, repo in repos.items():
-        if only_project and project != only_project:
-            continue
+    # One lesson per week TOTAL, not one per project — the article is written
+    # by a premium model, so volume is the dominant cost lever. This check is
+    # the six-nights-in-seven no-op, and being week-scoped it covers every
+    # project at once.
+    done_by = existing_lesson_for_week(content_root, week)
+    if done_by is not None:
+        logger.info(
+            "Week %s already has a lesson (%s) — skipping.", week.key, done_by
+        )
+        return 0
+
+    # Whose turn it is falls out of the calendar. Sorted so the rotation is
+    # stable regardless of dict ordering in sources.yml.
+    candidates = sorted(repos)
+    if only_project:
+        candidates = [p for p in candidates if p == only_project]
+    else:
+        turn = project_for_week(week, candidates)
+        if turn is not None:
+            # Rotation is a preference, not a straitjacket: if this week's
+            # project has nothing eligible, fall through to the others rather
+            # than burn the slot. Whoever writes it takes the week.
+            candidates = [turn] + [p for p in candidates if p != turn]
+        logger.info("Week %s belongs to %s (rotation).", week.key, turn)
+
+    for project in candidates:
+        repo = repos[project]
         try:
             # Cloning GCC blobless is slow the first time and ~instant after,
             # so only pay it once we know the project has a candidate at all.
-            # This first call also short-circuits on "this week already has a
-            # lesson", which is the common case six nights out of seven.
             if pick_subject(content_root, project, week) is None:
                 continue
 
@@ -223,7 +250,6 @@ def _run_lesson_step(
 
             lesson = run_lesson_agent(subject, repo, dry_run=dry_run)
             path = write_lesson(lesson, output_dir=content_root / "lessons")
-            written += 1
             logger.info(
                 "Lesson of the Week (%s, %s): %s → %s",
                 project,
@@ -231,6 +257,7 @@ def _run_lesson_step(
                 subject.commit_hash[:12],
                 path,
             )
+            return 1
         except SourceRepoError as exc:
             logger.warning(
                 "Lesson skipped for %s — source repo unavailable: %s", project, exc
@@ -238,9 +265,8 @@ def _run_lesson_step(
         except Exception as exc:  # noqa: BLE001 — never fail the nightly run
             logger.warning("Lesson failed for %s (%s) — continuing.", project, exc)
 
-    if not written:
-        logger.info("No lesson written for %s.", week.key)
-    return written
+    logger.info("No lesson written for %s.", week.key)
+    return 0
 
 
 # ---------------------------------------------------------------------------

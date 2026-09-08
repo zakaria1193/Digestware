@@ -148,8 +148,9 @@ const noTour = lessons.filter(e => !e.data.is_stub && (e.data.code_tour ?? []).l
 
   {lessons.length === 0 && (
     <p class="text-sm mt-4" style="color: var(--color-muted);">
-      No lessons yet. The pipeline writes one per project per ISO week, chosen
-      from that week's landed commits — see <code>agents/lesson_picker.py</code>.
+      No lessons yet. The pipeline writes one lesson per ISO week (projects
+      alternating), chosen from that week's landed commits — see
+      <code>agents/lesson_picker.py</code>.
     </p>
   )}
 
