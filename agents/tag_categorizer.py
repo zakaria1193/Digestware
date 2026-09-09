@@ -33,7 +33,7 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 
-from agents._openrouter import DEFAULT_SUMMARISER_MODEL, build_model
+from agents._openrouter import DEFAULT_SUMMARISER_MODEL, build_model, model_from_env
 from agents._retry import retry_with_backoff
 from agents.usage_log import append_usage
 
@@ -321,7 +321,7 @@ def run_tag_categorizer(
         )
         return 0
 
-    effective_model = model_name or os.environ.get(
+    effective_model = model_name or model_from_env(
         "SUMMARISER_MODEL", _DEFAULT_MODEL
     )
 

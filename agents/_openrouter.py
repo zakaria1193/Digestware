@@ -28,7 +28,7 @@ BASE_URL = "https://openrouter.ai/api/v1"
 # high-volume per-item digest work. Premium depth still comes from the Sonnet
 # re-run on impact_score >= 9 items.
 DEFAULT_SUMMARISER_MODEL = "google/gemini-2.5-flash-lite"
-DEFAULT_PREMIUM_MODEL = "anthropic/claude-sonnet-4-5"
+DEFAULT_PREMIUM_MODEL = "anthropic/claude-sonnet-4.5"
 
 # ── Lesson of the Week ──────────────────────────────────────────────────────
 #
@@ -63,14 +63,64 @@ DEFAULT_LESSON_RESEARCH_MODEL = "google/gemini-2.5-flash"
 # models/lesson.py — which drive the writer's input tokens. Do not silently
 # downgrade the writer; Opus-level prose is the requirement.
 #
-# NOTE: confirm this slug against https://openrouter.ai/api/v1/models before
-# the first paid run. Anthropic's own id is ``claude-opus-5``; OpenRouter
-# namespaces it under the provider.
+# VERIFIED 2026-09-09 against https://openrouter.ai/api/v1/models: this slug is
+# served. `python -m agents.check_models` re-checks it (and every other
+# configured slug) before any step that spends tokens, so a provider-side
+# rename fails in seconds rather than after a paid loop. That preflight is how
+# `anthropic/claude-sonnet-4-5` was caught: it had never existed, so every
+# premium digest re-run had been silently falling back to the cheap summary.
 DEFAULT_LESSON_WRITER_MODEL = "anthropic/claude-opus-5"
+
+
+def model_from_env(key: str, default: str) -> str:
+    """The model named by env var *key*, falling back to *default*.
+
+    Why this exists instead of ``os.environ.get(key, default)``: that returns
+    the default only when the key is **absent**. GitHub Actions sets an
+    unconfigured `${{ vars.X }}` as *present and empty*, so the plain form
+    yields `""`, and an empty model slug fails every request. That is not
+    hypothetical — it is what turned the first real Lesson of the Week run
+    into two `research_failed` stubs.
+
+    Treats whitespace-only as unset too, for the same reason.
+    """
+    value = (os.environ.get(key) or "").strip()
+    if not value:
+        return default
+    return value
 
 
 def _api_key() -> str:
     return os.environ.get("OPENROUTER_API_KEY", "")
+
+
+MODELS_TIMEOUT = 30
+
+
+def fetch_models(client: object | None = None) -> list[dict]:
+    """Every model OpenRouter currently serves, with its per-token pricing.
+
+    ``/models`` is free and needs no key. Two callers depend on it: the slug
+    preflight (``agents.check_models``) and the budget ledger
+    (``agents.budget``), which prices ``output/usage.log`` from the
+    ``pricing`` block each entry carries. It lives here because this module is
+    the single place that knows the base URL.
+
+    Raises on transport or HTTP errors — callers decide whether that is fatal.
+    """
+    import httpx
+
+    owns_client = client is None
+    http = client if client is not None else httpx.Client(timeout=MODELS_TIMEOUT)
+    try:
+        response = http.get(f"{BASE_URL}/models")  # type: ignore[attr-defined]
+        response.raise_for_status()
+        payload = response.json()
+    finally:
+        if owns_client:
+            http.close()  # type: ignore[attr-defined]
+    data = payload.get("data", [])
+    return [entry for entry in data if isinstance(entry, dict)]
 
 
 def build_model(model_name: str) -> OpenAIChatModel:

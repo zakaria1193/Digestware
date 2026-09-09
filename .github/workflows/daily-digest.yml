@@ -20,6 +20,14 @@ on:
         description: 'Purge existing content before running (no archive kept)'
         type: boolean
         default: false
+      lesson_only:
+        description: 'Skip ingestion entirely — only write the Lesson of the Week'
+        type: boolean
+        default: false
+      lesson_weeks:
+        description: 'How many complete weeks back to write lessons for (1 lesson each, ~EUR 0.40 apiece)'
+        type: string
+        default: '1'
 
 jobs:
   # ── 1. Quality gate (reused from test.yml) ───────────────────────────────────
@@ -77,10 +85,20 @@ jobs:
             exit 1
           fi
 
+      # A wrong model slug fails only at request time, after everything before
+      # it has been paid for. `/models` is free and unauthenticated, so this
+      # turns that whole class of late, confusing failure into an immediate one
+      # naming the closest available slugs.
+      - name: Check model slugs resolve
+        env:
+          LESSON_RESEARCH_MODEL: ${{ vars.LESSON_RESEARCH_MODEL }}
+          LESSON_WRITER_MODEL: ${{ vars.LESSON_WRITER_MODEL }}
+        run: python -m agents.check_models
+
       # Optional: archive previous output under .old/<UTC-timestamp>/
       # Only runs when explicitly requested via workflow_dispatch with archive=true.
       - name: Archive previous generated content
-        if: ${{ inputs.archive && !inputs.purge }}
+        if: ${{ inputs.archive && !inputs.purge && !inputs.lesson_only }}
         run: |
           set -euo pipefail
           TS="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
@@ -106,7 +124,7 @@ jobs:
       # Manual runs with purge=true delete content outright and bypass dedup
       # via --force so the agent re-ingests from scratch.
       - name: Purge previous generated content
-        if: ${{ inputs.purge }}
+        if: ${{ inputs.purge && !inputs.lesson_only }}
         run: |
           python - <<'PY'
           import pathlib
@@ -126,6 +144,7 @@ jobs:
           PY
 
       - name: Run digest pipeline (48 h window, backfill to min 5 each)
+        if: ${{ !inputs.lesson_only }}
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -152,16 +171,24 @@ jobs:
           done
 
       - name: Categorize tags
+        if: ${{ !inputs.lesson_only }}
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           python -m agents.tag_categorizer
 
-      # Lesson of the Week — one long-form, source-grounded piece per project
-      # per ISO week. Runs once, after the backfill loop, against the final
-      # content set. Nightly invocation is fine: the picker no-ops on a week
-      # that already has its lesson, so this produces output roughly once a
-      # week and is self-healing if a night fails.
+      # Lesson of the Week — one long-form, source-grounded piece per ISO week,
+      # gcc and binutils alternating. Runs once, after the backfill loop,
+      # against the final content set. Nightly invocation is fine: the picker
+      # no-ops on a week that already has its lesson, so this produces output
+      # roughly once a week and is self-healing if a night fails.
+      #
+      # `lesson_weeks` (manual runs only) backfills older weeks by naming each
+      # one explicitly. The per-week guard still applies, so each iteration
+      # writes at most one lesson and a week already on disk costs nothing.
+      # It defaults to 1 on purpose: the article is written by a premium model,
+      # so a dispatch asking for four would spend roughly a third of the
+      # month's entire AI budget in one go.
       #
       # `continue-on-error`: a lesson is editorial garnish on the digest. A
       # model outage or a mirror that hasn't caught up must not block the
@@ -172,12 +199,70 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           LESSON_RESEARCH_MODEL: ${{ vars.LESSON_RESEARCH_MODEL }}
           LESSON_WRITER_MODEL: ${{ vars.LESSON_WRITER_MODEL }}
+          LESSON_WEEKS: ${{ inputs.lesson_weeks || '1' }}
+          DEBUG_FLAG: ${{ inputs.debug && '--debug' || '' }}
         run: |
-          python -m agents.main --lesson-only ${{ inputs.debug && '--debug' || '' }}
+          set -euo pipefail
+          # Week keys are derived by the same code the agent uses, so a manual
+          # backfill can never disagree with the nightly run about which
+          # Monday-to-Sunday it is targeting.
+          WEEKS="$(python - <<'PY'
+          import datetime, os
+          from agents.lesson_picker import previous_complete_week, week_of
+          n = max(1, min(12, int(os.environ.get("LESSON_WEEKS", "1") or 1)))
+          w = previous_complete_week(datetime.date.today())
+          for _ in range(n):
+              print(w.key)
+              w = week_of(w.start - datetime.timedelta(days=7))
+          PY
+          )"
+          # Tee to a file as well as the log: the job log is dominated by
+          # ~4,900 lines of Astro build output, and the GitHub logs API
+          # truncates from the FRONT, so the lesson step's own output is
+          # effectively unreadable after the fact. The uploaded artifact is
+          # the only reliable way to see why a lesson failed.
+          for week in ${WEEKS}; do
+            echo "::group::lesson ${week}"
+            python -m agents.main --lesson-only --lesson-week "${week}" ${DEBUG_FLAG} \
+              2>&1 | tee -a lesson-run.log
+            echo "::endgroup::"
+          done
+
+          # A stub is what the agent writes when research or writing failed.
+          # Without this the step goes green having published nothing but
+          # "Lesson unavailable" placeholders — which is exactly what happened
+          # on the first real run. Surface it as an annotation instead.
+          python - <<'PY'
+          import pathlib
+          from agents.tools.frontmatter import load_frontmatter
+          stubs = []
+          for md in sorted(pathlib.Path("web/src/content/lessons").glob("*.md")):
+              parsed = load_frontmatter(md.read_text(encoding="utf-8"))
+              if parsed and parsed[0].get("is_stub"):
+                  stubs.append(f"{md.name} ({parsed[0].get('stub_reason')})")
+          for s in stubs:
+              print(f"::error::Lesson written as a STUB — generation failed: {s}")
+          print(f"{len(stubs)} stub lesson(s) on disk.")
+          PY
+
+          # A month that runs out of budget produces no lesson, which otherwise
+          # looks identical to the feature being broken. Say which it is.
+          if grep -q "the month's AI budget is spent" lesson-run.log 2>/dev/null; then
+            echo "::warning::No lesson this run — the month's AI budget is spent. Lessons resume on the 1st."
+          fi
 
       # Gate: never commit content that would break the Cloudflare Pages build.
       # The pipeline pushes straight to master, so a malformed frontmatter block
       # takes the public site down until someone notices the failed deploy.
+      - name: Upload lesson run log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lesson-run
+          path: lesson-run.log
+          retention-days: 14
+          if-no-files-found: ignore
+
       - name: Validate generated content
         run: |
           python -m agents.tools.validate_content
@@ -189,13 +274,30 @@ jobs:
           npm run build
 
       - name: Commit generated content
+        env:
+          LESSON_ONLY: ${{ inputs.lesson_only }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # usage.log is the spend ledger the monthly budget guard reads.
+          # A fresh runner has an empty working tree, so if this is not
+          # committed every run computes a month-to-date spend of zero and
+          # the cap never binds. See agents/budget.py.
           git add web/src/content/ web/src/data/tag-categories/
+          # Tolerate a missing ledger. `append_usage()` only writes on a
+          # SUCCESSFUL model call, so a run whose every call failed creates no
+          # file at all — and `git add` on a non-existent path is a fatal
+          # error that kills the commit step. That is exactly what happened on
+          # run 191: the lesson diagnostics were never committed because the
+          # ledger recording their failure did not exist.
+          [ -f agents/output/usage.log ] && git add agents/output/usage.log || true
           [ -d .old ] && git add -f .old/ || true
+          MSG="chore(digest): nightly refresh $(date -u +%Y-%m-%d)"
+          if [ "${LESSON_ONLY}" = "true" ]; then
+            MSG="chore(lessons): manual lesson run $(date -u +%Y-%m-%d)"
+          fi
           git diff --cached --quiet && echo "No content change." || \
-            git commit -m "chore(digest): nightly refresh $(date -u +%Y-%m-%d)" && git push
+            git commit -m "${MSG}" && git push
 
       # ── Pulse search index ────────────────────────────────────────────────
       # Derived from the Markdown just committed, so it runs last. The .db is
@@ -247,3 +349,34 @@ jobs:
           path: agents/index/pulse.db
           retention-days: 14
           if-no-files-found: error
+
+      # LAST on purpose. The GitHub logs API returns only the TAIL of a job
+      # log, and the Astro build in the middle of this job emits ~4,900 lines —
+      # so anything printed by the lesson step is unreachable after the fact.
+      # Repeating the diagnosis here, at the end, makes it always readable
+      # without downloading the artifact. `always()` because a failed run is
+      # precisely when this matters.
+      - name: Lesson diagnostics
+        if: always()
+        run: |
+          echo "===== LESSON DIAGNOSTICS ====="
+          python - <<'PY'
+          import pathlib
+          from agents.tools.frontmatter import load_frontmatter
+          lessons = sorted(pathlib.Path("web/src/content/lessons").glob("*.md"))
+          if not lessons:
+              print("No lesson files on disk.")
+          for md in lessons:
+              parsed = load_frontmatter(md.read_text(encoding="utf-8"))
+              fm = parsed[0] if parsed else {}
+              state = "STUB" if fm.get("is_stub") else "ok"
+              print(f"[{state:>4}] {md.name}")
+              if fm.get("is_stub"):
+                  print(f"        reason: {fm.get('stub_reason')}")
+              else:
+                  print(f"        code_tour entries: {len(fm.get('code_tour') or [])}")
+          PY
+          echo
+          echo "----- errors and warnings from the lesson run -----"
+          grep -E "ERROR|WARNING|Traceback|lesson_agent|Budget check|budget is spent" \
+            lesson-run.log 2>/dev/null | tail -40 || echo "(no lesson-run.log)"

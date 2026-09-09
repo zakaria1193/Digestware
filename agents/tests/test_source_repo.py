@@ -271,6 +271,96 @@ def test_load_source_repos_absent_block() -> None:
 
 
 # ---------------------------------------------------------------------------
+# ensure(): missing vs stale
+# ---------------------------------------------------------------------------
+#
+# The distinction is the whole point. An unreachable mirror must cost freshness,
+# not the article: the clone on disk still holds the project's entire history up
+# to the last successful fetch. Only a clone that is absent — or present but
+# unreadable — is actually fatal.
+
+def _fake_bare_clone(path: Path) -> None:
+    """A directory that is genuinely a git repo, cheaply."""
+    path.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["git", "init", "--bare", "--quiet", str(path)],
+        check=True,
+        capture_output=True,
+    )
+
+
+def test_fetch_failure_leaves_a_usable_stale_clone(
+    repo: SourceRepo, monkeypatch
+) -> None:
+    _fake_bare_clone(repo.path)
+
+    def _git(args, cwd=...):
+        if args[0] == "fetch":
+            raise subprocess.CalledProcessError(128, "git fetch")
+        return ""
+
+    monkeypatch.setattr(repo, "_git", _git)
+
+    repo.ensure()   # must NOT raise — there is a readable repo right here
+
+    assert repo.is_stale is True
+    assert repo.last_fetch_error
+
+
+def test_successful_fetch_is_not_stale(repo: SourceRepo, monkeypatch) -> None:
+    _fake_bare_clone(repo.path)
+    monkeypatch.setattr(repo, "_git", lambda *a, **kw: "")
+
+    repo.ensure()
+
+    assert repo.is_stale is False
+    assert repo.last_fetch_error is None
+
+
+def test_corrupt_clone_is_discarded_and_recloned(
+    repo: SourceRepo, monkeypatch
+) -> None:
+    """A directory that merely *looks* like a clone must not be trusted.
+
+    An interrupted clone answers every read with an error. Serving that as
+    "cached state" would hand the model a dossier of `[error]` strings and
+    produce a confidently wrong article.
+    """
+    repo.path.mkdir(parents=True)
+    (repo.path / "junk").write_text("not a git repo")
+
+    calls: list[list[str]] = []
+
+    def _git(args, cwd=...):
+        calls.append(args)
+        if args[0] == "rev-parse":
+            raise subprocess.CalledProcessError(128, "git rev-parse")
+        return ""
+
+    monkeypatch.setattr(repo, "_git", _git)
+
+    repo.ensure()
+
+    assert any(a[0] == "clone" for a in calls), "should have re-cloned"
+    assert not any(a[0] == "fetch" for a in calls), "must not fetch a broken repo"
+    assert not (repo.path / "junk").exists(), "stale directory should be gone"
+
+
+def test_missing_clone_that_cannot_be_cloned_raises(
+    repo: SourceRepo, monkeypatch
+) -> None:
+    """No clone and no network is the one genuinely fatal case."""
+
+    def _git(args, cwd=...):
+        raise subprocess.CalledProcessError(128, "git clone")
+
+    monkeypatch.setattr(repo, "_git", _git)
+
+    with pytest.raises(sr.SourceRepoError):
+        repo.ensure()
+
+
+# ---------------------------------------------------------------------------
 # Integration (opt-in: needs network and ~640 MB)
 # ---------------------------------------------------------------------------
 

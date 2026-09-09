@@ -130,7 +130,10 @@ agents/
 │
 ├── discussion_agent.py     # Lab — PydanticAI agent over Gemini Flash
 ├── landing_agent.py        # Factory — Gemini Flash + Sonnet 4.5 premium rerun
+├── budget.py               # Month-to-date spend + the EUR 5/month guard
+├── check_models.py         # Preflight: do the configured model slugs exist?
 ├── lesson_picker.py        # Deterministic weekly subject selection (no LLM)
+├── lesson_topics.py        # Editorial remit — which subsystems may be taught
 ├── lesson_agent.py         # Lesson — cheap explorer + Opus writer (two stages)
 ├── writer.py               # Serialises digests to Markdown + YAML frontmatter
 │
@@ -225,7 +228,7 @@ per-item calls.**
 | Agent | Model | Batch | Premium path |
 |-------|-------|-------|--------------|
 | discussion_agent | `google/gemini-2.5-flash-lite` (env: `SUMMARISER_MODEL`) | 10 | none |
-| landing_agent | same as above | 8 | `impact_score ≥ 9` → re-run through `anthropic/claude-sonnet-4-5` (env: `BENTO_MODEL`) using the **original** `RawCommit`, not the cheap summary |
+| landing_agent | same as above | 8 | `impact_score ≥ 9` → re-run through `anthropic/claude-sonnet-4.5` (env: `BENTO_MODEL`) using the **original** `RawCommit`, not the cheap summary |
 
 The landing agent also runs a deterministic trailer extractor
 (`_extract_trailers`) that scans commit messages for
@@ -316,6 +319,32 @@ week. Watch for a repeated `"Lesson skipped for X — source repo unavailable"`
 in the nightly logs: that means the rotation is silently degrading to a single
 project.
 
+### Source access degrades in three grades, not two
+
+`SourceRepo.ensure()` treats "cannot reach the mirror" and "have no source" as
+different problems, because they are:
+
+| State | Behaviour |
+|---|---|
+| Clone present, `git fetch` succeeds | Normal. |
+| Clone present, **fetch fails** | `is_stale = True`. Reads are served from the cached objects, which hold the project's whole history up to the last successful fetch. |
+| Clone present but **not a readable git repo** | Discarded and re-cloned. An interrupted clone answers every read with `[error]`; serving that as "cached state" produces a confidently wrong article. |
+| **No clone** and cloning fails | `SourceRepoError` — the only genuinely fatal case. |
+
+A stale clone would still lose the week on its own, because `pick_subject`
+filters candidates through `resolve()` and the newest commits aren't in there.
+So `_run_lesson_step` passes `fallback_weeks=4` when `repo.is_stale`, and the
+picker walks backwards until it finds a commit the clone actually has. An
+unreachable mirror therefore costs *freshness*, not the article.
+
+Two boundaries keep that honest. It triggers **only when the target week had
+candidates that failed to resolve** — never on a week with nothing eligible,
+since an empty week is a quiet week and reaching into the past to fill it would
+be dishonest. And the subject is **rebased onto the target week**
+(`dataclasses.replace(subject, week=week)`): `lesson_id`, the week range and the
+sort date all still name the published week, and only `commit_date` reveals the
+subject is older.
+
 This is deliberate and has a useful property: it **self-heals**. If Monday's
 run fails, Tuesday's picks the same week up. A cron expression pinned to Monday
 would simply lose that week.
@@ -335,6 +364,29 @@ so we can afford to be pickier). Stubs and spam are excluded, mirroring
 A candidate is only viable if its SHA resolves in the mirror. Mirror lag is
 routine, so the picker walks the ranked list and takes the first commit it can
 actually read — a miss is never a failure.
+
+### The editorial remit — `lesson_topics.py`
+
+A high impact score is not the same as being worth teaching. The corpus
+carries every GCC front end and forty binutils targets; `cobol` and `fortran`
+alone are ~180 of the GCC landings on disk, and the first real run duly picked
+`gcc/cobol` and `gcc/alpha`. The policy, set by the project owner:
+
+* **GCC languages: C, C++, Ada, Rust only.** COBOL, Fortran, Go, D, Modula-2
+  and Objective-C are out.
+* **Architectures: Arm/AArch64, x86, POWER, RISC-V.** Alpha, Xtensa, SH, AVR,
+  s390, LoongArch, z80 and the rest are out — a lesson on an ISA nobody can
+  run teaches nothing.
+* **No housekeeping** — testsuite-only churn, MAINTAINERS, translations, CI.
+
+Everything that is neither language- nor architecture-specific — the middle
+end, `tree-optimization`, `libstdc++`, `bfd`, `ld`, `gas` — is always fair
+game, and that is where most of the instructive work lives.
+
+The whole policy is four frozensets at the top of `lesson_topics.py`; widen
+the remit by editing `BIG_ARCHES`, not the picker. Note that a token absent
+from `KNOWN_ARCHES` is *not* arch-gated at all, so a brand-new port stays
+publishable until someone lists it.
 
 ### Reading the source — `tools/source_repo.py`
 
@@ -378,6 +430,44 @@ Both calls log to `output/usage.log` under distinct agent names
 
 ---
 
+## The Budget Guard
+
+The project ceiling is **EUR 5/month**, and until now that was only a comment:
+tokens were logged, money was never counted. `budget.py` closes the loop.
+
+    usage.log (tokens per call)  x  OpenRouter /models (price per token)
+        ->  month-to-date USD  ->  "can we afford another lesson?"
+
+`_run_lesson_step` calls `can_afford()` **before** cloning or calling a model.
+Checking after the fact would permit exactly one unbounded overshoot, and the
+lesson is the single most expensive call this project makes. When the month is
+spent the step logs the two numbers and returns 0; lessons resume on the 1st.
+
+The guard is scoped to lessons on purpose — the digests are the product, the
+lesson is the garnish, so it is the right thing to drop first. `can_afford()`
+makes a digest-side guard a two-line change if that ever becomes necessary.
+
+Two properties keep it honest:
+
+- **Unknowns are expensive.** A model missing from the price listing, or a call
+  whose token counts came back null, is charged at a deliberately pessimistic
+  rate. A guard that prices what it doesn't recognise at zero has stopped
+  guarding without telling anyone.
+- **The cap is USD 5 for a EUR 5 limit.** OpenRouter bills in dollars and USD 5
+  is below EUR 5 at any plausible rate, so no exchange rate is needed and the
+  error is on the safe side.
+
+**`agents/output/usage.log` is committed, not ignored** — that is load-bearing,
+not an oversight. A CI runner starts with a clean tree, so an ignored ledger
+would make every run compute a spend of zero and the cap would never bind.
+
+`check_models.py` is the companion preflight: it verifies every configured slug
+against the free `/models` listing before anything spends, and prints the
+closest available names on a miss. A wrong slug otherwise fails only at request
+time, after the run has paid for everything leading up to it.
+
+---
+
 ## Environment Variables
 
 | Var | Purpose | Required? |
@@ -388,6 +478,8 @@ Both calls log to `output/usage.log` under distinct agent names
 | `BENTO_MODEL` | Override the premium re-run model | optional |
 | `LESSON_RESEARCH_MODEL` | Override the lesson's source-exploration model | optional |
 | `LESSON_WRITER_MODEL` | Override the lesson's article-writing model | optional |
+| `MONTHLY_BUDGET_USD` | Override the $5 monthly cap (testing) | optional |
+| `LESSON_COST_ESTIMATE_USD` | Override the assumed per-lesson cost | optional |
 
 All loaded via `python-dotenv` from a gitignored `.env`. **Never commit keys.**
 
@@ -409,6 +501,12 @@ python -m agents.main --since-hours 24
 # Defaults to the newest complete ISO week; --lesson-week pins one explicitly.
 python -m agents.main --lesson-only
 python -m agents.main --lesson-only --lesson-project gcc --lesson-week 2026-W36
+
+# The same thing in CI: the Nightly Digest workflow takes `lesson_only` and
+# `lesson_weeks` dispatch inputs. `lesson_weeks: 2` writes the last two
+# complete weeks (one lesson each, projects alternating). Default is 1 —
+# each lesson is a premium-model call, so a dispatch asking for four spends
+# roughly a third of the month's AI budget in one run.
 ```
 
 Output summary prints discussion count, landing count, and bento-worthy count
@@ -525,6 +623,14 @@ and hundreds of MB.
 - **The lesson step must never fail the nightly run.** It is wrapped in
   `try/except` in `main.py` and `continue-on-error` in the workflow. A clone
   failure or a model outage degrades to a stub, not a lost digest.
+- **A `lesson_id` always names the week being published, never the subject's
+  week.** The stale-clone fallback can teach a commit from three weeks ago, but
+  the lesson is still filed under the target week. If the identity moved with
+  the subject, `existing_lesson_for_week` would stop matching and the nightly
+  step would rewrite — and re-bill — the same lesson every night.
+- **Don't widen the stale-clone fallback to fire on an empty week.** It exists
+  for source-access failure. A week with no eligible landings should produce no
+  lesson; backfilling one from an older commit would misrepresent the week.
 - **`_MAX_TOOL_CALLS` is the primary cost lever.** Lower it before reaching for
   a cheaper writing model; Opus-level prose for the lesson is a requirement,
   not a default. Verify real spend in the `lesson_research` / `lesson_writer`
@@ -532,3 +638,24 @@ and hundreds of MB.
 - **A lesson's `date` is the END of the week it covers**, not the commit's
   date — so it sorts with its week. `commit_date` carries the real landing
   date for display. Three separate date fields, three separate facts.
+- **A stub never claims its week.** Both week guards skip `is_stub: true`, and
+  `recent_subsystems` ignores stubs too. A stub records a *failed* run; if it
+  counted as a lesson, one bad night would burn that week permanently — the
+  exact opposite of the self-healing the nightly cadence is built on. A
+  successful retry deletes the stub it supersedes (`_drop_superseded_stubs`).
+- **Never resolve a model name with `os.environ.get(KEY, DEFAULT)`.** Use
+  `model_from_env()`. GitHub Actions exports an unset `${{ vars.X }}` as
+  *present and empty*, so the plain form yields `""`, and an empty slug fails
+  every request. That is what turned the first real lesson run into two
+  `research_failed` stubs behind a green checkmark.
+  `test_model_from_env.py` fails the build if any `agents/*.py` regresses.
+- **`continue-on-error` plus stub-on-failure can hide a total failure.** The
+  step goes green and commits placeholder articles. When a run "succeeds",
+  check `is_stub` in the output before believing it.
+- **Never let the budget guard price something at zero.** An unknown model or a
+  null token count must be charged at the pessimistic rate in `budget.py`.
+  Failing toward "free" silently disables the cap, which is worse than having
+  no guard at all because it looks like one.
+- **`agents/output/usage.log` must stay committed.** Re-adding it to
+  `.gitignore` makes every CI run see a month-to-date spend of zero and the
+  EUR 5 cap stops binding entirely.

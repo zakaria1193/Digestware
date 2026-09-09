@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import logging
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -117,26 +118,81 @@ class SourceRepo:
         # already cloned for ingestion is reused instead of cloned twice.
         self.path = self._cache_dir / safe_name
 
+        # Set by ensure() when the clone is on disk but could not be refreshed.
+        # Callers use this to widen their commit search rather than give up:
+        # a clone that is a few days behind still explains code perfectly well,
+        # it just cannot see the newest commits. See `main._run_lesson_step`.
+        self.is_stale = False
+        self.last_fetch_error: str | None = None
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
 
+    def is_usable(self) -> bool:
+        """True when ``self.path`` is a git repository we can actually read.
+
+        Existence is not enough. An interrupted clone (a killed CI job, a
+        cache restored mid-write) leaves a directory that looks like a clone
+        and answers every read with an error. Trusting it is worse than having
+        no clone at all: we would skip the re-clone, log "using cached state",
+        and hand the model a dossier of `[error]` strings.
+        """
+        if not self.path.is_dir():
+            return False
+        try:
+            self._git(["rev-parse", "--git-dir"])
+            return True
+        except (
+            subprocess.CalledProcessError,
+            subprocess.TimeoutExpired,
+            OSError,
+        ):
+            return False
+
     def ensure(self) -> None:
-        """Clone the repo if absent, otherwise fetch. Idempotent."""
+        """Clone the repo if absent, otherwise fetch. Idempotent.
+
+        Failure is graded, not binary:
+
+        * **Fetch fails over a good clone** → not an error. ``is_stale`` is
+          set and the cached objects are served as-is. The clone still holds
+          every commit up to the last successful fetch, which is the whole
+          history bar a few days — plenty to teach from.
+        * **No clone, or an unusable one we cannot replace** → ``SourceRepoError``.
+          There is genuinely nothing to read.
+        """
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         if self.path.exists():
+            if self.is_usable():
+                try:
+                    self._git(["fetch", "--quiet", "origin"])
+                    logger.debug("source_repo: fetched %s", self.repo_url)
+                except (
+                    subprocess.CalledProcessError,
+                    subprocess.TimeoutExpired,
+                ) as exc:
+                    self.is_stale = True
+                    self.last_fetch_error = str(exc)
+                    logger.warning(
+                        "source_repo: fetch failed for %s (%s) — falling back to "
+                        "the cached clone, which may not have this week's commits",
+                        self.repo_url,
+                        exc,
+                    )
+                return
+
+            logger.warning(
+                "source_repo: %s exists but is not a readable git repo — "
+                "discarding it and cloning fresh",
+                self.path,
+            )
             try:
-                self._git(["fetch", "--quiet", "origin"])
-                logger.debug("source_repo: fetched %s", self.repo_url)
-            except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
-                # A stale-but-present clone is still usable for older commits;
-                # only a missing clone is fatal.
-                logger.warning(
-                    "source_repo: fetch failed for %s (%s) — using cached state",
-                    self.repo_url,
-                    exc,
-                )
-            return
+                shutil.rmtree(self.path)
+            except OSError as exc:
+                raise SourceRepoError(
+                    f"{self.path} is unusable and could not be removed: {exc}"
+                ) from exc
 
         logger.info(
             "source_repo: blobless bare clone %s → %s", self.repo_url, self.path

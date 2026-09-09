@@ -29,7 +29,7 @@ from pathlib import Path
 from agents.models.discussion import DiscussionDigest
 from agents.models.landing import LandingDigest
 from agents.models.lesson import LessonDigest
-from agents.tools.frontmatter import dump_frontmatter
+from agents.tools.frontmatter import dump_frontmatter, load_frontmatter
 
 logger = logging.getLogger(__name__)
 
@@ -297,7 +297,37 @@ def write_lesson(
         max_words=_MAX_LESSON_WORDS,
     )
     path.write_text(_render(frontmatter, body), encoding="utf-8")
+    if not lesson.is_stub:
+        _drop_superseded_stubs(base, lesson.lesson_id, keep=path)
     return path
+
+
+def _drop_superseded_stubs(base: Path, lesson_id: str, keep: Path) -> None:
+    """Remove stub files for *lesson_id* now that a real lesson exists.
+
+    A failed run leaves a stub so the failure is visible in /admin/lessons.
+    Once the retry succeeds, that stub is just a duplicate `lesson_id` on
+    disk — two files claiming the same week, one of them saying "Lesson
+    unavailable". Delete it and keep the real article.
+    """
+    for candidate in base.glob("*.md"):
+        if candidate == keep:
+            continue
+        try:
+            text = candidate.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        parsed = load_frontmatter(text)
+        if not parsed:
+            continue
+        fm = parsed[0]
+        if fm.get("lesson_id") == lesson_id and fm.get("is_stub"):
+            logger.info(
+                "writer: replacing stub %s with the real lesson for %s",
+                candidate.name,
+                lesson_id,
+            )
+            candidate.unlink(missing_ok=True)
 
 
 def render_sections(sections: list) -> str:

@@ -30,10 +30,11 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, timedelta
 from pathlib import Path
 
+from agents.lesson_topics import rejection_reason
 from agents.tools.frontmatter import load_frontmatter
 
 logger = logging.getLogger(__name__)
@@ -243,7 +244,10 @@ def existing_lesson_id(content_root: Path, lesson_id: str) -> bool:
         return False
     for path in lessons_dir.glob("*.md"):
         fm = _read_frontmatter(path)
-        if fm and fm.get("lesson_id") == lesson_id:
+        # A stub is a record of a FAILED run, not a lesson. Counting it as one
+        # would let a single bad night burn that week permanently — which is
+        # exactly the opposite of the self-healing the nightly cadence needs.
+        if fm and not fm.get("is_stub") and fm.get("lesson_id") == lesson_id:
             return True
     return False
 
@@ -263,6 +267,8 @@ def existing_lesson_for_week(content_root: Path, week: LessonWeek) -> str | None
         fm = _read_frontmatter(path)
         if not fm:
             continue
+        if fm.get("is_stub"):
+            continue        # a failed run never claims the week — see above
         lesson_id = fm.get("lesson_id")
         if isinstance(lesson_id, str) and lesson_id.endswith(suffix):
             project = fm.get("project")
@@ -273,7 +279,11 @@ def existing_lesson_for_week(content_root: Path, week: LessonWeek) -> str | None
 def recent_subsystems(content_root: Path, project: str) -> set[str]:
     """Subsystems covered by this project's last few lessons."""
     subs: set[str] = set()
-    for fm in _lesson_frontmatters(content_root, project)[:_SUBSYSTEM_MEMORY_LESSONS]:
+    published = [
+        fm for fm in _lesson_frontmatters(content_root, project)
+        if not fm.get("is_stub")
+    ]
+    for fm in published[:_SUBSYSTEM_MEMORY_LESSONS]:
         sub = fm.get("subsystem")
         if isinstance(sub, str) and sub:
             subs.add(sub)
@@ -324,6 +334,16 @@ def candidates(
         if score is not None and score < _MIN_SUBJECT_SCORE:
             continue
 
+        # Editorial remit: no niche front ends, no obscure architectures, no
+        # process churn. See agents/lesson_topics.py — a high impact score is
+        # not the same as being worth teaching.
+        unfit = rejection_reason(fm.get("subsystem"), tags)
+        if unfit is not None:
+            logger.debug(
+                "lesson_picker: skipping %s — %s", path.name, unfit
+            )
+            continue
+
         commit_hash = fm.get("commit_hash")
         if not isinstance(commit_hash, str) or not commit_hash:
             continue
@@ -357,11 +377,27 @@ def candidates(
     return subjects
 
 
+def _first_resolvable(
+    subjects: list[LessonSubject], project: str, resolve
+) -> LessonSubject | None:
+    """The first subject whose SHA the clone actually has, or None."""
+    for subject in subjects:
+        if resolve is None or resolve(subject.commit_hash):
+            return subject
+        logger.info(
+            "lesson_picker: %s not in the %s clone — trying the next candidate",
+            subject.commit_hash[:12],
+            project,
+        )
+    return None
+
+
 def pick_subject(
     content_root: Path,
     project: str,
     week: LessonWeek,
     resolve=None,
+    fallback_weeks: int = 0,
 ) -> LessonSubject | None:
     """Return the best landing to teach for *week*, or None.
 
@@ -369,6 +405,31 @@ def pick_subject(
         resolve: optional ``(sha) -> bool`` — typically ``SourceRepo.resolve``.
             Candidates whose SHA is not yet in the mirror are skipped rather
             than failed, since mirror lag is expected.
+        fallback_weeks: how many earlier weeks to search when *week* has
+            candidates but the clone holds none of them. Pass this when the
+            clone is known to be stale (``SourceRepo.is_stale``); see the note
+            below.
+
+    **The stale-clone fallback.** When ``git fetch`` fails, the clone on disk
+    still holds the project's whole history up to the last successful fetch —
+    everything except the newest commits. Filtering this week's candidates
+    through ``resolve`` then rejects all of them and the week produces nothing,
+    even though there is a perfectly readable repository sitting right there.
+    ``fallback_weeks`` walks backwards until it finds a commit the clone does
+    have, so an unreachable mirror costs freshness rather than the whole
+    article.
+
+    Two boundaries are deliberate:
+
+    * It triggers **only when the target week had candidates that failed to
+      resolve** — never on a week with nothing eligible. An empty week is a
+      quiet week, and reaching into the past to fill it would be dishonest.
+    * The returned subject is **rebased onto the target week**. The lesson is
+      still this week's lesson: its ``lesson_id``, week range and sort date all
+      name *week*, and only ``commit_date`` reveals the subject is older. If
+      the identity moved with the subject, the weekly "already done" guard
+      would stop matching and the step would rewrite — and re-bill — the lesson
+      every single night.
     """
     lesson_id = f"{project}:{week.key}"
     if existing_lesson_id(content_root, lesson_id):
@@ -384,19 +445,45 @@ def pick_subject(
         logger.info("lesson_picker: no eligible %s landings in %s", project, week)
         return None
 
-    for subject in ranked:
-        if resolve is None or resolve(subject.commit_hash):
-            return subject
-        logger.info(
-            "lesson_picker: %s not in the %s mirror yet — trying the next candidate",
-            subject.commit_hash[:12],
+    subject = _first_resolvable(ranked, project, resolve)
+    if subject is not None:
+        return subject
+
+    if fallback_weeks <= 0:
+        logger.warning(
+            "lesson_picker: none of the %d %s candidate(s) for %s resolve in the "
+            "clone — no lesson this week",
+            len(ranked),
             project,
+            week.key,
         )
+        return None
+
+    earlier = week
+    for _ in range(fallback_weeks):
+        earlier = week_of(earlier.start - timedelta(days=7))
+        older = candidates(content_root, project, earlier)
+        if not older:
+            continue
+        subject = _first_resolvable(older, project, resolve)
+        if subject is None:
+            continue
+        logger.warning(
+            "lesson_picker: the %s clone has none of %s's commits — teaching "
+            "%s from %s instead. The lesson is still filed under %s.",
+            project,
+            week.key,
+            subject.commit_hash[:12],
+            earlier.key,
+            week.key,
+        )
+        # Rebased onto the target week on purpose — see the docstring.
+        return replace(subject, week=week)
 
     logger.warning(
-        "lesson_picker: none of the %d %s candidate(s) for %s resolve in the "
-        "mirror — no lesson this week",
-        len(ranked),
+        "lesson_picker: nothing in the last %d week(s) resolves in the %s "
+        "clone — no lesson for %s",
+        fallback_weeks + 1,
         project,
         week.key,
     )

@@ -324,3 +324,157 @@ def test_stub_lesson_is_valid_and_marked(subject):
     assert lesson.lesson_id == "gcc:2026-W36"
     assert lesson.week_end == date(2026, 9, 6)
     assert lesson.code_tour == []
+
+
+# ---------------------------------------------------------------------------
+# Dossier parsing must survive a real model's output
+# ---------------------------------------------------------------------------
+#
+# Both of the first two production runs failed at this stage, and the cost of a
+# failure here is the whole article — every tool call in the research loop has
+# already been paid for by the time the parse runs. It must be generous.
+
+def _research_json(**overrides) -> dict:
+    payload: dict = {
+        "commit_hash": "a" * 40,
+        "subsystem": "gcc/ipa",
+        "commit_message": "Fix the thing",
+        "diff": "--- a\n+++ b\n",
+        "changed_files": ["gcc/ipa-sra.cc"],
+        "excerpts": [
+            {"path": "gcc/ipa-sra.cc", "lines": "1-3", "code": "int x;", "note": "why"}
+        ],
+        "what_changed": "A parameter is now marked dead.",
+        "how_it_works": "The pass re-runs liveness.",
+        "why_it_matters": "Fewer spills.",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_parses_json_wrapped_in_prose(subject):
+    """A reasoning model narrates. That must not cost the article."""
+    import json as _json
+
+    from agents.lesson_agent import _parse_research
+
+    text = (
+        "Sure! I explored the tree. Here is the dossier you asked for:\n\n"
+        "```json\n" + _json.dumps(_research_json()) + "\n```\n\n"
+        "Let me know if you'd like me to look at anything else."
+    )
+    research = _parse_research(text, subject)
+    assert research.what_changed == "A parameter is now marked dead."
+
+
+def test_parses_bare_json_with_a_trailing_remark(subject):
+    import json as _json
+
+    from agents.lesson_agent import _parse_research
+
+    text = _json.dumps(_research_json()) + "\n\nHope that helps!"
+    assert _parse_research(text, subject).subsystem == "gcc/ipa"
+
+
+def test_braces_inside_strings_do_not_confuse_the_scan(subject):
+    import json as _json
+
+    from agents.lesson_agent import _parse_research
+
+    payload = _research_json(
+        what_changed='Handles the `struct { int a; }` case and a quote \\" too.'
+    )
+    text = "Preamble.\n" + _json.dumps(payload) + "\nTrailer."
+    assert "struct { int a; }" in _parse_research(text, subject).what_changed
+
+
+def test_oversized_excerpt_is_clamped_not_rejected(subject):
+    """`read_file` returns up to 8192 bytes; SourceExcerpt.code caps at 6000.
+
+    A model copying an excerpt verbatim — exactly as instructed — therefore
+    produces a value pydantic rejects. Losing the tail of one excerpt beats
+    losing the whole dossier.
+    """
+    import json as _json
+
+    from agents.lesson_agent import _EXCERPT_STR_CAPS, _parse_research
+
+    cap = _EXCERPT_STR_CAPS["code"]
+    payload = _research_json(
+        excerpts=[{"path": "gcc/ipa-sra.cc", "code": "x" * (cap + 2192)}]
+    )
+    research = _parse_research(_json.dumps(payload), subject)
+    assert len(research.excerpts[0].code) == cap
+
+
+def test_too_many_excerpts_are_trimmed(subject):
+    import json as _json
+
+    from agents.lesson_agent import _RESEARCH_LIST_CAPS, _parse_research
+
+    cap = _RESEARCH_LIST_CAPS["excerpts"]
+    payload = _research_json(
+        excerpts=[{"path": f"f{i}.cc", "code": "y"} for i in range(cap + 5)]
+    )
+    research = _parse_research(_json.dumps(payload), subject)
+    assert len(research.excerpts) == cap
+
+
+def test_over_long_prose_is_clamped(subject):
+    import json as _json
+
+    from agents.lesson_agent import _RESEARCH_STR_CAPS, _parse_research
+
+    cap = _RESEARCH_STR_CAPS["how_it_works"]
+    payload = _research_json(how_it_works="z" * (cap + 500))
+    research = _parse_research(_json.dumps(payload), subject)
+    assert len(research.how_it_works) == cap
+
+
+def test_output_with_no_json_still_raises(subject):
+    """Generosity has a limit — nothing parseable is still a failure."""
+    from agents.lesson_agent import _parse_research
+
+    with pytest.raises(ValueError, match="no JSON object"):
+        _parse_research("I was unable to complete this task.", subject)
+
+
+def test_unterminated_json_raises(subject):
+    from agents.lesson_agent import _parse_research
+
+    with pytest.raises(ValueError, match="unterminated"):
+        _parse_research('{"commit_message": "truncated mid', subject)
+
+
+# ---------------------------------------------------------------------------
+# A stub must say why
+# ---------------------------------------------------------------------------
+
+def test_stage_reason_carries_the_exception_text():
+    from agents.lesson_agent import _MAX_STUB_REASON, _stage_reason
+
+    reason = _stage_reason("research_failed", ValueError("no JSON object found"))
+    assert reason.startswith("research_failed: ValueError: no JSON object found")
+    assert len(reason) <= _MAX_STUB_REASON
+
+
+def test_stage_reason_includes_an_api_response_body():
+    """`str(exc)` drops the upstream body; that body is usually the answer."""
+    from agents.lesson_agent import _stage_reason
+
+    class _Resp:
+        text = '{"error":{"message":"No endpoints found for model"}}'
+
+    class _ApiError(Exception):
+        response = _Resp()
+
+    assert "No endpoints found" in _stage_reason("research_failed", _ApiError("404"))
+
+
+def test_stage_reason_is_single_line_and_bounded():
+    """It goes into YAML frontmatter, so it must not carry newlines."""
+    from agents.lesson_agent import _MAX_STUB_REASON, _stage_reason
+
+    reason = _stage_reason("writer_failed", ValueError("line one\nline two\n" + "q" * 500))
+    assert "\n" not in reason
+    assert len(reason) == _MAX_STUB_REASON

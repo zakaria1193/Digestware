@@ -2,7 +2,7 @@
 
 Model strategy (budget-aware):
 - google/gemini-2.5-flash-lite for all bulk processing.
-- anthropic/claude-sonnet-4-5 only when impact_score >= 9 (re-run single item).
+- anthropic/claude-sonnet-4.5 only when impact_score >= 9 (re-run single item).
 
 Batching: 8 commits per LLM call (down from 15 after observing Gemini Flash
 truncate LandingDigest JSON output mid-string on larger batches).
@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 from urllib.parse import urlparse
 
@@ -35,6 +34,7 @@ from agents._openrouter import (
     DEFAULT_PREMIUM_MODEL,
     DEFAULT_SUMMARISER_MODEL,
     build_model,
+    model_from_env,
 )
 from agents._retry import retry_with_backoff
 from agents.models.base import Outcome
@@ -377,7 +377,7 @@ def run_landing_agent(
     # premium re-run (premium model gets original data, not LLM summary).
     commit_by_sha: dict[str, RawCommit] = {c.sha: c for c in commits}
 
-    cheap_model_name = os.environ.get("SUMMARISER_MODEL", _DEFAULT_MODEL)
+    cheap_model_name = model_from_env("SUMMARISER_MODEL", _DEFAULT_MODEL)
     cheap_agent = _make_agent(cheap_model_name)
     logger.debug(
         "\033[1;35m── landing_agent: model=%s │ system prompt ──\n%s\033[0m",
@@ -618,7 +618,7 @@ def _rerun_premium(
     as the cheap one did. Wrapped in retry_with_backoff so a single 429 blip
     doesn't cost us the depth we paid for.
     """
-    premium_model_name = os.environ.get("BENTO_MODEL", _PREMIUM_MODEL)
+    premium_model_name = model_from_env("BENTO_MODEL", _PREMIUM_MODEL)
     premium_agent = _make_agent(premium_model_name)
 
     # Look up original commits; fall back to cheap result if SHA is missing.

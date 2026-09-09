@@ -166,3 +166,44 @@ def test_awkward_headlines_produce_usable_filenames(tmp_path: Path, headline):
     assert "/" not in path.name[len("2026-09-06-gcc-"):]
     assert path.name.isascii()
     assert len(path.name) < 150
+
+
+# ---------------------------------------------------------------------------
+# A successful retry cleans up after the failure it replaces
+# ---------------------------------------------------------------------------
+
+def test_real_lesson_removes_the_stub_it_supersedes(tmp_path: Path):
+    """Otherwise two files claim the same week, one saying 'unavailable'."""
+    stub = write_lesson(
+        _lesson(is_stub=True, stub_reason="research_failed",
+                headline="Something went wrong"),
+        output_dir=tmp_path,
+    )
+    assert stub.exists()
+
+    real = write_lesson(_lesson(), output_dir=tmp_path)
+
+    assert real.exists()
+    assert not stub.exists(), "the superseded stub should be gone"
+    assert list(tmp_path.glob("*.md")) == [real]
+
+
+def test_a_stub_does_not_delete_a_real_lesson(tmp_path: Path):
+    """Cleanup runs only in the success direction — never the reverse."""
+    real = write_lesson(_lesson(), output_dir=tmp_path)
+    write_lesson(
+        _lesson(is_stub=True, stub_reason="research_failed",
+                headline="A later failure"),
+        output_dir=tmp_path,
+    )
+    assert real.exists()
+
+
+def test_stub_for_another_week_is_left_alone(tmp_path: Path):
+    other = write_lesson(
+        _lesson(is_stub=True, stub_reason="research_failed",
+                lesson_id="gcc:2026-W35", headline="Different week"),
+        output_dir=tmp_path,
+    )
+    write_lesson(_lesson(), output_dir=tmp_path)
+    assert other.exists(), "only the same lesson_id may be superseded"
