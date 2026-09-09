@@ -28,7 +28,9 @@ week_end: '2026-08-30'
 commit_date: '2026-08-27'
 date: '2026-08-30'
 is_stub: true
-stub_reason: research_failed
+stub_reason: 'research_failed: ValidationError: 1 validation error for LessonResearch
+  external_context Input should be a valid list [type=list_type, input_value=None,
+  input_type=NoneType] For further information vi'
 ---
 
 Summary unavailable — see source link.
