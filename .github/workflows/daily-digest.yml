@@ -283,7 +283,14 @@ jobs:
           # A fresh runner has an empty working tree, so if this is not
           # committed every run computes a month-to-date spend of zero and
           # the cap never binds. See agents/budget.py.
-          git add web/src/content/ web/src/data/tag-categories/ agents/output/usage.log
+          git add web/src/content/ web/src/data/tag-categories/
+          # Tolerate a missing ledger. `append_usage()` only writes on a
+          # SUCCESSFUL model call, so a run whose every call failed creates no
+          # file at all — and `git add` on a non-existent path is a fatal
+          # error that kills the commit step. That is exactly what happened on
+          # run 191: the lesson diagnostics were never committed because the
+          # ledger recording their failure did not exist.
+          [ -f agents/output/usage.log ] && git add agents/output/usage.log || true
           [ -d .old ] && git add -f .old/ || true
           MSG="chore(digest): nightly refresh $(date -u +%Y-%m-%d)"
           if [ "${LESSON_ONLY}" = "true" ]; then
@@ -342,3 +349,34 @@ jobs:
           path: agents/index/pulse.db
           retention-days: 14
           if-no-files-found: error
+
+      # LAST on purpose. The GitHub logs API returns only the TAIL of a job
+      # log, and the Astro build in the middle of this job emits ~4,900 lines —
+      # so anything printed by the lesson step is unreachable after the fact.
+      # Repeating the diagnosis here, at the end, makes it always readable
+      # without downloading the artifact. `always()` because a failed run is
+      # precisely when this matters.
+      - name: Lesson diagnostics
+        if: always()
+        run: |
+          echo "===== LESSON DIAGNOSTICS ====="
+          python - <<'PY'
+          import pathlib
+          from agents.tools.frontmatter import load_frontmatter
+          lessons = sorted(pathlib.Path("web/src/content/lessons").glob("*.md"))
+          if not lessons:
+              print("No lesson files on disk.")
+          for md in lessons:
+              parsed = load_frontmatter(md.read_text(encoding="utf-8"))
+              fm = parsed[0] if parsed else {}
+              state = "STUB" if fm.get("is_stub") else "ok"
+              print(f"[{state:>4}] {md.name}")
+              if fm.get("is_stub"):
+                  print(f"        reason: {fm.get('stub_reason')}")
+              else:
+                  print(f"        code_tour entries: {len(fm.get('code_tour') or [])}")
+          PY
+          echo
+          echo "----- errors and warnings from the lesson run -----"
+          grep -E "ERROR|WARNING|Traceback|lesson_agent|Budget check|budget is spent" \
+            lesson-run.log 2>/dev/null | tail -40 || echo "(no lesson-run.log)"
