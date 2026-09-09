@@ -83,6 +83,11 @@ _DATE_CAP_OVERLAP_HOURS = 24
 
 _SOURCES_YML = Path(__file__).parent / "sources.yml"
 _CACHE_DIR = Path(__file__).parent / "cache"
+
+# How far back the lesson picker may reach for a subject when the source clone
+# could not be refreshed. Only ever used on a stale clone — a healthy one has
+# this week's commits and never needs it.
+_STALE_CLONE_FALLBACK_WEEKS = 4
 _DEFAULT_CONTENT_ROOT = Path("web/src/content")
 _DEFAULT_TAG_CATEGORIES_DIR = Path("web/src/data/tag-categories")
 
@@ -242,8 +247,29 @@ def _run_lesson_step(
                 continue
 
             repo.ensure()
+
+            # A clone we could not refresh is still worth reading: it holds the
+            # whole history bar the last few days. Let the picker walk back
+            # through earlier weeks until it finds a commit the clone actually
+            # has, rather than losing the week to an unreachable mirror. Four
+            # weeks is the bound — past that the "lesson of the week" is
+            # stretching the meaning of the week too far.
+            fallback_weeks = _STALE_CLONE_FALLBACK_WEEKS if repo.is_stale else 0
+            if repo.is_stale:
+                logger.warning(
+                    "%s clone is stale (%s) — reading cached objects and "
+                    "widening the subject search by %d week(s).",
+                    project,
+                    repo.last_fetch_error,
+                    fallback_weeks,
+                )
+
             subject = pick_subject(
-                content_root, project, week, resolve=repo.resolve
+                content_root,
+                project,
+                week,
+                resolve=repo.resolve,
+                fallback_weeks=fallback_weeks,
             )
             if subject is None:
                 continue

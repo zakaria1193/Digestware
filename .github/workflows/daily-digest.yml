@@ -20,6 +20,14 @@ on:
         description: 'Purge existing content before running (no archive kept)'
         type: boolean
         default: false
+      lesson_only:
+        description: 'Skip ingestion entirely — only write the Lesson of the Week'
+        type: boolean
+        default: false
+      lesson_weeks:
+        description: 'How many complete weeks back to write lessons for (1 lesson each, ~EUR 0.40 apiece)'
+        type: string
+        default: '1'
 
 jobs:
   # ── 1. Quality gate (reused from test.yml) ───────────────────────────────────
@@ -80,7 +88,7 @@ jobs:
       # Optional: archive previous output under .old/<UTC-timestamp>/
       # Only runs when explicitly requested via workflow_dispatch with archive=true.
       - name: Archive previous generated content
-        if: ${{ inputs.archive && !inputs.purge }}
+        if: ${{ inputs.archive && !inputs.purge && !inputs.lesson_only }}
         run: |
           set -euo pipefail
           TS="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
@@ -106,7 +114,7 @@ jobs:
       # Manual runs with purge=true delete content outright and bypass dedup
       # via --force so the agent re-ingests from scratch.
       - name: Purge previous generated content
-        if: ${{ inputs.purge }}
+        if: ${{ inputs.purge && !inputs.lesson_only }}
         run: |
           python - <<'PY'
           import pathlib
@@ -126,6 +134,7 @@ jobs:
           PY
 
       - name: Run digest pipeline (48 h window, backfill to min 5 each)
+        if: ${{ !inputs.lesson_only }}
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -152,16 +161,24 @@ jobs:
           done
 
       - name: Categorize tags
+        if: ${{ !inputs.lesson_only }}
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           python -m agents.tag_categorizer
 
-      # Lesson of the Week — one long-form, source-grounded piece per project
-      # per ISO week. Runs once, after the backfill loop, against the final
-      # content set. Nightly invocation is fine: the picker no-ops on a week
-      # that already has its lesson, so this produces output roughly once a
-      # week and is self-healing if a night fails.
+      # Lesson of the Week — one long-form, source-grounded piece per ISO week,
+      # gcc and binutils alternating. Runs once, after the backfill loop,
+      # against the final content set. Nightly invocation is fine: the picker
+      # no-ops on a week that already has its lesson, so this produces output
+      # roughly once a week and is self-healing if a night fails.
+      #
+      # `lesson_weeks` (manual runs only) backfills older weeks by naming each
+      # one explicitly. The per-week guard still applies, so each iteration
+      # writes at most one lesson and a week already on disk costs nothing.
+      # It defaults to 1 on purpose: the article is written by a premium model,
+      # so a dispatch asking for four would spend roughly a third of the
+      # month's entire AI budget in one go.
       #
       # `continue-on-error`: a lesson is editorial garnish on the digest. A
       # model outage or a mirror that hasn't caught up must not block the
@@ -172,8 +189,28 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           LESSON_RESEARCH_MODEL: ${{ vars.LESSON_RESEARCH_MODEL }}
           LESSON_WRITER_MODEL: ${{ vars.LESSON_WRITER_MODEL }}
+          LESSON_WEEKS: ${{ inputs.lesson_weeks || '1' }}
+          DEBUG_FLAG: ${{ inputs.debug && '--debug' || '' }}
         run: |
-          python -m agents.main --lesson-only ${{ inputs.debug && '--debug' || '' }}
+          set -euo pipefail
+          # Week keys are derived by the same code the agent uses, so a manual
+          # backfill can never disagree with the nightly run about which
+          # Monday-to-Sunday it is targeting.
+          WEEKS="$(python - <<'PY'
+          import datetime, os
+          from agents.lesson_picker import previous_complete_week, week_of
+          n = max(1, min(12, int(os.environ.get("LESSON_WEEKS", "1") or 1)))
+          w = previous_complete_week(datetime.date.today())
+          for _ in range(n):
+              print(w.key)
+              w = week_of(w.start - datetime.timedelta(days=7))
+          PY
+          )"
+          for week in ${WEEKS}; do
+            echo "::group::lesson ${week}"
+            python -m agents.main --lesson-only --lesson-week "${week}" ${DEBUG_FLAG}
+            echo "::endgroup::"
+          done
 
       # Gate: never commit content that would break the Cloudflare Pages build.
       # The pipeline pushes straight to master, so a malformed frontmatter block
@@ -189,13 +226,19 @@ jobs:
           npm run build
 
       - name: Commit generated content
+        env:
+          LESSON_ONLY: ${{ inputs.lesson_only }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add web/src/content/ web/src/data/tag-categories/
           [ -d .old ] && git add -f .old/ || true
+          MSG="chore(digest): nightly refresh $(date -u +%Y-%m-%d)"
+          if [ "${LESSON_ONLY}" = "true" ]; then
+            MSG="chore(lessons): manual lesson run $(date -u +%Y-%m-%d)"
+          fi
           git diff --cached --quiet && echo "No content change." || \
-            git commit -m "chore(digest): nightly refresh $(date -u +%Y-%m-%d)" && git push
+            git commit -m "${MSG}" && git push
 
       # ── Pulse search index ────────────────────────────────────────────────
       # Derived from the Markdown just committed, so it runs last. The .db is

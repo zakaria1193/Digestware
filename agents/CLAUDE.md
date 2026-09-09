@@ -316,6 +316,32 @@ week. Watch for a repeated `"Lesson skipped for X — source repo unavailable"`
 in the nightly logs: that means the rotation is silently degrading to a single
 project.
 
+### Source access degrades in three grades, not two
+
+`SourceRepo.ensure()` treats "cannot reach the mirror" and "have no source" as
+different problems, because they are:
+
+| State | Behaviour |
+|---|---|
+| Clone present, `git fetch` succeeds | Normal. |
+| Clone present, **fetch fails** | `is_stale = True`. Reads are served from the cached objects, which hold the project's whole history up to the last successful fetch. |
+| Clone present but **not a readable git repo** | Discarded and re-cloned. An interrupted clone answers every read with `[error]`; serving that as "cached state" produces a confidently wrong article. |
+| **No clone** and cloning fails | `SourceRepoError` — the only genuinely fatal case. |
+
+A stale clone would still lose the week on its own, because `pick_subject`
+filters candidates through `resolve()` and the newest commits aren't in there.
+So `_run_lesson_step` passes `fallback_weeks=4` when `repo.is_stale`, and the
+picker walks backwards until it finds a commit the clone actually has. An
+unreachable mirror therefore costs *freshness*, not the article.
+
+Two boundaries keep that honest. It triggers **only when the target week had
+candidates that failed to resolve** — never on a week with nothing eligible,
+since an empty week is a quiet week and reaching into the past to fill it would
+be dishonest. And the subject is **rebased onto the target week**
+(`dataclasses.replace(subject, week=week)`): `lesson_id`, the week range and the
+sort date all still name the published week, and only `commit_date` reveals the
+subject is older.
+
 This is deliberate and has a useful property: it **self-heals**. If Monday's
 run fails, Tuesday's picks the same week up. A cron expression pinned to Monday
 would simply lose that week.
@@ -409,6 +435,12 @@ python -m agents.main --since-hours 24
 # Defaults to the newest complete ISO week; --lesson-week pins one explicitly.
 python -m agents.main --lesson-only
 python -m agents.main --lesson-only --lesson-project gcc --lesson-week 2026-W36
+
+# The same thing in CI: the Nightly Digest workflow takes `lesson_only` and
+# `lesson_weeks` dispatch inputs. `lesson_weeks: 2` writes the last two
+# complete weeks (one lesson each, projects alternating). Default is 1 —
+# each lesson is a premium-model call, so a dispatch asking for four spends
+# roughly a third of the month's AI budget in one run.
 ```
 
 Output summary prints discussion count, landing count, and bento-worthy count
@@ -525,6 +557,14 @@ and hundreds of MB.
 - **The lesson step must never fail the nightly run.** It is wrapped in
   `try/except` in `main.py` and `continue-on-error` in the workflow. A clone
   failure or a model outage degrades to a stub, not a lost digest.
+- **A `lesson_id` always names the week being published, never the subject's
+  week.** The stale-clone fallback can teach a commit from three weeks ago, but
+  the lesson is still filed under the target week. If the identity moved with
+  the subject, `existing_lesson_for_week` would stop matching and the nightly
+  step would rewrite — and re-bill — the same lesson every night.
+- **Don't widen the stale-clone fallback to fire on an empty week.** It exists
+  for source-access failure. A week with no eligible landings should produce no
+  lesson; backfilling one from an older commit would misrepresent the week.
 - **`_MAX_TOOL_CALLS` is the primary cost lever.** Lower it before reaching for
   a cheaper writing model; Opus-level prose for the lesson is a requirement,
   not a default. Verify real spend in the `lesson_research` / `lesson_writer`

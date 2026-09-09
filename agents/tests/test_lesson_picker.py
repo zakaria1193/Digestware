@@ -386,3 +386,87 @@ def test_week_guard_does_not_confuse_similar_week_keys(tmp_path: Path):
 def test_week_guard_on_missing_directory(tmp_path: Path):
     week = previous_complete_week(date(2026, 9, 9))
     assert existing_lesson_for_week(tmp_path, week) is None
+
+
+# ---------------------------------------------------------------------------
+# The stale-clone fallback
+# ---------------------------------------------------------------------------
+#
+# When `git fetch` fails, the clone on disk still holds every commit up to the
+# last successful fetch. Rejecting the whole week because its newest commits
+# aren't in there yet throws away a perfectly readable repository. These tests
+# pin the two boundaries that keep the fallback honest.
+
+def test_fallback_reaches_back_when_the_clone_is_behind(tmp_path: Path):
+    week = previous_complete_week(date(2026, 9, 9))          # 2026-W36
+    _landing(tmp_path, name="this-week", d="2026-09-02", sha="a" * 40, score=10)
+    _landing(tmp_path, name="last-week", d="2026-08-26", sha="b" * 40, score=7)
+
+    subject = pick_subject(
+        tmp_path,
+        "gcc",
+        week,
+        resolve=lambda sha: sha.startswith("b"),   # clone predates this week
+        fallback_weeks=4,
+    )
+
+    assert subject is not None
+    assert subject.headline == "last-week"
+    assert subject.commit_date == date(2026, 8, 26)
+
+
+def test_fallback_keeps_the_target_weeks_identity(tmp_path: Path):
+    """The lesson is still *this* week's lesson — only the subject is older.
+
+    If the identity moved to the subject's week, the weekly "already done"
+    guard would stop matching and the nightly step would rewrite, and re-bill,
+    the lesson every night.
+    """
+    week = previous_complete_week(date(2026, 9, 9))          # 2026-W36
+    _landing(tmp_path, name="this-week", d="2026-09-02", sha="a" * 40)
+    _landing(tmp_path, name="older", d="2026-08-26", sha="b" * 40)
+
+    subject = pick_subject(
+        tmp_path, "gcc", week, resolve=lambda sha: sha.startswith("b"),
+        fallback_weeks=4,
+    )
+
+    assert subject is not None
+    assert subject.week == week
+    assert subject.lesson_id == "gcc:2026-W36"
+
+
+def test_fallback_does_not_invent_a_lesson_for_a_quiet_week(tmp_path: Path):
+    """No eligible landings this week means no lesson — not an old one.
+
+    The widening exists for source-access failure, not for filling silence.
+    """
+    week = previous_complete_week(date(2026, 9, 9))          # 2026-W36
+    _landing(tmp_path, name="older", d="2026-08-26", sha="b" * 40)
+
+    assert pick_subject(
+        tmp_path, "gcc", week, resolve=lambda sha: True, fallback_weeks=4
+    ) is None
+
+
+def test_fallback_is_bounded(tmp_path: Path):
+    """It must not walk back indefinitely looking for something to teach."""
+    week = previous_complete_week(date(2026, 9, 9))          # W36
+    _landing(tmp_path, name="this-week", d="2026-09-02", sha="a" * 40)
+    _landing(tmp_path, name="ancient", d="2026-06-01", sha="b" * 40)
+
+    assert pick_subject(
+        tmp_path, "gcc", week, resolve=lambda sha: sha.startswith("b"),
+        fallback_weeks=2,
+    ) is None
+
+
+def test_no_fallback_by_default(tmp_path: Path):
+    """A healthy clone gets the old behaviour: this week's commits or nothing."""
+    week = previous_complete_week(date(2026, 9, 9))
+    _landing(tmp_path, name="this-week", d="2026-09-02", sha="a" * 40)
+    _landing(tmp_path, name="older", d="2026-08-26", sha="b" * 40)
+
+    assert pick_subject(
+        tmp_path, "gcc", week, resolve=lambda sha: sha.startswith("b")
+    ) is None
