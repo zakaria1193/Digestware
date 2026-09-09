@@ -91,6 +91,35 @@ def _api_key() -> str:
     return os.environ.get("OPENROUTER_API_KEY", "")
 
 
+MODELS_TIMEOUT = 30
+
+
+def fetch_models(client: object | None = None) -> list[dict]:
+    """Every model OpenRouter currently serves, with its per-token pricing.
+
+    ``/models`` is free and needs no key. Two callers depend on it: the slug
+    preflight (``agents.check_models``) and the budget ledger
+    (``agents.budget``), which prices ``output/usage.log`` from the
+    ``pricing`` block each entry carries. It lives here because this module is
+    the single place that knows the base URL.
+
+    Raises on transport or HTTP errors — callers decide whether that is fatal.
+    """
+    import httpx
+
+    owns_client = client is None
+    http = client if client is not None else httpx.Client(timeout=MODELS_TIMEOUT)
+    try:
+        response = http.get(f"{BASE_URL}/models")  # type: ignore[attr-defined]
+        response.raise_for_status()
+        payload = response.json()
+    finally:
+        if owns_client:
+            http.close()  # type: ignore[attr-defined]
+    data = payload.get("data", [])
+    return [entry for entry in data if isinstance(entry, dict)]
+
+
 def build_model(model_name: str) -> OpenAIChatModel:
     """Return a PydanticAI OpenAIChatModel routed through OpenRouter."""
     provider = OpenAIProvider(base_url=BASE_URL, api_key=_api_key())

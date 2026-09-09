@@ -32,7 +32,14 @@ Thumbs.db
 
 # Agent runtime output (keep .gitkeep, ignore actual files)
 agents/output/*.md
-agents/output/usage.log
+
+# NOTE: agents/output/usage.log is deliberately NOT ignored. It is the token
+# spend audit trail, and the monthly budget guard (agents/budget.py) computes
+# month-to-date spend from it. A fresh CI runner starts with an empty working
+# tree, so if this file were ignored every run would read a spend of zero and
+# the guard would never fire. Committing it is what makes the cap real.
+# The rotated backup is noise, though:
+agents/output/usage.log.1
 
 # Agent cache (raw mbox files and bare git clones)
 agents/cache/**/*.mbox

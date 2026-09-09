@@ -35,6 +35,7 @@ from agents import landing_agent as landing_agent_module
 from agents.adapters.github import GitHubAdapter
 from agents.adapters.plain_git import PlainGitAdapter
 from agents.adapters.public_inbox import PublicInboxAdapter
+from agents.budget import can_afford, lesson_cost_estimate_usd
 from agents.dedup import build_seen_index, filter_raw, latest_content_date
 from agents.discussion_agent import run_discussion_agent
 from agents.ingestion.engine import IngestionEngine
@@ -212,6 +213,28 @@ def _run_lesson_step(
         logger.info("No dated landings on disk — nothing to build a lesson from.")
         return 0
     logger.info("Lesson target week: %s", week)
+
+    # The month's budget, checked BEFORE anything is spent. Asking "have we
+    # gone over?" after the fact permits exactly one unbounded overshoot, and
+    # the lesson — a premium-model call — is the most expensive thing this
+    # project does. A lesson is also the right thing to drop first: the digests
+    # are the product, this is the garnish.
+    if not dry_run:
+        estimate = lesson_cost_estimate_usd()
+        affordable, spent, cap = can_afford(estimate)
+        if not affordable:
+            logger.warning(
+                "Lesson skipped — the month's AI budget is spent: $%.2f used of "
+                "$%.2f, and a lesson costs about $%.2f. Lessons resume on the "
+                "1st. (Spend is computed from output/usage.log; see "
+                "agents/budget.py.)",
+                spent, cap, estimate,
+            )
+            return 0
+        logger.info(
+            "Budget check: $%.2f of $%.2f used this month, lesson est. $%.2f.",
+            spent, cap, estimate,
+        )
 
     # One lesson per week TOTAL, not one per project — the article is written
     # by a premium model, so volume is the dominant cost lever. This check is

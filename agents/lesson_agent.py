@@ -35,8 +35,10 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
+from types import UnionType
+from typing import Union, get_args, get_origin
 
-from pydantic import TypeAdapter, ValidationError
+from pydantic import BaseModel, TypeAdapter, ValidationError
 from pydantic_ai import Agent
 
 from agents._openrouter import (
@@ -47,7 +49,7 @@ from agents._openrouter import (
 )
 from agents._retry import retry_with_backoff
 from agents.lesson_picker import LessonSubject
-from agents.models.lesson import LessonDigest, LessonResearch
+from agents.models.lesson import LessonDigest, LessonResearch, SourceExcerpt
 from agents.tools.glossary_filter import filter_glossary
 from agents.tools.source_repo import SourceRepo
 from agents.tools.web_search import search_context
@@ -238,8 +240,107 @@ def _strip_fences(text: str) -> str:
     return text
 
 
+def _max_lengths(model: type[BaseModel], kinds: tuple[type, ...]) -> dict[str, int]:
+    """`{field: max_length}` read off the model itself, not copied from it.
+
+    Derived rather than hardcoded so the clamp can never drift out of step with
+    the schema it exists to satisfy.
+    """
+    caps: dict[str, int] = {}
+    for name, field in model.model_fields.items():
+        for meta in field.metadata:
+            limit = getattr(meta, "max_length", None)
+            if limit is None:
+                continue
+            annotation = field.annotation
+            origin = get_origin(annotation) or annotation
+            # `str | None` is types.UnionType on 3.10+, typing.Union when
+            # spelled Optional[str] — unwrap either and check the real type.
+            if origin in (Union, UnionType):
+                if any(a in kinds for a in get_args(annotation)):
+                    caps[name] = limit
+            elif any(origin is k for k in kinds):
+                caps[name] = limit
+    return caps
+
+
+_RESEARCH_STR_CAPS = _max_lengths(LessonResearch, (str,))
+_RESEARCH_LIST_CAPS = _max_lengths(LessonResearch, (list,))
+_EXCERPT_STR_CAPS = _max_lengths(SourceExcerpt, (str,))
+
+
+def _extract_json_object(text: str) -> str:
+    """Pull the outermost JSON object out of a model's free-text answer.
+
+    Requiring the *whole* reply to be JSON is a bad bet against a reasoning
+    model: a preamble ("Here's the dossier:"), a trailing remark, or a fenced
+    block mid-message all make `json.loads` throw — after every tool call in
+    the run has already been paid for. So scan for the outermost balanced
+    ``{…}`` instead, ignoring braces inside strings.
+    """
+    stripped = _strip_fences(text)
+    start = stripped.find("{")
+    if start == -1:
+        raise ValueError("no JSON object found in the research output")
+
+    depth = 0
+    in_string = False
+    escaped = False
+    for i in range(start, len(stripped)):
+        ch = stripped[i]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return stripped[start : i + 1]
+    raise ValueError("research output ends inside an unterminated JSON object")
+
+
+def _clamp_to_schema(parsed: dict) -> None:
+    """Trim over-long values to the caps `LessonResearch` enforces.
+
+    The tools can legitimately hand back more than the model is allowed to
+    store — ``read_file`` returns up to 8192 bytes while ``SourceExcerpt.code``
+    caps at 6000 — so a model that copies an excerpt verbatim, exactly as
+    instructed, produces a value pydantic rejects. One oversized excerpt would
+    otherwise fail the *entire* dossier and cost the whole article. Losing the
+    tail of one excerpt is strictly the better trade.
+    """
+    def _cut(value: object, limit: int) -> object:
+        return value[:limit] if isinstance(value, str) and len(value) > limit else value
+
+    for field, limit in _RESEARCH_STR_CAPS.items():
+        if field in parsed:
+            parsed[field] = _cut(parsed[field], limit)
+
+    for field, limit in _RESEARCH_LIST_CAPS.items():
+        value = parsed.get(field)
+        if isinstance(value, list) and len(value) > limit:
+            parsed[field] = value[:limit]
+
+    excerpts = parsed.get("excerpts")
+    if isinstance(excerpts, list):
+        for item in excerpts:
+            if not isinstance(item, dict):
+                continue
+            for field, limit in _EXCERPT_STR_CAPS.items():
+                if field in item:
+                    item[field] = _cut(item[field], limit)
+
+
 def _parse_research(text: str, subject: LessonSubject) -> LessonResearch:
-    parsed = json.loads(_strip_fences(text))
+    parsed = json.loads(_extract_json_object(text))
     if isinstance(parsed, list):
         if not parsed:
             raise ValueError("research model returned an empty array")
@@ -252,6 +353,8 @@ def _parse_research(text: str, subject: LessonSubject) -> LessonResearch:
     parsed["commit_hash"] = subject.commit_hash
     if not parsed.get("subsystem"):
         parsed["subsystem"] = subject.subsystem
+
+    _clamp_to_schema(parsed)
     return _RESEARCH_ADAPTER.validate_python(parsed)
 
 
@@ -273,8 +376,18 @@ def _research_prompt(subject: LessonSubject, repo: SourceRepo) -> str:
     )
 
 
-def run_research(subject: LessonSubject, repo: SourceRepo) -> LessonResearch | None:
-    """Stage 1: explore the source tree and return a dossier, or None on failure."""
+def run_research(
+    subject: LessonSubject,
+    repo: SourceRepo,
+    errors: list[str] | None = None,
+) -> LessonResearch | None:
+    """Stage 1: explore the source tree and return a dossier, or None on failure.
+
+    Args:
+        errors: optional sink. On failure the reason is appended here so the
+            caller can put it in the stub's ``stub_reason`` instead of the
+            useless bare ``research_failed``.
+    """
     model_name = model_from_env("LESSON_RESEARCH_MODEL", DEFAULT_LESSON_RESEARCH_MODEL)
     budget = _ToolBudget()
     agent: Agent[None, str] = Agent(
@@ -312,10 +425,16 @@ def run_research(subject: LessonSubject, repo: SourceRepo) -> LessonResearch | N
             _call, label=f"lesson_research {subject.project}/{subject.commit_hash[:12]}"
         )
     except (ValidationError, json.JSONDecodeError, ValueError) as exc:
-        logger.error("lesson_agent[research]: unusable output (%s)", exc)
+        logger.error("lesson_agent[research]: unusable output (%s)", exc, exc_info=True)
+        if errors is not None:
+            errors.append(_stage_reason("research_failed", exc))
         return None
     except Exception as exc:
-        logger.error("lesson_agent[research]: failed after retries (%s)", exc)
+        logger.error(
+            "lesson_agent[research]: failed after retries (%s)", exc, exc_info=True
+        )
+        if errors is not None:
+            errors.append(_stage_reason("research_failed", exc))
         return None
 
     append_usage("lesson_research", model_name, result.usage)
@@ -602,8 +721,12 @@ def run_writer(
     subject: LessonSubject,
     research: LessonResearch,
     repo: SourceRepo,
+    errors: list[str] | None = None,
 ) -> LessonDigest | None:
-    """Stage 2: turn the dossier into the article. One call, no tools."""
+    """Stage 2: turn the dossier into the article. One call, no tools.
+
+    ``errors`` is the same failure sink ``run_research`` takes.
+    """
     model_name = model_from_env("LESSON_WRITER_MODEL", DEFAULT_LESSON_WRITER_MODEL)
     agent: Agent[None, str] = Agent(
         model=build_model(model_name),
@@ -636,10 +759,16 @@ def run_writer(
             _call, label=f"lesson_writer {subject.project}/{subject.commit_hash[:12]}"
         )
     except (ValidationError, json.JSONDecodeError, ValueError) as exc:
-        logger.error("lesson_agent[writer]: unusable output (%s)", exc)
+        logger.error("lesson_agent[writer]: unusable output (%s)", exc, exc_info=True)
+        if errors is not None:
+            errors.append(_stage_reason("writer_failed", exc))
         return None
     except Exception as exc:
-        logger.error("lesson_agent[writer]: failed after retries (%s)", exc)
+        logger.error(
+            "lesson_agent[writer]: failed after retries (%s)", exc, exc_info=True
+        )
+        if errors is not None:
+            errors.append(_stage_reason("writer_failed", exc))
         return None
 
     append_usage("lesson_writer", model_name, result.usage)
@@ -653,6 +782,26 @@ def run_writer(
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
+_MAX_STUB_REASON = 200
+
+
+def _stage_reason(stage: str, exc: BaseException) -> str:
+    """``"research_failed: <what actually went wrong>"``.
+
+    A bare ``research_failed`` is unactionable — it was on both of the first two
+    real runs, and diagnosing them meant trying to pull a CI log that the API
+    truncates. The exception text rides into committed frontmatter instead, so
+    the next failure is one ``git show`` away. Upstream API errors keep the
+    response body on ``exc.response.text``; ``str(exc)`` often drops it.
+    """
+    body = getattr(getattr(exc, "response", None), "text", None)
+    detail = f"{type(exc).__name__}: {exc}"
+    if body:
+        detail = f"{detail} | {body}"
+    detail = " ".join(detail.split())          # frontmatter-safe: one line
+    return f"{stage}: {detail}"[:_MAX_STUB_REASON]
+
 
 def stub_lesson(subject: LessonSubject, reason: str = "llm_failure") -> LessonDigest:
     """A placeholder lesson, written to disk so /admin can see the failure."""
@@ -695,11 +844,18 @@ def run_lesson_agent(
     if dry_run:
         return stub_lesson(subject, reason="dry_run")
 
-    research = run_research(subject, repo)
-    if research is None:
-        return stub_lesson(subject, reason="research_failed")
+    # The reason a stage failed is worth more than the fact that it did — it
+    # travels into the stub's frontmatter and gets committed, so a failure is
+    # diagnosable from the repo without digging a CI log out.
+    errors: list[str] = []
 
-    lesson = run_writer(subject, research, repo)
+    research = run_research(subject, repo, errors)
+    if research is None:
+        return stub_lesson(
+            subject, reason=errors[-1] if errors else "research_failed"
+        )
+
+    lesson = run_writer(subject, research, repo, errors)
     if lesson is None:
-        return stub_lesson(subject, reason="writer_failed")
+        return stub_lesson(subject, reason=errors[-1] if errors else "writer_failed")
     return lesson

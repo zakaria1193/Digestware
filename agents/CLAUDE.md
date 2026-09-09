@@ -130,6 +130,8 @@ agents/
 │
 ├── discussion_agent.py     # Lab — PydanticAI agent over Gemini Flash
 ├── landing_agent.py        # Factory — Gemini Flash + Sonnet 4.5 premium rerun
+├── budget.py               # Month-to-date spend + the EUR 5/month guard
+├── check_models.py         # Preflight: do the configured model slugs exist?
 ├── lesson_picker.py        # Deterministic weekly subject selection (no LLM)
 ├── lesson_topics.py        # Editorial remit — which subsystems may be taught
 ├── lesson_agent.py         # Lesson — cheap explorer + Opus writer (two stages)
@@ -428,6 +430,44 @@ Both calls log to `output/usage.log` under distinct agent names
 
 ---
 
+## The Budget Guard
+
+The project ceiling is **EUR 5/month**, and until now that was only a comment:
+tokens were logged, money was never counted. `budget.py` closes the loop.
+
+    usage.log (tokens per call)  x  OpenRouter /models (price per token)
+        ->  month-to-date USD  ->  "can we afford another lesson?"
+
+`_run_lesson_step` calls `can_afford()` **before** cloning or calling a model.
+Checking after the fact would permit exactly one unbounded overshoot, and the
+lesson is the single most expensive call this project makes. When the month is
+spent the step logs the two numbers and returns 0; lessons resume on the 1st.
+
+The guard is scoped to lessons on purpose — the digests are the product, the
+lesson is the garnish, so it is the right thing to drop first. `can_afford()`
+makes a digest-side guard a two-line change if that ever becomes necessary.
+
+Two properties keep it honest:
+
+- **Unknowns are expensive.** A model missing from the price listing, or a call
+  whose token counts came back null, is charged at a deliberately pessimistic
+  rate. A guard that prices what it doesn't recognise at zero has stopped
+  guarding without telling anyone.
+- **The cap is USD 5 for a EUR 5 limit.** OpenRouter bills in dollars and USD 5
+  is below EUR 5 at any plausible rate, so no exchange rate is needed and the
+  error is on the safe side.
+
+**`agents/output/usage.log` is committed, not ignored** — that is load-bearing,
+not an oversight. A CI runner starts with a clean tree, so an ignored ledger
+would make every run compute a spend of zero and the cap would never bind.
+
+`check_models.py` is the companion preflight: it verifies every configured slug
+against the free `/models` listing before anything spends, and prints the
+closest available names on a miss. A wrong slug otherwise fails only at request
+time, after the run has paid for everything leading up to it.
+
+---
+
 ## Environment Variables
 
 | Var | Purpose | Required? |
@@ -438,6 +478,8 @@ Both calls log to `output/usage.log` under distinct agent names
 | `BENTO_MODEL` | Override the premium re-run model | optional |
 | `LESSON_RESEARCH_MODEL` | Override the lesson's source-exploration model | optional |
 | `LESSON_WRITER_MODEL` | Override the lesson's article-writing model | optional |
+| `MONTHLY_BUDGET_USD` | Override the $5 monthly cap (testing) | optional |
+| `LESSON_COST_ESTIMATE_USD` | Override the assumed per-lesson cost | optional |
 
 All loaded via `python-dotenv` from a gitignored `.env`. **Never commit keys.**
 
@@ -610,3 +652,10 @@ and hundreds of MB.
 - **`continue-on-error` plus stub-on-failure can hide a total failure.** The
   step goes green and commits placeholder articles. When a run "succeeds",
   check `is_stub` in the output before believing it.
+- **Never let the budget guard price something at zero.** An unknown model or a
+  null token count must be charged at the pessimistic rate in `budget.py`.
+  Failing toward "free" silently disables the cap, which is worse than having
+  no guard at all because it looks like one.
+- **`agents/output/usage.log` must stay committed.** Re-adding it to
+  `.gitignore` makes every CI run see a month-to-date spend of zero and the
+  EUR 5 cap stops binding entirely.

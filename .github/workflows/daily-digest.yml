@@ -85,6 +85,16 @@ jobs:
             exit 1
           fi
 
+      # A wrong model slug fails only at request time, after everything before
+      # it has been paid for. `/models` is free and unauthenticated, so this
+      # turns that whole class of late, confusing failure into an immediate one
+      # naming the closest available slugs.
+      - name: Check model slugs resolve
+        env:
+          LESSON_RESEARCH_MODEL: ${{ vars.LESSON_RESEARCH_MODEL }}
+          LESSON_WRITER_MODEL: ${{ vars.LESSON_WRITER_MODEL }}
+        run: python -m agents.check_models
+
       # Optional: archive previous output under .old/<UTC-timestamp>/
       # Only runs when explicitly requested via workflow_dispatch with archive=true.
       - name: Archive previous generated content
@@ -206,9 +216,15 @@ jobs:
               w = week_of(w.start - datetime.timedelta(days=7))
           PY
           )"
+          # Tee to a file as well as the log: the job log is dominated by
+          # ~4,900 lines of Astro build output, and the GitHub logs API
+          # truncates from the FRONT, so the lesson step's own output is
+          # effectively unreadable after the fact. The uploaded artifact is
+          # the only reliable way to see why a lesson failed.
           for week in ${WEEKS}; do
             echo "::group::lesson ${week}"
-            python -m agents.main --lesson-only --lesson-week "${week}" ${DEBUG_FLAG}
+            python -m agents.main --lesson-only --lesson-week "${week}" ${DEBUG_FLAG} \
+              2>&1 | tee -a lesson-run.log
             echo "::endgroup::"
           done
 
@@ -217,7 +233,7 @@ jobs:
           # "Lesson unavailable" placeholders — which is exactly what happened
           # on the first real run. Surface it as an annotation instead.
           python - <<'PY'
-          import pathlib, sys
+          import pathlib
           from agents.tools.frontmatter import load_frontmatter
           stubs = []
           for md in sorted(pathlib.Path("web/src/content/lessons").glob("*.md")):
@@ -225,13 +241,28 @@ jobs:
               if parsed and parsed[0].get("is_stub"):
                   stubs.append(f"{md.name} ({parsed[0].get('stub_reason')})")
           for s in stubs:
-              print(f"::warning::Lesson written as a STUB — generation failed: {s}")
+              print(f"::error::Lesson written as a STUB — generation failed: {s}")
           print(f"{len(stubs)} stub lesson(s) on disk.")
           PY
+
+          # A month that runs out of budget produces no lesson, which otherwise
+          # looks identical to the feature being broken. Say which it is.
+          if grep -q "the month's AI budget is spent" lesson-run.log 2>/dev/null; then
+            echo "::warning::No lesson this run — the month's AI budget is spent. Lessons resume on the 1st."
+          fi
 
       # Gate: never commit content that would break the Cloudflare Pages build.
       # The pipeline pushes straight to master, so a malformed frontmatter block
       # takes the public site down until someone notices the failed deploy.
+      - name: Upload lesson run log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lesson-run
+          path: lesson-run.log
+          retention-days: 14
+          if-no-files-found: ignore
+
       - name: Validate generated content
         run: |
           python -m agents.tools.validate_content
@@ -248,7 +279,11 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add web/src/content/ web/src/data/tag-categories/
+          # usage.log is the spend ledger the monthly budget guard reads.
+          # A fresh runner has an empty working tree, so if this is not
+          # committed every run computes a month-to-date spend of zero and
+          # the cap never binds. See agents/budget.py.
+          git add web/src/content/ web/src/data/tag-categories/ agents/output/usage.log
           [ -d .old ] && git add -f .old/ || true
           MSG="chore(digest): nightly refresh $(date -u +%Y-%m-%d)"
           if [ "${LESSON_ONLY}" = "true" ]; then
