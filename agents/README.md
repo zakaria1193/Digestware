@@ -458,9 +458,20 @@ python -m agents.index.build --full                   # adds semantic search
 python -m agents.index.build                          # nightly: only what changed
 ```
 
-Rebuilding is incremental by content hash, so a nightly run touches the ~30
+Rebuilding is incremental by content hash, so a nightly run touches the ~34
 changed files rather than all ~2,950. `pulse.db` is gitignored: it is derived,
 disposable, and regenerable from the Markdown at any time.
+
+**`--full` is for manual rebuilds only.** It deletes the database first, so every
+document is re-indexed *and re-embedded*. The nightly workflow deliberately omits it and
+restores `pulse.db` from `actions/cache` instead; without a restored database the
+content-hash check has nothing to compare against and the whole corpus is re-embedded
+every night. That is a cost bug rather than a correctness one, which is exactly why it is
+easy to reintroduce unnoticed — `agents/tests/test_index_build.py` pins the behaviour.
+
+If `EMBEDDING_MODEL` changes, the next build discards every stored vector and re-embeds:
+vectors from two models are not comparable and rarely share a dimension, so a mixed table
+would rank nonsensically or silently drop the minority dimension at query time.
 
 ### Run the server
 

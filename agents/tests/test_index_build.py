@@ -213,3 +213,117 @@ def test_parse_document_returns_none_without_frontmatter(tmp_path):
     path = tmp_path / "x.md"
     path.write_text("plain text", encoding="utf-8")
     assert parse_document(path, "landing") is None
+
+
+# ── Embedding incrementality ────────────────────────────────────────────────
+# The nightly workflow restores a cached pulse.db so the content-hash check can
+# skip work. These tests pin the behaviour that makes that worthwhile: without
+# them, a regression that re-embeds the whole corpus every night is invisible
+# (the index is still correct — it just quietly costs money, growing with the
+# archive).
+
+class FakeProvider:
+    """Records every text it is asked to embed."""
+
+    def __init__(self, model: str = "fake-embed-1", dim: int = 4) -> None:
+        self.model = model
+        self.dim = dim
+        self.calls: list[list[str]] = []
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        self.calls.append(list(texts))
+        return [[float(i + 1)] * self.dim for i in range(len(texts))]
+
+    @property
+    def embedded_count(self) -> int:
+        return sum(len(c) for c in self.calls)
+
+
+def test_embeds_every_document_on_first_run(built):
+    from agents.index.build import embed_missing
+
+    db, _corpus, _ = built
+    conn = connect(db)
+    provider = FakeProvider()
+    assert embed_missing(conn, provider) == 3
+    assert provider.embedded_count == 3
+    conn.close()
+
+
+def test_second_run_embeds_nothing(built):
+    """The whole point of the cache: unchanged documents cost nothing."""
+    from agents.index.build import embed_missing
+
+    db, _corpus, _ = built
+    conn = connect(db)
+    provider = FakeProvider()
+    embed_missing(conn, provider)
+    provider.calls.clear()
+
+    assert embed_missing(conn, provider) == 0
+    assert provider.embedded_count == 0
+    conn.close()
+
+
+def test_only_changed_documents_are_re_embedded(built, corpus):
+    """A nightly run must cost the delta, not the corpus."""
+    from agents.index.build import embed_missing
+
+    db, _corpus, _ = built
+    conn = connect(db)
+    provider = FakeProvider()
+    embed_missing(conn, provider)
+    conn.close()
+    provider.calls.clear()
+
+    # One edited file, one brand-new file — the shape of a real nightly run.
+    (corpus / "landings" / "2026-09-07-bfd-ef840c1.md").write_text(
+        LANDING.replace("Fixes PR 34165.", "Fixes PR 34165 and PR 22222."), encoding="utf-8"
+    )
+    (corpus / "discussions" / "new.md").write_text(
+        DISCUSSION.replace("msg-1@example.invalid", "msg-2@example.invalid"), encoding="utf-8"
+    )
+    build_index(db, corpus, embeddings=False)
+
+    conn = connect(db)
+    assert embed_missing(conn, provider) == 2, "should embed only the changed and the new file"
+    conn.close()
+
+
+def test_changing_embedding_model_discards_incompatible_vectors(built):
+    """Vectors from two models are not comparable and rarely share a dimension."""
+    from agents.index.build import embed_missing
+
+    db, _corpus, _ = built
+    conn = connect(db)
+    embed_missing(conn, FakeProvider(model="model-a", dim=4))
+
+    other = FakeProvider(model="model-b", dim=8)
+    assert embed_missing(conn, other) == 3, "all documents re-embed under the new model"
+
+    models = {r[0] for r in conn.execute("SELECT DISTINCT model FROM embeddings")}
+    dims = {r[0] for r in conn.execute("SELECT DISTINCT dim FROM embeddings")}
+    assert models == {"model-b"}
+    assert dims == {8}, "no mixed dimensions left behind"
+    conn.close()
+
+
+def test_reindexing_a_document_invalidates_its_vector(built, corpus):
+    """A vector for text that no longer exists would be quietly wrong."""
+    from agents.index.build import embed_missing
+
+    db, _corpus, _ = built
+    conn = connect(db)
+    embed_missing(conn, FakeProvider())
+    before = conn.execute("SELECT COUNT(*) FROM embeddings").fetchone()[0]
+    conn.close()
+    assert before == 3
+
+    (corpus / "landings" / "2026-09-07-bfd-ef840c1.md").write_text(
+        LANDING.replace("terminates", "now terminates cleanly"), encoding="utf-8"
+    )
+    build_index(db, corpus, embeddings=False)
+
+    conn = connect(db)
+    assert conn.execute("SELECT COUNT(*) FROM embeddings").fetchone()[0] == 2
+    conn.close()
