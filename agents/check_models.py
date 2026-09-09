@@ -2,11 +2,13 @@
 
 Model slugs are strings, and a wrong one fails only at request time — after
 the run has already paid for everything leading up to it. This project has
-been bitten twice: ``google/gemini-2.0-flash-001`` was retired upstream and
-started returning 404 "No endpoints found", and
-``anthropic/claude-opus-5`` went into the lesson writer with a source comment
-saying "confirm this slug before the first paid run", which never happened
-because the research stage failed first and the writer was never reached.
+been bitten repeatedly: ``google/gemini-2.0-flash-001`` was retired upstream
+and started returning 404 "No endpoints found", and — found by this module on
+its very first real run — ``anthropic/claude-sonnet-4-5`` had **never
+existed**. It is the premium re-run model for every `impact_score >= 9`
+landing, so months of high-impact commits had been silently falling back to
+the cheap summary with nothing anywhere saying so. The correct name uses a
+dot: ``anthropic/claude-sonnet-4.5``.
 
 ``/models`` is a free, unauthenticated listing. Checking it takes a second and
 turns a class of expensive, late, confusing failures into an immediate one
@@ -53,19 +55,43 @@ def fetch_available(client: httpx.Client | None = None) -> set[str]:
     }
 
 
+def _family(slug: str) -> str:
+    """The distinguishing word in a model name — `sonnet` in claude-sonnet-4-5.
+
+    Vendor and common prefixes (`claude`, `gemini`, `gpt`) are shared across a
+    vendor's whole catalogue, so they identify nothing. The next token is what
+    tells one family from another.
+    """
+    name = slug.split("/")[-1]
+    parts = [p for p in name.replace(".", "-").split("-") if p and not p.isdigit()]
+    generic = {"claude", "gemini", "gpt", "llama", "mistral", "preview", "latest"}
+    for part in parts:
+        if part not in generic:
+            return part
+    return parts[0] if parts else name
+
+
 def suggest(slug: str, available: set[str]) -> list[str]:
     """Plausible replacements for a slug that doesn't resolve.
 
-    Same vendor first — a wrong Anthropic slug is nearly always a naming or
-    version drift within `anthropic/*`, so listing that namespace is far more
-    useful than a generic 'not found'.
+    **Same family first, then same vendor.** A wrong slug is nearly always
+    version drift within one family — `claude-sonnet-4-5` vs
+    `claude-sonnet-4.5` — so the sibling versions are the answer. Ranking by
+    vendor alone is not enough: `anthropic/*` is dozens of models, and an
+    alphabetical cut at fifteen stops before `sonnet` ever appears. That is
+    exactly what happened the first time this fired, leaving the replacement
+    to be inferred from a naming convention instead of simply read.
     """
     vendor = slug.split("/", 1)[0]
+    family = _family(slug)
     same_vendor = sorted(m for m in available if m.startswith(f"{vendor}/"))
-    if same_vendor:
-        return same_vendor
-    stem = slug.split("/")[-1].split("-")[0]
-    return sorted(m for m in available if stem and stem in m)
+
+    same_family = [m for m in same_vendor if family in m]
+    rest = [m for m in same_vendor if family not in m]
+    if same_family or rest:
+        return same_family + rest
+
+    return sorted(m for m in available if family and family in m)
 
 
 def check(available: set[str] | None = None) -> list[str]:
@@ -104,7 +130,7 @@ def main() -> int:
         print(f"\n  {slug} is not served by OpenRouter.")
         if options:
             print("  Closest available:")
-            for option in options[:15]:
+            for option in options[:25]:
                 print(f"    - {option}")
         else:
             print("  No similar model ids found.")

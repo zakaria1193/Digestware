@@ -28,7 +28,7 @@ BASE_URL = "https://openrouter.ai/api/v1"
 # high-volume per-item digest work. Premium depth still comes from the Sonnet
 # re-run on impact_score >= 9 items.
 DEFAULT_SUMMARISER_MODEL = "google/gemini-2.5-flash-lite"
-DEFAULT_PREMIUM_MODEL = "anthropic/claude-sonnet-4-5"
+DEFAULT_PREMIUM_MODEL = "anthropic/claude-sonnet-4.5"
 
 # ── Lesson of the Week ──────────────────────────────────────────────────────
 #
@@ -63,9 +63,12 @@ DEFAULT_LESSON_RESEARCH_MODEL = "google/gemini-2.5-flash"
 # models/lesson.py — which drive the writer's input tokens. Do not silently
 # downgrade the writer; Opus-level prose is the requirement.
 #
-# NOTE: confirm this slug against https://openrouter.ai/api/v1/models before
-# the first paid run. Anthropic's own id is ``claude-opus-5``; OpenRouter
-# namespaces it under the provider.
+# VERIFIED 2026-09-09 against https://openrouter.ai/api/v1/models: this slug is
+# served. `python -m agents.check_models` re-checks it (and every other
+# configured slug) before any step that spends tokens, so a provider-side
+# rename fails in seconds rather than after a paid loop. That preflight is how
+# `anthropic/claude-sonnet-4-5` was caught: it had never existed, so every
+# premium digest re-run had been silently falling back to the cheap summary.
 DEFAULT_LESSON_WRITER_MODEL = "anthropic/claude-opus-5"
 
 

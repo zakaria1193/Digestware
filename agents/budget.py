@@ -64,7 +64,7 @@ ASSUMED_TOKENS_WHEN_UNKNOWN = 20_000
 FALLBACK_PRICES: dict[str, tuple[float, float]] = {
     "google/gemini-2.5-flash-lite": (0.0000002, 0.0000010),
     "google/gemini-2.5-flash": (0.0000004, 0.0000025),
-    "anthropic/claude-sonnet-4-5": (0.0000030, 0.0000150),
+    "anthropic/claude-sonnet-4.5": (0.0000030, 0.0000150),
     "anthropic/claude-opus-5": (0.0000050, 0.0000250),
 }
 

@@ -15,8 +15,8 @@ from agents import check_models
 AVAILABLE = {
     "google/gemini-2.5-flash",
     "google/gemini-2.5-flash-lite",
-    "anthropic/claude-sonnet-4-5",
-    "anthropic/claude-opus-4-1",
+    "anthropic/claude-sonnet-4.5",
+    "anthropic/claude-opus-4.1",
     "openai/gpt-4o",
 }
 
@@ -24,9 +24,9 @@ AVAILABLE = {
 def test_all_present_reports_nothing_missing(capsys: pytest.CaptureFixture) -> None:
     monkey = {
         "SUMMARISER_MODEL": "google/gemini-2.5-flash-lite",
-        "BENTO_MODEL": "anthropic/claude-sonnet-4-5",
+        "BENTO_MODEL": "anthropic/claude-sonnet-4.5",
         "LESSON_RESEARCH_MODEL": "google/gemini-2.5-flash",
-        "LESSON_WRITER_MODEL": "anthropic/claude-sonnet-4-5",
+        "LESSON_WRITER_MODEL": "anthropic/claude-sonnet-4.5",
     }
     with pytest.MonkeyPatch.context() as mp:
         for key, value in monkey.items():
@@ -38,7 +38,7 @@ def test_missing_slug_is_reported() -> None:
     with pytest.MonkeyPatch.context() as mp:
         mp.setenv("LESSON_WRITER_MODEL", "anthropic/claude-opus-5")
         mp.setenv("SUMMARISER_MODEL", "google/gemini-2.5-flash-lite")
-        mp.setenv("BENTO_MODEL", "anthropic/claude-sonnet-4-5")
+        mp.setenv("BENTO_MODEL", "anthropic/claude-sonnet-4.5")
         mp.setenv("LESSON_RESEARCH_MODEL", "google/gemini-2.5-flash")
         missing = check_models.check(AVAILABLE)
     assert missing == ["anthropic/claude-opus-5"]
@@ -46,8 +46,32 @@ def test_missing_slug_is_reported() -> None:
 
 def test_suggestions_prefer_the_same_vendor() -> None:
     options = check_models.suggest("anthropic/claude-opus-5", AVAILABLE)
-    assert options == ["anthropic/claude-opus-4-1", "anthropic/claude-sonnet-4-5"]
+    assert options == ["anthropic/claude-opus-4.1", "anthropic/claude-sonnet-4.5"]
     assert all(o.startswith("anthropic/") for o in options)
+
+
+def test_suggestions_lead_with_the_same_family() -> None:
+    """The real case: `claude-sonnet-4-5` should surface the sonnets first.
+
+    Ranking by vendor alone put `sonnet` last alphabetically, behind a dozen
+    opus and haiku entries, and the printed list was cut off before reaching
+    it — so the first time this fired it named everything except the answer.
+    """
+    crowded = AVAILABLE | {
+        f"anthropic/claude-opus-4.{n}" for n in range(1, 8)
+    } | {"anthropic/claude-haiku-4.5", "anthropic/claude-3-haiku"}
+
+    options = check_models.suggest("anthropic/claude-sonnet-4-5", crowded)
+
+    assert options[0] == "anthropic/claude-sonnet-4.5", (
+        "the correct replacement must be the first suggestion, not buried"
+    )
+
+
+def test_family_ignores_vendor_and_generic_prefixes() -> None:
+    assert check_models._family("anthropic/claude-sonnet-4-5") == "sonnet"
+    assert check_models._family("anthropic/claude-opus-4.1") == "opus"
+    assert check_models._family("google/gemini-2.5-flash-lite") == "flash"
 
 
 def test_suggestions_fall_back_to_a_name_match() -> None:

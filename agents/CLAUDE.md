@@ -228,7 +228,7 @@ per-item calls.**
 | Agent | Model | Batch | Premium path |
 |-------|-------|-------|--------------|
 | discussion_agent | `google/gemini-2.5-flash-lite` (env: `SUMMARISER_MODEL`) | 10 | none |
-| landing_agent | same as above | 8 | `impact_score ≥ 9` → re-run through `anthropic/claude-sonnet-4-5` (env: `BENTO_MODEL`) using the **original** `RawCommit`, not the cheap summary |
+| landing_agent | same as above | 8 | `impact_score ≥ 9` → re-run through `anthropic/claude-sonnet-4.5` (env: `BENTO_MODEL`) using the **original** `RawCommit`, not the cheap summary |
 
 The landing agent also runs a deterministic trailer extractor
 (`_extract_trailers`) that scans commit messages for
