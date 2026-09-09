@@ -34,6 +34,7 @@ from dataclasses import dataclass, field, replace
 from datetime import date, timedelta
 from pathlib import Path
 
+from agents.lesson_topics import rejection_reason
 from agents.tools.frontmatter import load_frontmatter
 
 logger = logging.getLogger(__name__)
@@ -243,7 +244,10 @@ def existing_lesson_id(content_root: Path, lesson_id: str) -> bool:
         return False
     for path in lessons_dir.glob("*.md"):
         fm = _read_frontmatter(path)
-        if fm and fm.get("lesson_id") == lesson_id:
+        # A stub is a record of a FAILED run, not a lesson. Counting it as one
+        # would let a single bad night burn that week permanently — which is
+        # exactly the opposite of the self-healing the nightly cadence needs.
+        if fm and not fm.get("is_stub") and fm.get("lesson_id") == lesson_id:
             return True
     return False
 
@@ -263,6 +267,8 @@ def existing_lesson_for_week(content_root: Path, week: LessonWeek) -> str | None
         fm = _read_frontmatter(path)
         if not fm:
             continue
+        if fm.get("is_stub"):
+            continue        # a failed run never claims the week — see above
         lesson_id = fm.get("lesson_id")
         if isinstance(lesson_id, str) and lesson_id.endswith(suffix):
             project = fm.get("project")
@@ -273,7 +279,11 @@ def existing_lesson_for_week(content_root: Path, week: LessonWeek) -> str | None
 def recent_subsystems(content_root: Path, project: str) -> set[str]:
     """Subsystems covered by this project's last few lessons."""
     subs: set[str] = set()
-    for fm in _lesson_frontmatters(content_root, project)[:_SUBSYSTEM_MEMORY_LESSONS]:
+    published = [
+        fm for fm in _lesson_frontmatters(content_root, project)
+        if not fm.get("is_stub")
+    ]
+    for fm in published[:_SUBSYSTEM_MEMORY_LESSONS]:
         sub = fm.get("subsystem")
         if isinstance(sub, str) and sub:
             subs.add(sub)
@@ -322,6 +332,16 @@ def candidates(
         score = fm.get("impact_score")
         score = score if isinstance(score, int) else None
         if score is not None and score < _MIN_SUBJECT_SCORE:
+            continue
+
+        # Editorial remit: no niche front ends, no obscure architectures, no
+        # process churn. See agents/lesson_topics.py — a high impact score is
+        # not the same as being worth teaching.
+        unfit = rejection_reason(fm.get("subsystem"), tags)
+        if unfit is not None:
+            logger.debug(
+                "lesson_picker: skipping %s — %s", path.name, unfit
+            )
             continue
 
         commit_hash = fm.get("commit_hash")

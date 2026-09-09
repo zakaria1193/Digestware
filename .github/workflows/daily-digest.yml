@@ -212,6 +212,23 @@ jobs:
             echo "::endgroup::"
           done
 
+          # A stub is what the agent writes when research or writing failed.
+          # Without this the step goes green having published nothing but
+          # "Lesson unavailable" placeholders — which is exactly what happened
+          # on the first real run. Surface it as an annotation instead.
+          python - <<'PY'
+          import pathlib, sys
+          from agents.tools.frontmatter import load_frontmatter
+          stubs = []
+          for md in sorted(pathlib.Path("web/src/content/lessons").glob("*.md")):
+              parsed = load_frontmatter(md.read_text(encoding="utf-8"))
+              if parsed and parsed[0].get("is_stub"):
+                  stubs.append(f"{md.name} ({parsed[0].get('stub_reason')})")
+          for s in stubs:
+              print(f"::warning::Lesson written as a STUB — generation failed: {s}")
+          print(f"{len(stubs)} stub lesson(s) on disk.")
+          PY
+
       # Gate: never commit content that would break the Cloudflare Pages build.
       # The pipeline pushes straight to master, so a malformed frontmatter block
       # takes the public site down until someone notices the failed deploy.

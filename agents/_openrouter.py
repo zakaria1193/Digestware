@@ -69,6 +69,24 @@ DEFAULT_LESSON_RESEARCH_MODEL = "google/gemini-2.5-flash"
 DEFAULT_LESSON_WRITER_MODEL = "anthropic/claude-opus-5"
 
 
+def model_from_env(key: str, default: str) -> str:
+    """The model named by env var *key*, falling back to *default*.
+
+    Why this exists instead of ``os.environ.get(key, default)``: that returns
+    the default only when the key is **absent**. GitHub Actions sets an
+    unconfigured `${{ vars.X }}` as *present and empty*, so the plain form
+    yields `""`, and an empty model slug fails every request. That is not
+    hypothetical — it is what turned the first real Lesson of the Week run
+    into two `research_failed` stubs.
+
+    Treats whitespace-only as unset too, for the same reason.
+    """
+    value = (os.environ.get(key) or "").strip()
+    if not value:
+        return default
+    return value
+
+
 def _api_key() -> str:
     return os.environ.get("OPENROUTER_API_KEY", "")
 

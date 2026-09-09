@@ -34,7 +34,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from datetime import datetime, timezone
 
 from pydantic import TypeAdapter, ValidationError
@@ -44,6 +43,7 @@ from agents._openrouter import (
     DEFAULT_LESSON_RESEARCH_MODEL,
     DEFAULT_LESSON_WRITER_MODEL,
     build_model,
+    model_from_env,
 )
 from agents._retry import retry_with_backoff
 from agents.lesson_picker import LessonSubject
@@ -275,7 +275,7 @@ def _research_prompt(subject: LessonSubject, repo: SourceRepo) -> str:
 
 def run_research(subject: LessonSubject, repo: SourceRepo) -> LessonResearch | None:
     """Stage 1: explore the source tree and return a dossier, or None on failure."""
-    model_name = os.environ.get("LESSON_RESEARCH_MODEL", DEFAULT_LESSON_RESEARCH_MODEL)
+    model_name = model_from_env("LESSON_RESEARCH_MODEL", DEFAULT_LESSON_RESEARCH_MODEL)
     budget = _ToolBudget()
     agent: Agent[None, str] = Agent(
         model=build_model(model_name),
@@ -604,7 +604,7 @@ def run_writer(
     repo: SourceRepo,
 ) -> LessonDigest | None:
     """Stage 2: turn the dossier into the article. One call, no tools."""
-    model_name = os.environ.get("LESSON_WRITER_MODEL", DEFAULT_LESSON_WRITER_MODEL)
+    model_name = model_from_env("LESSON_WRITER_MODEL", DEFAULT_LESSON_WRITER_MODEL)
     agent: Agent[None, str] = Agent(
         model=build_model(model_name),
         output_type=str,

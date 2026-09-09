@@ -9,12 +9,11 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 
 from pydantic import TypeAdapter
 from pydantic_ai import Agent
 
-from agents._openrouter import DEFAULT_SUMMARISER_MODEL, build_model
+from agents._openrouter import DEFAULT_SUMMARISER_MODEL, build_model, model_from_env
 from agents._retry import retry_with_backoff
 from agents.models.base import Outcome
 from agents.models.discussion import DiscussionDigest
@@ -373,7 +372,7 @@ def run_discussion_agent(
         stubs = _stub_digests(discussions)
         return _apply_series_and_subsystem(stubs, discussions, parts_by_canonical_index)
 
-    model_name = os.environ.get("SUMMARISER_MODEL", _DEFAULT_MODEL)
+    model_name = model_from_env("SUMMARISER_MODEL", _DEFAULT_MODEL)
     model = build_model(model_name)
     agent: Agent[None, str] = Agent(
         model=model,

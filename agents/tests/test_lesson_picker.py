@@ -68,7 +68,15 @@ def _landing(
     return path
 
 
-def _lesson(tmp: Path, *, lesson_id: str, project: str, subsystem: str, d: str) -> Path:
+def _lesson(
+    tmp: Path,
+    *,
+    lesson_id: str,
+    project: str,
+    subsystem: str,
+    d: str,
+    is_stub: bool = False,
+) -> Path:
     path = tmp / "lessons" / f"{d}-{project}-x.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
@@ -78,6 +86,7 @@ def _lesson(tmp: Path, *, lesson_id: str, project: str, subsystem: str, d: str) 
             f"subsystem: {subsystem}",
             f"lesson_id: {lesson_id}",
             f"date: '{d}'",
+            f"is_stub: {str(is_stub).lower()}",
             "---",
             "",
             "Body.",
@@ -470,3 +479,68 @@ def test_no_fallback_by_default(tmp_path: Path):
     assert pick_subject(
         tmp_path, "gcc", week, resolve=lambda sha: sha.startswith("b")
     ) is None
+
+
+# ---------------------------------------------------------------------------
+# A stub never claims the week
+# ---------------------------------------------------------------------------
+#
+# The first real run wrote two stubs. Because the guards matched on lesson_id
+# alone, those stubs claimed W35 and W36 permanently — a single bad night burnt
+# two weeks, which is the exact opposite of the self-healing the nightly
+# cadence is built on.
+
+def test_stub_does_not_satisfy_the_week_guard(tmp_path: Path):
+    week = previous_complete_week(date(2026, 9, 9))          # 2026-W36
+    _lesson(tmp_path, lesson_id="gcc:2026-W36", project="gcc",
+            subsystem="gcc/ipa", d="2026-09-06", is_stub=True)
+
+    assert existing_lesson_for_week(tmp_path, week) is None
+    assert existing_lesson_id(tmp_path, "gcc:2026-W36") is False
+
+
+def test_real_lesson_still_satisfies_the_week_guard(tmp_path: Path):
+    week = previous_complete_week(date(2026, 9, 9))
+    _lesson(tmp_path, lesson_id="gcc:2026-W36", project="gcc",
+            subsystem="gcc/ipa", d="2026-09-06")
+
+    assert existing_lesson_for_week(tmp_path, week) == "gcc"
+    assert existing_lesson_id(tmp_path, "gcc:2026-W36") is True
+
+
+def test_a_stub_week_is_retried(tmp_path: Path):
+    """The whole point: a failed run must be picked up on the next night."""
+    week = previous_complete_week(date(2026, 9, 9))
+    _lesson(tmp_path, lesson_id="gcc:2026-W36", project="gcc",
+            subsystem="gcc/ipa", d="2026-09-06", is_stub=True)
+    _landing(tmp_path, name="retry-me", d="2026-09-02", sha="a" * 40)
+
+    assert pick_subject(tmp_path, "gcc", week) is not None
+
+
+def test_stub_subsystems_are_not_remembered(tmp_path: Path):
+    """A stub covered nothing, so it must not push its subsystem down the ranking."""
+    _lesson(tmp_path, lesson_id="gcc:2026-W35", project="gcc",
+            subsystem="gcc/ipa", d="2026-08-30", is_stub=True)
+
+    assert "gcc/ipa" not in recent_subsystems(tmp_path, "gcc")
+
+
+# ---------------------------------------------------------------------------
+# The editorial filter reaches the picker
+# ---------------------------------------------------------------------------
+
+def test_niche_subjects_are_not_candidates(tmp_path: Path):
+    week = previous_complete_week(date(2026, 9, 9))
+    _landing(tmp_path, name="cobol-lexer", d="2026-09-02", sha="a" * 40,
+             subsystem="cobol", score=10, tags=["cobol"])
+    _landing(tmp_path, name="alpha-stack", d="2026-09-03", sha="b" * 40,
+             subsystem="gcc/alpha", score=9, tags=["alpha"])
+    _landing(tmp_path, name="aarch64-perm", d="2026-09-04", sha="c" * 40,
+             subsystem="aarch64", score=7, tags=["aarch64"])
+
+    ranked = candidates(tmp_path, "gcc", week)
+
+    assert [s.headline for s in ranked] == ["aarch64-perm"], (
+        "a higher impact score must not buy a niche subject a lesson"
+    )

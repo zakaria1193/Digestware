@@ -131,6 +131,7 @@ agents/
 ├── discussion_agent.py     # Lab — PydanticAI agent over Gemini Flash
 ├── landing_agent.py        # Factory — Gemini Flash + Sonnet 4.5 premium rerun
 ├── lesson_picker.py        # Deterministic weekly subject selection (no LLM)
+├── lesson_topics.py        # Editorial remit — which subsystems may be taught
 ├── lesson_agent.py         # Lesson — cheap explorer + Opus writer (two stages)
 ├── writer.py               # Serialises digests to Markdown + YAML frontmatter
 │
@@ -362,6 +363,29 @@ A candidate is only viable if its SHA resolves in the mirror. Mirror lag is
 routine, so the picker walks the ranked list and takes the first commit it can
 actually read — a miss is never a failure.
 
+### The editorial remit — `lesson_topics.py`
+
+A high impact score is not the same as being worth teaching. The corpus
+carries every GCC front end and forty binutils targets; `cobol` and `fortran`
+alone are ~180 of the GCC landings on disk, and the first real run duly picked
+`gcc/cobol` and `gcc/alpha`. The policy, set by the project owner:
+
+* **GCC languages: C, C++, Ada, Rust only.** COBOL, Fortran, Go, D, Modula-2
+  and Objective-C are out.
+* **Architectures: Arm/AArch64, x86, POWER, RISC-V.** Alpha, Xtensa, SH, AVR,
+  s390, LoongArch, z80 and the rest are out — a lesson on an ISA nobody can
+  run teaches nothing.
+* **No housekeeping** — testsuite-only churn, MAINTAINERS, translations, CI.
+
+Everything that is neither language- nor architecture-specific — the middle
+end, `tree-optimization`, `libstdc++`, `bfd`, `ld`, `gas` — is always fair
+game, and that is where most of the instructive work lives.
+
+The whole policy is four frozensets at the top of `lesson_topics.py`; widen
+the remit by editing `BIG_ARCHES`, not the picker. Note that a token absent
+from `KNOWN_ARCHES` is *not* arch-gated at all, so a brand-new port stays
+publishable until someone lists it.
+
 ### Reading the source — `tools/source_repo.py`
 
     git clone --bare --filter=blob:none -- <mirror-url> agents/cache/<name>.git
@@ -572,3 +596,17 @@ and hundreds of MB.
 - **A lesson's `date` is the END of the week it covers**, not the commit's
   date — so it sorts with its week. `commit_date` carries the real landing
   date for display. Three separate date fields, three separate facts.
+- **A stub never claims its week.** Both week guards skip `is_stub: true`, and
+  `recent_subsystems` ignores stubs too. A stub records a *failed* run; if it
+  counted as a lesson, one bad night would burn that week permanently — the
+  exact opposite of the self-healing the nightly cadence is built on. A
+  successful retry deletes the stub it supersedes (`_drop_superseded_stubs`).
+- **Never resolve a model name with `os.environ.get(KEY, DEFAULT)`.** Use
+  `model_from_env()`. GitHub Actions exports an unset `${{ vars.X }}` as
+  *present and empty*, so the plain form yields `""`, and an empty slug fails
+  every request. That is what turned the first real lesson run into two
+  `research_failed` stubs behind a green checkmark.
+  `test_model_from_env.py` fails the build if any `agents/*.py` regresses.
+- **`continue-on-error` plus stub-on-failure can hide a total failure.** The
+  step goes green and commits placeholder articles. When a run "succeeds",
+  check `is_stub` in the output before believing it.
