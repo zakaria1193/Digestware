@@ -18,25 +18,36 @@ from agents.models.raw import RawCommit
 logger = logging.getLogger(__name__)
 
 _GIT_LOG_FORMAT = "%H\x1f%ae\x1f%aI\x1f%s\x1f%D"
-_GIT_TIMEOUT = 120  # seconds
 
 # Strict allowlists guard against git-option injection (e.g. --upload-pack=…)
-_ALLOWED_URL_SCHEMES = ("https://", "http://", "git://", "ssh://")
-_BRANCH_RE = re.compile(r"^[A-Za-z0-9._/-]{1,128}$")
+# These live here because this was the first module to shell out to git; they
+# are public so `agents.tools.source_repo` reuses the same hardening rather
+# than growing a second, drifting copy.
+GIT_TIMEOUT = 120  # seconds
+ALLOWED_URL_SCHEMES = ("https://", "http://", "git://", "ssh://")
+BRANCH_RE = re.compile(r"^[A-Za-z0-9._/-]{1,128}$")
 
 
-def _validate_repo_url(url: str) -> None:
-    if not any(url.startswith(s) for s in _ALLOWED_URL_SCHEMES):
+def validate_repo_url(url: str) -> None:
+    if not any(url.startswith(s) for s in ALLOWED_URL_SCHEMES):
         raise ValueError(
-            f"Unsafe repo_url {url!r}: must start with one of {_ALLOWED_URL_SCHEMES}"
+            f"Unsafe repo_url {url!r}: must start with one of {ALLOWED_URL_SCHEMES}"
         )
 
 
-def _validate_branch_name(branch: str) -> None:
-    if not _BRANCH_RE.match(branch):
+def validate_branch_name(branch: str) -> None:
+    if not BRANCH_RE.match(branch):
         raise ValueError(
-            f"Unsafe branch name {branch!r}: must match {_BRANCH_RE.pattern}"
+            f"Unsafe branch name {branch!r}: must match {BRANCH_RE.pattern}"
         )
+
+
+# Backwards-compatible private aliases (existing call sites / tests).
+_GIT_TIMEOUT = GIT_TIMEOUT
+_ALLOWED_URL_SCHEMES = ALLOWED_URL_SCHEMES
+_BRANCH_RE = BRANCH_RE
+_validate_repo_url = validate_repo_url
+_validate_branch_name = validate_branch_name
 
 
 class PlainGitAdapter:

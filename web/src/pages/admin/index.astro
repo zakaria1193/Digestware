@@ -3,9 +3,10 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import { getCollection } from 'astro:content';
 import { SHOW_IMPACT_SCORE } from '../../config/features';
 
-const [discussions, landings] = await Promise.all([
+const [discussions, landings, lessons] = await Promise.all([
   getCollection('discussions'),
   getCollection('landings'),
+  getCollection('lessons'),
 ]);
 
 const projects = [...new Set([
@@ -32,6 +33,11 @@ const stubTotal = stubLandings + stubDiscussions;
 // Noise-filtered = stubs written by the noise/score filter, not LLM failures.
 // Non-empty stub_reason distinguishes them from plain LLM-failure stubs.
 const noiseFiltered = landings.filter(e => e.data.stub_reason).length;
+// A published lesson with an empty code tour never opened the source tree —
+// the one failure this article type must not ship quietly, so it gets a tile.
+const lessonsNoTour = lessons.filter(
+  e => !e.data.is_stub && (e.data.code_tour ?? []).length === 0,
+).length;
 ---
 
 <AdminLayout title="Dashboard" section="dashboard">
@@ -70,6 +76,14 @@ const noiseFiltered = landings.filter(e => e.data.stub_reason).length;
     <a class="admin-card" href="/admin/discussions">
       <p class="text-xs uppercase tracking-wide mb-1">Discussions</p>
       <p class="text-3xl font-bold tabular-nums value">{discussions.length}</p>
+    </a>
+    <a class="admin-card" href="/admin/lessons"
+       title={lessonsNoTour ? `${lessonsNoTour} published without a code tour` : 'Lesson of the Week'}>
+      <p class="text-xs uppercase tracking-wide mb-1">Lessons</p>
+      <p class="text-3xl font-bold tabular-nums value">{lessons.length}</p>
+      {lessonsNoTour > 0 && (
+        <p class="text-xs mt-1" style="color: #e74c3c;">{lessonsNoTour} with no code tour</p>
+      )}
     </a>
     {SHOW_IMPACT_SCORE && (
       <a class="admin-card" href="/admin/landings?filter=high-impact">

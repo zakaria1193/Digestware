@@ -30,10 +30,24 @@ _REQUIRED: dict[str, tuple[str, ...]] = {
                     "tldr", "url", "date"),
     "landings": ("project", "subsystem", "source_type", "headline", "tldr",
                  "url", "date"),
+    "lessons": ("project", "subsystem", "lesson_id", "commit_hash",
+                "source_type", "headline", "hook", "tldr", "concept",
+                "url", "week_start", "week_end", "commit_date", "date"),
+}
+
+# Date-typed fields beyond `date` itself. These are non-nullable
+# `z.coerce.date()` in the Astro schema, so an unparseable value fails the
+# build exactly as a bad `date` would.
+_EXTRA_DATE_FIELDS: dict[str, tuple[str, ...]] = {
+    "lessons": ("week_start", "week_end", "commit_date"),
 }
 
 
-def validate_file(path: Path, required: tuple[str, ...]) -> list[str]:
+def validate_file(
+    path: Path,
+    required: tuple[str, ...],
+    date_fields: tuple[str, ...] = (),
+) -> list[str]:
     """Return a list of human-readable problems with `path` (empty when OK)."""
     try:
         text = path.read_text(encoding="utf-8")
@@ -54,8 +68,9 @@ def validate_file(path: Path, required: tuple[str, ...]) -> list[str]:
     if isinstance(url, str) and url and not url.startswith(("http://", "https://")):
         problems.append(f"`url` is not an absolute URL: {url!r}")
 
-    if not _is_valid_date(fm.get("date")):
-        problems.append(f"`date` is not a valid date: {fm.get('date')!r}")
+    for key in ("date", *date_fields):
+        if not _is_valid_date(fm.get(key)):
+            problems.append(f"`{key}` is not a valid date: {fm.get(key)!r}")
 
     return problems
 
@@ -86,8 +101,9 @@ def validate_content_root(content_root: Path) -> dict[Path, list[str]]:
     """
     failures: dict[Path, list[str]] = {}
     for subdir, required in _REQUIRED.items():
+        date_fields = _EXTRA_DATE_FIELDS.get(subdir, ())
         for path in sorted((content_root / subdir).glob("*.md")):
-            problems = validate_file(path, required)
+            problems = validate_file(path, required, date_fields)
             if problems:
                 failures[path] = problems
     return failures

@@ -1,8 +1,9 @@
-"""Writer — serialises DiscussionDigest and LandingDigest to Markdown files.
+"""Writer — serialises each digest type to a Markdown file.
 
 Output paths:
   web/src/content/discussions/YYYY-MM-DD-<slug>-<id_hash>.md
   web/src/content/landings/YYYY-MM-DD-<slug>.md
+  web/src/content/lessons/<week-end>-<project>-<slug>.md
 
 The discussion filename includes a 6-char SHA-1 hash of the discussion_id to
 prevent slug collisions when two discussions share the same normalised title on
@@ -27,16 +28,23 @@ from pathlib import Path
 
 from agents.models.discussion import DiscussionDigest
 from agents.models.landing import LandingDigest
+from agents.models.lesson import LessonDigest
 from agents.tools.frontmatter import dump_frontmatter
 
 logger = logging.getLogger(__name__)
 
 _DEFAULT_DISCUSSION_DIR = Path("web/src/content/discussions")
 _DEFAULT_LANDING_DIR = Path("web/src/content/landings")
+_DEFAULT_LESSON_DIR = Path("web/src/content/lessons")
 
 _FALLBACK_BODY = "Summary unavailable — see source link."
 _MIN_BODY_WORDS = 10
 _MAX_BODY_WORDS = 260
+
+# Lessons are long-form by design — the digest bounds above would reject every
+# one of them. The quoted-email and truncation detectors still apply.
+_MIN_LESSON_WORDS = 200
+_MAX_LESSON_WORDS = 1600
 
 
 # ---------------------------------------------------------------------------
@@ -62,14 +70,23 @@ def _format_date(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%d")
 
 
-def _sanitise_body(body: str | None, *, context: str) -> str:
-    """Validate and clean a summary body before writing it to disk.
+def _sanitise_body(
+    body: str | None,
+    *,
+    context: str,
+    min_words: int = _MIN_BODY_WORDS,
+    max_words: int = _MAX_BODY_WORDS,
+) -> str:
+    """Validate and clean an article body before writing it to disk.
 
     Reasons a body is rejected (replaced with the fallback string):
       - None / empty.
       - Starts with ``Re:``, ``>`` or ``On … wrote:`` (quoted email leak).
       - Ends mid-word / with dangling ``[`` or ``(`` (truncation).
-      - Fewer than _MIN_BODY_WORDS or more than _MAX_BODY_WORDS words.
+      - Fewer than *min_words* or more than *max_words* words.
+
+    The word bounds are parameters because the digest types (2–4 sentences)
+    and lessons (a full article) have wildly different legitimate lengths.
     """
     if not body:
         logger.info("writer: empty body in %s — using fallback", context)
@@ -103,14 +120,14 @@ def _sanitise_body(body: str | None, *, context: str) -> str:
         return _FALLBACK_BODY
 
     word_count = len(re.findall(r"\S+", text))
-    if word_count < _MIN_BODY_WORDS:
+    if word_count < min_words:
         logger.info(
             "writer: body too short (%d words) in %s — using fallback",
             word_count,
             context,
         )
         return _FALLBACK_BODY
-    if word_count > _MAX_BODY_WORDS:
+    if word_count > max_words:
         logger.info(
             "writer: body too long (%d words) in %s — truncating to fallback",
             word_count,
@@ -220,6 +237,79 @@ def write_landing(
     body = _sanitise_body(landing.summary, context=f"landing {landing.commit_hash}")
     path.write_text(_render(frontmatter, body), encoding="utf-8")
     return path
+
+
+def write_lesson(
+    lesson: LessonDigest,
+    output_dir: Path | None = None,
+) -> Path:
+    """Write a LessonDigest to a Markdown file and return the path.
+
+    The section list becomes the Markdown body (``## heading`` + prose) so the
+    Astro ``<Content />`` pipeline renders a lesson exactly like the other
+    article types. Everything the page styles specially — the code tour,
+    takeaways, prerequisites, further reading — stays in frontmatter.
+    """
+    base = Path(output_dir) if output_dir else _DEFAULT_LESSON_DIR
+    base.mkdir(parents=True, exist_ok=True)
+
+    # Named by the END of the week the lesson covers, so lessons sort with the
+    # week they are about. Project is in the filename (not just frontmatter) so
+    # two projects' lessons for the same week can never collide on slug.
+    # (The "already have this week's lesson?" check reads `lesson_id` from
+    # frontmatter rather than globbing this name — see lesson_picker.)
+    date_str = _format_date(lesson.date)
+    slug = _slugify(lesson.headline)
+    path = base / f"{date_str}-{lesson.project}-{slug}.md"
+
+    frontmatter: dict = {
+        "project": lesson.project,
+        "subsystem": lesson.subsystem,
+        "patch_id": lesson.patch_id,
+        "tags": list(lesson.tags),
+        "lesson_id": lesson.lesson_id,
+        "commit_hash": lesson.commit_hash,
+        "source_type": lesson.source_type,
+        "headline": lesson.headline,
+        "hook": lesson.hook,
+        "tldr": lesson.tldr,
+        "concept": lesson.concept,
+        "prerequisites": list(lesson.prerequisites),
+        "code_tour": [c.model_dump() for c in lesson.code_tour],
+        "takeaways": list(lesson.takeaways),
+        "further_reading": [f.model_dump() for f in lesson.further_reading],
+        "primer_expert": lesson.primer_expert,
+        "primer_glossary": [g.model_dump() for g in lesson.primer_glossary],
+        "landing_slug": lesson.landing_slug,
+        "url": lesson.url,
+        "week_start": lesson.week_start.isoformat(),
+        "week_end": lesson.week_end.isoformat(),
+        "commit_date": lesson.commit_date.isoformat(),
+        "date": date_str,
+        "is_stub": lesson.is_stub,
+        "stub_reason": lesson.stub_reason,
+    }
+
+    body = _sanitise_body(
+        render_sections(lesson.sections),
+        context=f"lesson {lesson.lesson_id}",
+        min_words=_MIN_LESSON_WORDS,
+        max_words=_MAX_LESSON_WORDS,
+    )
+    path.write_text(_render(frontmatter, body), encoding="utf-8")
+    return path
+
+
+def render_sections(sections: list) -> str:
+    """Join LessonSection objects into a Markdown body."""
+    chunks: list[str] = []
+    for s in sections:
+        heading = (getattr(s, "heading", "") or "").strip()
+        prose = (getattr(s, "body", "") or "").strip()
+        if not prose:
+            continue
+        chunks.append(f"## {heading}\n\n{prose}" if heading else prose)
+    return "\n\n".join(chunks)
 
 
 # ---------------------------------------------------------------------------

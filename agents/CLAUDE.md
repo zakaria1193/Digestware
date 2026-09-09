@@ -11,7 +11,7 @@ This doc is the map of how the pieces wire together. For project-wide rules
 
 ---
 
-## Mental Model: Two Agents, One Pipeline
+## Mental Model: Two Agents, One Pipeline (plus a weekly essayist)
 
 The engine is **bimodal** — two agents with different jobs share the same
 infrastructure:
@@ -24,6 +24,21 @@ infrastructure:
 The Lab is about *what is being debated*; the Factory is about *what shipped*.
 Both share the `BimodalBase` fields (`project`, `subsystem`, `patch_id`) so the
 two sides can be cross-referenced via `patch_id` or explicit trailers.
+
+Sitting on top of both is a third, deliberately different producer:
+
+| Agent | Handles | Output Model | Source data |
+|-------|---------|--------------|-------------|
+| **Lesson** (`lesson_agent.py`) | One landed commit per ISO week, projects alternating | `LessonDigest` | A `LandingDigest` on disk + the project's **real source tree** |
+
+The Lab and the Factory *report* — a headline, a ≤160-char TL;DR, 2–4
+sentences, written from a commit message or an email thread. The Lesson
+*teaches*: it picks the week's most instructive commit and explains the concept
+behind it with the actual GCC/binutils source open, quoting real files at the
+exact revision. It is the only long-form prose on the site, and the only agent
+that reads code rather than text about code.
+
+That difference drives everything else about it — see **The Lesson Stage**.
 
 ---
 
@@ -57,6 +72,26 @@ main.py ─── builds adapters ──► IngestionEngine
            ▼                                            ▼
 web/src/content/discussions/              web/src/content/landings/
   YYYY-MM-DD-<slug>-<id_hash>.md            YYYY-MM-DD-<slug>.md
+                                                        │
+                                        (reads them back, once a week)
+                                                        ▼
+                                              lesson_picker.py
+                                          ranks the ISO week's landings
+                                                        │
+                                                   LessonSubject
+                                                        │
+                                    ┌───────────────────┴──────────────────┐
+                                    ▼                                      ▼
+                          run_research()  ◄── source_repo.py ──►   run_writer()
+                       (cheap model, 16 tool calls,            (Opus, ONE call,
+                        reads the real source tree)             no tools)
+                                    │                                      │
+                                    └────► LessonResearch ─────────────────┘
+                                                        │
+                                                  LessonDigest
+                                                        ▼
+                                          web/src/content/lessons/
+                                            <week-end>-<project>-<slug>.md
 ```
 
 Every run is initiated by `python -m agents.main --since-hours 24` (see
@@ -85,14 +120,18 @@ agents/
 │   ├── base.py             # BimodalBase, ConsensusStatus enum
 │   ├── raw.py              # RawDiscussion, RawCommit (source-agnostic)
 │   ├── discussion.py       # DiscussionDigest (Lab output)
-│   └── landing.py          # LandingDigest (Factory output)
+│   ├── landing.py          # LandingDigest (Factory output)
+│   └── lesson.py           # LessonDigest + LessonResearch (Lesson output/dossier)
 │
 ├── tools/                  # Small, single-purpose helpers registered with the Agent
 │   ├── patch_id.py         # `git patch-id --stable` wrapper (cross-ref key)
-│   └── web_search.py       # DuckDuckGo enrichment for cryptic titles
+│   ├── web_search.py       # Gemini-grounded enrichment for cryptic titles
+│   └── source_repo.py      # Read-only navigator over a bare, blobless clone
 │
 ├── discussion_agent.py     # Lab — PydanticAI agent over Gemini Flash
 ├── landing_agent.py        # Factory — Gemini Flash + Sonnet 4.5 premium rerun
+├── lesson_picker.py        # Deterministic weekly subject selection (no LLM)
+├── lesson_agent.py         # Lesson — cheap explorer + Opus writer (two stages)
 ├── writer.py               # Serialises digests to Markdown + YAML frontmatter
 │
 ├── cache/                  # Bare clones + mbox cache (gitignored)
@@ -250,6 +289,95 @@ reflect them directly.
 
 ---
 
+## The Lesson Stage
+
+Runs last (STEP 6 in `main.py`), after the landings it reads have been written.
+Skippable with `--skip-lesson`; runnable on its own with `--lesson-only`.
+
+### Weekly, enforced by idempotence rather than a schedule
+
+The job runs **nightly**, but produces **one lesson per ISO week, total** —
+not one per project. There is no day-of-week check anywhere. Instead
+`existing_lesson_for_week()` looks for any lesson whose `lesson_id` ends in
+this week's key (`"…:2026-W36"`) and skips if it finds one. The first run of a
+new week writes the lesson; the other six are no-ops.
+
+**Projects alternate.** The article is written by a premium model, so volume is
+the dominant cost lever; gcc and binutils take turns rather than each getting a
+weekly piece. `project_for_week()` derives whose turn it is from the Monday's
+ordinal — deterministic, stateless, and free of the year-boundary seam that
+`iso_week % n` has (a 53-week year would otherwise hand the same project two
+weeks running).
+
+Rotation is a preference, not a straitjacket: if the week's project has no
+eligible landing — or its mirror is unreachable — `_run_lesson_step` falls
+through to the others rather than burning the slot. Whoever writes it takes the
+week. Watch for a repeated `"Lesson skipped for X — source repo unavailable"`
+in the nightly logs: that means the rotation is silently degrading to a single
+project.
+
+This is deliberate and has a useful property: it **self-heals**. If Monday's
+run fails, Tuesday's picks the same week up. A cron expression pinned to Monday
+would simply lose that week.
+
+The target is always the most recent **complete** Mon–Sun week
+(`previous_complete_week()`). Targeting the current week would mean the Monday
+02:00 run choosing from a pool of roughly nothing.
+
+### Selection is deterministic — no LLM
+
+`lesson_picker.py` reads landing frontmatter and ranks: impact score first,
+then a subsystem the last four lessons haven't covered, then recency. Score
+floor is 6 (higher than the daily version's 5 — a week's pool is ~10× a day's,
+so we can afford to be pickier). Stubs and spam are excluded, mirroring
+`web/src/lib/visibility.ts`.
+
+A candidate is only viable if its SHA resolves in the mirror. Mirror lag is
+routine, so the picker walks the ranked list and takes the first commit it can
+actually read — a miss is never a failure.
+
+### Reading the source — `tools/source_repo.py`
+
+    git clone --bare --filter=blob:none -- <mirror-url> agents/cache/<name>.git
+
+**Bare** means no working tree (GCC is ~2 GB checked out). **Blobless** means
+commits and trees now, file contents only for the handful of files actually
+opened — measured at ~640 MB for GCC, which fits the CI cache. Reads are served
+by git itself, pinned to one commit:
+
+    git show <sha>:<path>            the file exactly as it was
+    git grep -n <pat> <sha> -- ...   a search of the tree at that commit
+
+So the agent never fetches a sourceware page, never scrapes, and never sees a
+file from a different revision than the one it is writing about.
+
+Repos are declared under a **`source_repos:`** block in `sources.yml` — kept
+separate from `sources:` because these are *read*, not *ingested*.
+
+### Two stages, and why
+
+| Stage | Model | Shape | Output |
+|-------|-------|-------|--------|
+| `run_research()` | `LESSON_RESEARCH_MODEL` (cheap reasoning tier) | many turns, repo tools, 16-call cap | `LessonResearch` — verbatim source excerpts + notes |
+| `run_writer()` | `LESSON_WRITER_MODEL` (Opus tier) | **one** call, no tools | `LessonDigest` |
+
+The split is a cost decision. A multi-turn agent resends its whole conversation
+every turn, so spend grows *quadratically* with tool calls — the worst possible
+shape to pay premium rates for. Running Opus through the exploration loop costs
+several euro per article against a €5/month ceiling. Exploring cheaply and
+writing once buys the same prose for roughly a sixth of that.
+
+It has a second effect worth knowing: **the writer never opens a file.**
+Everything it may assert has to be in the dossier, which is why excerpts are
+stored verbatim rather than summarised — a paraphrase there becomes a wrong
+identifier in the published article. `_drop_unread_code_refs()` then re-checks
+every path the writer cites against the real tree and drops what isn't there.
+
+Both calls log to `output/usage.log` under distinct agent names
+(`lesson_research`, `lesson_writer`) so the two-stage cost is separable.
+
+---
+
 ## Environment Variables
 
 | Var | Purpose | Required? |
@@ -258,6 +386,8 @@ reflect them directly.
 | `GITHUB_TOKEN` | Raise GitHub rate limit from 60→5000/h | strongly recommended |
 | `SUMMARISER_MODEL` | Override the cheap model | optional |
 | `BENTO_MODEL` | Override the premium re-run model | optional |
+| `LESSON_RESEARCH_MODEL` | Override the lesson's source-exploration model | optional |
+| `LESSON_WRITER_MODEL` | Override the lesson's article-writing model | optional |
 
 All loaded via `python-dotenv` from a gitignored `.env`. **Never commit keys.**
 
@@ -274,6 +404,11 @@ python -m agents.main --since-hours 24 --dry-run
 
 # Real run
 python -m agents.main --since-hours 24
+
+# Lesson only, against the content already on disk (no ingestion, no digests).
+# Defaults to the newest complete ISO week; --lesson-week pins one explicitly.
+python -m agents.main --lesson-only
+python -m agents.main --lesson-only --lesson-project gcc --lesson-week 2026-W36
 ```
 
 Output summary prints discussion count, landing count, and bento-worthy count
@@ -294,6 +429,16 @@ Fixtures live in `tests/conftest.py`:
 Covered: adapter HTTP behaviour (respx-mocked), model validation, writer
 frontmatter + slug + collision handling. The live LLM path is not tested in CI
 (costs tokens); use `--dry-run` for end-to-end wiring tests.
+
+For the lesson stage specifically:
+`test_source_repo.py` (git-option injection, the unscoped-grep refusal, output
+caps), `test_lesson_picker.py` (ISO-week arithmetic including year rollovers,
+ranking, the idempotence guard), `test_lesson_writer.py` (long-form bodies pass
+while the truncation and quoted-email detectors still fire), and
+`test_lesson_agent.py` (forced identity fields, the fabricated-path guard, the
+tool budget). Git is mocked throughout; one real-clone integration test in
+`test_source_repo.py` is opt-in via `RUN_GIT_TESTS=1` since it needs network
+and hundreds of MB.
 
 ---
 
@@ -319,7 +464,18 @@ frontmatter + slug + collision handling. The live LLM path is not tested in CI
    `writer.py`.
 3. Mirror the field in the Astro content schema under
    `web/src/content/config.ts` (or equivalent).
-4. Run `pytest agents/tests` — writer tests will flag frontmatter mismatches.
+4. If the field is *required* there, add it to `_REQUIRED` in
+   `tools/validate_content.py` — that gate is what stops malformed frontmatter
+   from taking the Cloudflare Pages build down. Date-typed fields also go in
+   `_EXTRA_DATE_FIELDS`.
+5. Run `pytest agents/tests` — writer tests will flag frontmatter mismatches.
+
+**Add a project to the lesson rotation**:
+1. Add it to the `source_repos:` block in `sources.yml` with a git mirror URL
+   that carries the same SHAs as the project's canonical repo (otherwise
+   `SourceRepo.resolve()` will never match a landing).
+2. Nothing else — `_run_lesson_step()` iterates whatever `load_source_repos()`
+   returns. A project with landings but no source repo simply gets no lesson.
 
 ---
 
@@ -339,3 +495,40 @@ frontmatter + slug + collision handling. The live LLM path is not tested in CI
 - **Adapters must never raise into `IngestionEngine`** for recoverable errors;
   log + return `[]`. The engine does catch exceptions but relying on that
   hides the source of the problem.
+
+### Lesson-specific
+
+- **`grep_repo` must never run unscoped.** It rejects an empty pathspec by
+  design. On a blobless clone a tree-wide grep lazily faults in *every blob in
+  the repository* — the one way this design becomes slow and expensive. The
+  agent is seeded with the directories the commit's own diff touched.
+- **The weekly cadence lives in the idempotence guard, not a schedule.** Don't
+  "fix" the nightly invocation by adding a day-of-week condition — you'd lose
+  the self-healing property and gain nothing.
+- **That guard is week-scoped, not project-scoped.** `existing_lesson_for_week`
+  asks "does *any* project have this week's lesson?" Narrowing it back to one
+  project would let the second project write a second lesson the same week and
+  double the premium-model bill — the exact thing the alternation exists to
+  avoid.
+- **A repeated "source repo unavailable" warning means the rotation has
+  silently collapsed.** The fallback keeps a week from being wasted when one
+  project's mirror is unreachable, which is right — but if it fires every week,
+  one project is quietly never getting a lesson. Check the nightly logs.
+- **The writer's citations are verified, not trusted.** It works entirely from
+  the dossier and never opens a file, so `_drop_unread_code_refs()` checks
+  every `code_tour` path against the tree. Removing that check is how a
+  fabricated file reference reaches the published page. `/admin/lessons` has a
+  "no code tour" filter precisely to surface this failure.
+- **Excerpts in the dossier are verbatim.** They are the writing model's only
+  view of the source; summarising them there produces paraphrased identifiers
+  in the article, which the root CLAUDE.md's article conventions forbid.
+- **The lesson step must never fail the nightly run.** It is wrapped in
+  `try/except` in `main.py` and `continue-on-error` in the workflow. A clone
+  failure or a model outage degrades to a stub, not a lost digest.
+- **`_MAX_TOOL_CALLS` is the primary cost lever.** Lower it before reaching for
+  a cheaper writing model; Opus-level prose for the lesson is a requirement,
+  not a default. Verify real spend in the `lesson_research` / `lesson_writer`
+  rows of `output/usage.log`.
+- **A lesson's `date` is the END of the week it covers**, not the commit's
+  date — so it sorts with its week. `commit_date` carries the real landing
+  date for display. Three separate date fields, three separate facts.

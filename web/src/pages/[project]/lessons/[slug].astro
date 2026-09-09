@@ -1,0 +1,676 @@
+---
+// Lesson detail page.
+//
+// Shares the article typography of the landing/discussion pages, but drops
+// their commit sidebar: a lesson is read start-to-finish, not skimmed against
+// a stream. What it adds is the evidence — the Code Tour, listing the files
+// the agent actually opened at this commit, so a reader can check any claim in
+// the prose against the source.
+import PublicLayout from '../../../layouts/PublicLayout.astro';
+import FilterBar from '../../../components/FilterBar.astro';
+import { getCollection } from 'astro:content';
+import { PROJECTS, getProject } from '../../../config/projects';
+import { rankTags, groupTags } from '../../../lib/filterTags';
+import { isPublic } from '../../../lib/visibility';
+import { inlineCode } from '../../../lib/inlineCode';
+
+export async function getStaticPaths() {
+  const paths = [];
+  for (const p of PROJECTS) {
+    // Stubs are admin-only; no public detail page for a failed lesson.
+    const entries = await getCollection(
+      'lessons',
+      ({ data }) => data.project === p.slug && isPublic(data),
+    );
+    for (const entry of entries) {
+      paths.push({
+        params: { project: p.slug, slug: entry.id },
+        props: { entry, projectSlug: p.slug },
+      });
+    }
+  }
+  return paths;
+}
+
+const { entry, projectSlug } = Astro.props as { entry: any; projectSlug: string };
+const project = getProject(projectSlug)!;
+const d = entry.data;
+const { Content } = await entry.render();
+
+const all = (await getCollection(
+  'lessons',
+  ({ data }) => data.project === projectSlug && isPublic(data),
+))
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+const idx = all.findIndex(e => e.id === entry.id);
+const prev = idx > 0 ? all[idx - 1] : null;
+const next = idx < all.length - 1 ? all[idx + 1] : null;
+
+// Back-link to the landing article this lesson expands on. The picker records
+// the landing's slug, so this is an exact lookup rather than a heuristic.
+const landings = await getCollection(
+  'landings',
+  ({ data }) => data.project === projectSlug && isPublic(data),
+);
+const sourceLanding = d.landing_slug
+  ? landings.find(e => e.id === d.landing_slug) ?? null
+  : null;
+
+// Header shows the week covered; the byline shows when the commit actually
+// landed. Those are different facts and the article needs both — a reader
+// should not have to guess whether "September 6" is the commit or the issue.
+// Plain formatting, not `relativeDate`: "Today"/"Yesterday" make no sense for
+// a span, and a lesson is dated by its week rather than by freshness.
+function fmt(dt: Date, opts: Intl.DateTimeFormatOptions): string {
+  return dt.toLocaleDateString('en-US', opts);
+}
+const sameMonth = d.week_start.getMonth() === d.week_end.getMonth()
+  && d.week_start.getFullYear() === d.week_end.getFullYear();
+const weekRange = `${fmt(d.week_start, { month: 'long', day: 'numeric' })}\u2013`
+  + `${fmt(d.week_end, sameMonth ? { day: 'numeric' } : { month: 'long', day: 'numeric' })}, `
+  + `${d.week_end.getFullYear()}`;
+const weekRangeShort = `WEEK OF ${weekRange.toUpperCase()}`;
+const commitDateStr = fmt(d.commit_date, { year: 'numeric', month: 'long', day: 'numeric' });
+
+// Deep-link a cited file to the upstream tree at this exact commit, so the
+// reader lands on the same revision the lesson was written against — not on
+// today's master, where the lines may have moved.
+function upstreamFileUrl(path: string): string | null {
+  const commitUrl: string = d.url ?? '';
+  const gh = commitUrl.match(/^(https:\/\/github\.com\/[^/]+\/[^/]+)\/commit\/([0-9a-f]+)/i);
+  if (gh) return `${gh[1]}/blob/${gh[2]}/${path}`;
+  return null;
+}
+
+// Filter bar data — the same chip set the front page renders, so navigating
+// between the two keeps a consistent filter UI.
+type TagCategoryFile = { assignments: Record<string, string> };
+const tagCategoryModules = import.meta.glob<TagCategoryFile>(
+  '../../../data/tag-categories/*.json',
+  { eager: true },
+);
+const tagCategoryFile = tagCategoryModules[`../../../data/tag-categories/${projectSlug}.json`];
+const tagAssignments: Record<string, string> = tagCategoryFile?.assignments ?? {};
+
+const discussions = await getCollection(
+  'discussions',
+  ({ data }) => data.project === projectSlug && isPublic(data),
+);
+const rankedTags = rankTags([...discussions, ...landings]);
+const groupedTags = groupTags(rankedTags, tagAssignments);
+const totalItems = discussions.length + landings.length;
+---
+
+<PublicLayout project={project} title={d.headline} description={d.tldr}>
+  <FilterBar rankedTags={rankedTags} groupedTags={groupedTags} totalItems={totalItems} />
+
+  <div class="lesson-layout">
+    <article class="article">
+      <nav class="crumb">
+        <a href={`/${project.slug}/`}>Front Page</a>
+        <span class="sep">&rsaquo;</span>
+        <span class="sub">Lesson of the Week</span>
+      </nav>
+
+      <div class="article-date">{weekRangeShort}</div>
+
+      <header class="article-head">
+        <div class="kicker-row">
+          <span class="wsj-kicker">{d.subsystem}</span>
+        </div>
+
+        <h1 class="head">{d.headline}</h1>
+        <p class="deck">{d.hook}</p>
+
+        <div class="byline-row">
+          <span class="byline-date">Commit landed {commitDateStr}</span>
+        </div>
+      </header>
+
+      <section class="concept-box">
+        <span class="concept-label">The idea</span>
+        <p class="concept-text" set:html={inlineCode(d.concept)} />
+        {(d.prerequisites ?? []).length > 0 && (
+          <p class="prereq">
+            <span class="prereq-label">Assumes you know</span>
+            {d.prerequisites.join(' · ')}
+          </p>
+        )}
+      </section>
+
+      <div class="body">
+        <Content />
+      </div>
+
+      {(d.code_tour ?? []).length > 0 && (
+        <section class="tour">
+          <div class="tour-head">
+            <span class="tour-label">Code Tour</span>
+            <span class="tour-rule"></span>
+          </div>
+          <p class="tour-note">
+            Files this lesson was written against, at commit
+            <code>{d.commit_hash.slice(0, 12)}</code>.
+          </p>
+          <ul class="tour-list">
+            {d.code_tour.map((ref: any) => {
+              const href = upstreamFileUrl(ref.path);
+              return (
+                <li class="tour-item">
+                  <div class="tour-path-row">
+                    {href
+                      ? <a class="tour-path" href={href} target="_blank" rel="noopener">{ref.path}</a>
+                      : <span class="tour-path">{ref.path}</span>}
+                    {ref.symbol && <code class="tour-symbol">{ref.symbol}</code>}
+                    {ref.lines && <span class="tour-lines">L{ref.lines}</span>}
+                  </div>
+                  <p class="tour-why" set:html={inlineCode(ref.why)} />
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
+      {(d.takeaways ?? []).length > 0 && (
+        <section class="takeaways">
+          <div class="tour-head">
+            <span class="tour-label">Takeaways</span>
+            <span class="tour-rule"></span>
+          </div>
+          <ul class="takeaway-list">
+            {d.takeaways.map((t: string) => <li set:html={inlineCode(t)} />)}
+          </ul>
+        </section>
+      )}
+
+      {d.primer_expert && (
+        <section class="extra">
+          <h2>In Details</h2>
+          <p set:html={inlineCode(d.primer_expert)} />
+        </section>
+      )}
+
+      {(d.primer_glossary ?? []).length > 0 && (
+        <section class="glossary">
+          <div class="glossary-head">
+            <span class="glossary-label">For Context</span>
+            <span class="glossary-rule"></span>
+          </div>
+          <dl class="glossary-list">
+            {d.primer_glossary!.map((item: any) => (
+              <>
+                <dt class="glossary-term">{item.term}</dt>
+                <dd class="glossary-def" set:html={inlineCode(item.definition)} />
+              </>
+            ))}
+          </dl>
+        </section>
+      )}
+
+      {(d.further_reading ?? []).length > 0 && (
+        <section class="extra">
+          <h2>Further Reading</h2>
+          <ul>
+            {d.further_reading.map((f: any) => (
+              <li><a href={f.url} target="_blank" rel="noopener">{f.title}</a></li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {(d.tags ?? []).length > 0 && (
+        <div class="tags">
+          <span class="tags-label">Filed Under:</span>
+          {d.tags!.map((tag: string) => <span class="tag">{tag}</span>)}
+        </div>
+      )}
+
+      <div class="source">
+        <a href={d.url} target="_blank" rel="noopener">View Commit &rarr;</a>
+        {sourceLanding && (
+          <a href={`/${project.slug}/landings/${sourceLanding.id}`}>The Commit Digest &rarr;</a>
+        )}
+      </div>
+
+      <nav class="prevnext">
+        {next && (
+          <a href={`/${project.slug}/lessons/${next.id}`} class="nav-prev">
+            <span class="nav-label">&larr; Earlier Lesson</span>
+            <span class="nav-title">{next.data.headline}</span>
+          </a>
+        )}
+        {prev && (
+          <a href={`/${project.slug}/lessons/${prev.id}`} class="nav-next">
+            <span class="nav-label">Next Lesson &rarr;</span>
+            <span class="nav-title">{prev.data.headline}</span>
+          </a>
+        )}
+      </nav>
+    </article>
+  </div>
+</PublicLayout>
+
+<style>
+  /* ── Article column ── */
+  .article {
+    max-width: 680px;
+    padding: 0.5rem 0 2rem;
+    min-width: 0;
+  }
+
+  @media (min-width: 900px) {
+    .article { padding-left: 1.5rem; }
+  }
+
+  @media (min-width: 1100px) {
+    .article { padding-left: 2.5rem; }
+  }
+
+  @media (min-width: 1400px) {
+    .article { padding-left: 3.5rem; }
+  }
+
+  .crumb {
+    font-family: var(--font-sans);
+    font-size: 0.66rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+  .crumb a { color: var(--color-muted); text-decoration: none; }
+  .crumb a:hover { color: var(--color-accent); }
+  .crumb .sep { color: var(--color-rule); }
+  .crumb .sub { color: var(--color-accent); font-weight: 700; }
+
+  .article-date {
+    font-family: var(--font-sans);
+    font-size: 0.68rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    text-align: center;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--color-rule);
+    margin-bottom: 1.5rem;
+  }
+
+  .article-head { text-align: center; margin-bottom: 1.5rem; }
+
+  .kicker-row {
+    display: inline-flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .kicker-sep { color: var(--color-rule-strong); }
+
+  .impact-pill {
+    font-family: var(--font-sans);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-ink);
+    padding-bottom: 1px;
+    border-bottom: 2px solid var(--color-ink);
+  }
+
+  .badge {
+    font-family: var(--font-sans);
+    font-size: 0.64rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 0.1rem 0.45rem;
+    border: 1px solid;
+  }
+  .badge.perf { color: #0a5c2f; border-color: #0a5c2f; }
+  .badge.breaking { color: var(--color-accent); border-color: var(--color-accent); }
+
+  .head {
+    font-family: var(--font-serif-display);
+    font-weight: 900;
+    font-size: clamp(1.85rem, 4.2vw, 2.7rem);
+    line-height: 1.1;
+    letter-spacing: -0.015em;
+    margin: 0 0 0.75rem;
+    color: var(--color-ink);
+  }
+
+  .deck {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 1.1rem;
+    line-height: 1.45;
+    color: var(--color-muted);
+    margin: 0 auto 1rem;
+    max-width: 580px;
+  }
+
+  .byline-row {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.85rem;
+    color: var(--color-muted);
+    display: inline-flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--color-rule);
+  }
+  .byline em { font-weight: 600; color: var(--color-ink); font-style: italic; }
+  .byline-outcome { text-transform: uppercase; letter-spacing: 0.08em; font-style: normal; font-size: 0.72rem; font-family: var(--font-sans); }
+
+  .body {
+    font-family: var(--font-serif);
+    font-size: 1.06rem;
+    line-height: 1.7;
+    color: var(--color-ink);
+    padding-top: 0.75rem;
+    margin-top: 1rem;
+  }
+  .body :global(p) { margin: 0 0 1.05em; }
+  .body :global(a) {
+    color: var(--color-accent);
+    text-decoration: none;
+    border-bottom: 1px solid var(--color-accent);
+  }
+  .body :global(a:hover) { background: var(--color-accent); color: var(--color-paper); }
+  .body :global(h2) {
+    font-family: var(--font-serif-display);
+    font-weight: 900;
+    font-size: 1.35rem;
+    margin: 1.6em 0 0.45em;
+    letter-spacing: -0.01em;
+  }
+  .body :global(h3) {
+    font-family: var(--font-serif-display);
+    font-weight: 700;
+    font-size: 1.1rem;
+    margin: 1.4em 0 0.4em;
+  }
+  .body :global(blockquote) {
+    margin: 1.2em 0;
+    padding: 0.4em 0 0.4em 1em;
+    border-left: 3px solid var(--color-accent);
+    font-style: italic;
+    color: var(--color-muted);
+  }
+  /* Inline code + pre blocks inherit GitHub-style rules from global.css */
+
+  .extra {
+    margin: 2rem 0 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--color-rule);
+  }
+  .extra h2 {
+    font-family: var(--font-serif-display);
+    font-weight: 900;
+    font-size: 1.1rem;
+    margin: 0 0 0.6rem;
+  }
+  .extra ul { margin: 0; padding-left: 1.25rem; font-family: var(--font-serif); font-size: 0.95rem; line-height: 1.55; }
+  .extra p { margin: 0; font-family: var(--font-serif); font-size: 0.95rem; line-height: 1.6; color: var(--color-ink); }
+  .extra a { color: var(--color-accent); text-decoration: none; border-bottom: 1px solid var(--color-accent); }
+
+  .tags {
+    margin: 2rem 0 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--color-rule);
+    font-family: var(--font-sans);
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .tags-label { color: var(--color-muted); margin-right: 0.6rem; font-weight: 700; }
+  .tag {
+    color: var(--color-ink);
+    margin-right: 0.75rem;
+    border-bottom: 1px dotted var(--color-muted);
+    padding-bottom: 1px;
+  }
+
+  .source {
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 0.75rem 0;
+    border-top: 1px solid var(--color-rule);
+    border-bottom: 1px solid var(--color-rule);
+    margin-bottom: 2rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.5rem;
+  }
+  .source a { color: var(--color-accent); text-decoration: none; font-weight: 700; }
+
+  .glossary {
+    margin: 2rem 0 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--color-rule);
+  }
+  .glossary-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  .glossary-label {
+    font-family: var(--font-sans);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    white-space: nowrap;
+  }
+  .glossary-rule {
+    flex: 1;
+    height: 1px;
+    background: var(--color-rule);
+  }
+  .glossary-list {
+    margin: 0;
+    padding: 0;
+  }
+  .glossary-term {
+    font-family: var(--font-serif-display);
+    font-weight: 700;
+    font-size: 0.95rem;
+    letter-spacing: -0.005em;
+    color: var(--color-ink);
+    margin: 0.8rem 0 0.15rem;
+  }
+  .glossary-term:first-child { margin-top: 0; }
+  .glossary-def {
+    font-family: var(--font-serif);
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: var(--color-muted);
+    margin: 0;
+    padding: 0;
+  }
+
+  .prevnext {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 3px double var(--color-rule-strong);
+  }
+  .nav-prev, .nav-next {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    text-decoration: none;
+    color: inherit;
+  }
+  .nav-next { text-align: right; }
+  .nav-label {
+    font-family: var(--font-sans);
+    font-size: 0.66rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    font-weight: 700;
+  }
+  .nav-title {
+    font-family: var(--font-serif-display);
+    font-weight: 700;
+    font-size: 1rem;
+    line-height: 1.25;
+    color: var(--color-ink);
+  }
+
+  /* Single column, centred — a lesson is read start-to-finish, so it gets no
+     commit sidebar competing for attention. */
+  .lesson-layout {
+    display: flex;
+    justify-content: center;
+  }
+  .lesson-layout .article { padding-left: 0; }
+
+  /* ── The idea ── */
+  .concept-box {
+    border-left: 3px solid var(--color-accent);
+    padding: 0.6rem 0 0.6rem 1rem;
+    margin-bottom: 1.75rem;
+    background: var(--color-paper-alt);
+  }
+  .concept-label {
+    display: block;
+    font-family: var(--font-sans);
+    font-size: 0.58rem;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    margin-bottom: 0.3rem;
+  }
+  .concept-text {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-size: 1rem;
+    line-height: 1.55;
+    color: var(--color-ink);
+  }
+  .concept-text :global(code),
+  .prereq :global(code) {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+  }
+  .prereq {
+    margin: 0.6rem 0 0;
+    font-family: var(--font-sans);
+    font-size: 0.72rem;
+    color: var(--color-dim);
+  }
+  .prereq-label {
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-right: 0.5rem;
+  }
+
+  /* ── Code Tour / Takeaways ── */
+  .tour, .takeaways { margin-top: 2rem; }
+
+  .tour-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+  .tour-label {
+    font-family: var(--font-sans);
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    white-space: nowrap;
+  }
+  .tour-rule {
+    flex: 1;
+    border-top: 1px solid var(--color-rule-strong);
+  }
+
+  .tour-note {
+    font-family: var(--font-sans);
+    font-size: 0.7rem;
+    color: var(--color-dim);
+    margin: 0 0 0.9rem;
+  }
+  .tour-note code {
+    font-family: var(--font-mono);
+    font-size: 0.95em;
+    color: var(--color-muted);
+  }
+
+  .tour-list { list-style: none; margin: 0; padding: 0; }
+
+  .tour-item {
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--color-rule);
+  }
+  .tour-item:last-child { border-bottom: none; }
+
+  .tour-path-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-bottom: 0.2rem;
+  }
+  .tour-path {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-accent);
+    text-decoration: none;
+    word-break: break-all;
+  }
+  a.tour-path:hover { text-decoration: underline; }
+  .tour-symbol {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--color-muted);
+    background: var(--color-paper-alt);
+    border: 1px solid var(--color-rule);
+    padding: 0.05rem 0.3rem;
+  }
+  .tour-lines {
+    font-family: var(--font-sans);
+    font-size: 0.66rem;
+    color: var(--color-dim);
+    letter-spacing: 0.06em;
+  }
+  .tour-why {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-size: 0.92rem;
+    line-height: 1.5;
+    color: var(--color-muted);
+  }
+  .tour-why :global(code) { font-family: var(--font-mono); font-size: 0.88em; }
+
+  .takeaway-list {
+    margin: 0;
+    padding-left: 1.15rem;
+    font-family: var(--font-serif);
+    font-size: 0.97rem;
+    line-height: 1.6;
+    color: var(--color-ink);
+  }
+  .takeaway-list li { margin-bottom: 0.4rem; }
+  .takeaway-list :global(code) { font-family: var(--font-mono); font-size: 0.88em; }
+</style>

@@ -5,6 +5,7 @@ import { PROJECTS, getProject } from '../../../config/projects';
 import { SHOW_IMPACT_SCORE } from '../../../config/features';
 import { isPublic } from '../../../lib/visibility';
 import { relativeDate } from '../../../lib/dates';
+import { inlineCode } from '../../../lib/inlineCode';
 
 export async function getStaticPaths() {
   const paths = [];
@@ -62,17 +63,6 @@ function scoreColor(n: number | null | undefined): string {
   return '#b80018';
 }
 
-function inlineCode(text: string | null | undefined): string {
-  if (!text) return '';
-  const escaped = text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-  return escaped
-    .replace(/``([^`\n]+)``/g, '<code>$1</code>')
-    .replace(/`([^`\n]+)`/g, '<code>$1</code>');
-}
 ---
 
 <PublicLayout project={project} title={d.headline} description={d.tldr}>
