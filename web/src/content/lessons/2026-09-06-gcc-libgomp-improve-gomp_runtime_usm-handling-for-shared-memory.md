@@ -29,9 +29,8 @@ week_end: '2026-09-06'
 commit_date: '2026-09-01'
 date: '2026-09-06'
 is_stub: true
-stub_reason: 'writer_failed: ModelHTTPError: status_code: 402, model_name: anthropic/claude-opus-5,
-  body: {''message'': "This request requires more credits, or fewer max_tokens. You
-  requested up to 65536 tokens, but '
+stub_reason: 'research_failed: JSONDecodeError: Expecting '','' delimiter: line 5
+  column 9207 (char 12100)'
 ---
 
 Summary unavailable — see source link.
