@@ -27,9 +27,9 @@ week_end: '2026-09-06'
 commit_date: '2026-09-05'
 date: '2026-09-06'
 is_stub: true
-stub_reason: 'writer_failed: ModelHTTPError: status_code: 402, model_name: anthropic/claude-opus-5,
-  body: {''message'': "This request requires more credits, or fewer max_tokens. You
-  requested up to 65536 tokens, but '
+stub_reason: 'research_failed: ValidationError: 1 validation error for LessonResearch
+  external_context Input should be a valid list [type=list_type, input_value=None,
+  input_type=NoneType] For further information vi'
 ---
 
 Summary unavailable — see source link.
