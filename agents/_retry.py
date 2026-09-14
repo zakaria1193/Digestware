@@ -12,6 +12,7 @@ from collections.abc import Callable
 from typing import TypeVar
 
 from pydantic import ValidationError
+from pydantic_ai.exceptions import UnexpectedModelBehavior
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +24,17 @@ _DEFAULT_BASE_DELAY = 2.0  # seconds; 2, 4, 8 …
 # Errors that won't be fixed by trying again with the same prompt. Retrying a
 # schema mismatch or a truncated JSON response just burns OpenRouter budget
 # until we land in the same stub path anyway.
+#
+# ``UnexpectedModelBehavior`` is PydanticAI giving up on a structured output —
+# it has already reprompted the model itself by the time we see it. Retrying
+# here would re-run the *whole* agent loop, and the lesson's research stage
+# resends every tool result it has collected on every turn: three attempts at
+# a model that cannot fill the schema is three times the most expensive call
+# this project makes, for the same stub.
 _NON_RETRYABLE: tuple[type[BaseException], ...] = (
     ValidationError,
     json.JSONDecodeError,
+    UnexpectedModelBehavior,
 )
 
 # HTTP statuses that mean "this will fail identically until a human changes

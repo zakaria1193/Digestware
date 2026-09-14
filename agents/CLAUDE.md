@@ -121,7 +121,8 @@ agents/
 │   ├── raw.py              # RawDiscussion, RawCommit (source-agnostic)
 │   ├── discussion.py       # DiscussionDigest (Lab output)
 │   ├── landing.py          # LandingDigest (Factory output)
-│   └── lesson.py           # LessonDigest + LessonResearch (Lesson output/dossier)
+│   ├── lesson.py           # LessonDigest + LessonResearch (Lesson output/dossier)
+│   └── draft.py            # lenient twins of those, used as agent output_types
 │
 ├── tools/                  # Small, single-purpose helpers registered with the Agent
 │   ├── patch_id.py         # `git patch-id --stable` wrapper (cross-ref key)
@@ -665,6 +666,26 @@ and hundreds of MB.
   answering `"external_context": null` means "found nothing" and a
   ValidationError there is non-retryable — it costs the whole week's lesson.
   Required identity fields still reject a null.
+- **Neither lesson stage parses JSON out of a model's prose.** Both use a
+  PydanticAI `output_type`, like the discussion and landing agents, so
+  *encoding* is the provider's job. That is not cosmetic: the dossier carries a
+  raw diff and verbatim C, and hand-encoding those into JSON strings is what
+  killed two of the four stubs on disk (`Invalid \escape`,
+  `Expecting ',' delimiter`), thousands of characters in, after the whole
+  research loop had been paid for. Don't go back to `output_type=str` plus a
+  brace scanner.
+- **The `output_type` is the lenient draft, never the strict model.** The caps
+  in `models/lesson.py` are *repairs* applied after generation
+  (`_clamp_to_schema`, `_repair_lesson_item`), not requirements the model has
+  to satisfy — `read_file` hands back 8192 bytes where `SourceExcerpt.code`
+  caps at 6000, so a model that copies an excerpt verbatim, exactly as
+  instructed, overruns. Put those caps in the schema and a trim becomes a
+  validation failure and a paid reprompt. `models/draft.py` derives the twins;
+  `test_research_draft_mirrors_the_strict_model` fails if they ever drift.
+- **The writer is not asked to echo identity.** `LessonDraft` omits every field
+  `_repair_lesson_item` forces from the subject (commit hash, project, url, the
+  three dates). Adding them back spends tokens on values a typo would
+  mislabel the whole article with.
 - **Nothing diagnostic may sit between the pipeline and the commit step.** The
   `lesson-run` artifact upload is `continue-on-error` for this reason: it runs
   *before* validate → build → commit, and when the account's artifact storage

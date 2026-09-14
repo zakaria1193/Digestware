@@ -16,23 +16,28 @@ the model:
 
 from __future__ import annotations
 
-import json
 from datetime import date
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
 from agents.lesson_agent import (
     _build_tools,
     _drop_unread_code_refs,
-    _parse_lesson,
+    _finalise_lesson,
     _render_dossier,
     _repair_lesson_item,
     _ToolBudget,
     stub_lesson,
 )
 from agents.lesson_picker import LessonSubject, previous_complete_week
-from agents.models.lesson import LessonResearch, SourceExcerpt
+from agents.models.lesson import (
+    LessonDigest,
+    LessonDraft,
+    LessonResearch,
+    LessonResearchDraft,
+    SourceExcerpt,
+)
 from agents.tools.source_repo import SourceRepo
 
 WEEK = previous_complete_week(date(2026, 9, 9))     # 2026-W36, Aug 31 – Sep 6
@@ -98,8 +103,8 @@ def _fake_repo(present: set[str] | None = None) -> SourceRepo:
     return cast(SourceRepo, FakeRepo(present))
 
 
-def _writer_output(**overrides) -> str:
-    item = {
+def _writer_item(**overrides) -> dict:
+    item: dict = {
         "headline": "How IPA-SRA decides a parameter is dead",
         "hook": "A short fix, a long idea.",
         "tldr": "Liveness, corrected.",
@@ -114,7 +119,7 @@ def _writer_output(**overrides) -> str:
         "tags": ["ipa"],
     }
     item.update(overrides)
-    return json.dumps(item)
+    return item
 
 
 # ---------------------------------------------------------------------------
@@ -123,7 +128,7 @@ def _writer_output(**overrides) -> str:
 
 def test_identity_fields_are_forced_from_the_subject(subject):
     """A model typo here would misattribute the article to the wrong commit."""
-    item = json.loads(_writer_output())
+    item = _writer_item()
     item["commit_hash"] = "b" * 40          # wrong
     item["project"] = "binutils"            # wrong
     item["url"] = "https://evil.example/x"  # wrong
@@ -138,7 +143,7 @@ def test_identity_fields_are_forced_from_the_subject(subject):
 
 
 def test_week_fields_come_from_the_subject(subject):
-    item = json.loads(_writer_output())
+    item = _writer_item()
     _repair_lesson_item(item, subject)
 
     assert item["week_start"] == "2026-08-31"
@@ -150,7 +155,7 @@ def test_week_fields_come_from_the_subject(subject):
 
 def test_unknown_subsystem_falls_back_to_the_landing(subject):
     for value in ("unknown", "general", "", None):
-        item = json.loads(_writer_output())
+        item = _writer_item()
         item["subsystem"] = value
         _repair_lesson_item(item, subject)
         assert item["subsystem"] == "gcc/ipa"
@@ -162,9 +167,9 @@ def test_unknown_subsystem_falls_back_to_the_landing(subject):
 
 def test_overlong_fields_are_clipped_not_rejected(subject):
     """A ten-character overshoot should not cost the whole (paid) run."""
-    item = json.loads(_writer_output(
+    item = _writer_item(
         headline="x" * 400, hook="y" * 400, tldr="z" * 400, concept="c" * 900,
-    ))
+    )
     _repair_lesson_item(item, subject)
 
     assert len(item["headline"]) <= 140
@@ -175,10 +180,10 @@ def test_overlong_fields_are_clipped_not_rejected(subject):
 
 
 def test_overlong_lists_are_truncated(subject):
-    item = json.loads(_writer_output(
+    item = _writer_item(
         tags=[f"t{i}" for i in range(20)],
         takeaways=[f"take {i}" for i in range(20)],
-    ))
+    )
     _repair_lesson_item(item, subject)
     assert len(item["tags"]) == 5
     assert len(item["takeaways"]) == 6
@@ -207,9 +212,9 @@ def test_malformed_code_refs_are_dropped():
     assert item["code_tour"] == []
 
 
-def test_parse_lesson_end_to_end(subject):
+def test_finalise_lesson_end_to_end(subject):
     repo = _fake_repo()
-    lesson = _parse_lesson(_writer_output(), subject, repo)
+    lesson = _finalise_lesson(LessonDraft(**_writer_item()), subject, repo)
 
     assert lesson.lesson_id == "gcc:2026-W36"
     assert lesson.commit_hash == SHA
@@ -218,24 +223,30 @@ def test_parse_lesson_end_to_end(subject):
     assert [r.path for r in lesson.code_tour] == ["gcc/ipa-sra.cc"]
 
 
-def test_parse_lesson_strips_markdown_fences(subject):
+def test_lesson_draft_omits_the_fields_the_pipeline_injects():
+    """The writer is not asked to echo identity it cannot get right.
+
+    Every name below is forced from the subject in ``_repair_lesson_item``, so
+    carrying it in the draft schema only spends tokens and invites a typo in
+    the values that decide which commit the article is about.
+    """
+    authored = set(LessonDraft.model_fields)
+
+    assert {"commit_hash", "project", "url", "week_start"}.isdisjoint(authored)
+    assert "headline" in authored and "sections" in authored
+    # …and nothing the strict model doesn't know about.
+    assert authored <= set(LessonDigest.model_fields)
+
+
+def test_finalise_lesson_reads_null_as_nothing_to_add(subject):
+    """A model answering ``"further_reading": null`` means it found none."""
     repo = _fake_repo()
-    fenced = "```json\n" + _writer_output() + "\n```"
-    assert _parse_lesson(fenced, subject, repo).commit_hash == SHA
+    draft = LessonDraft(**_writer_item(further_reading=None, primer_glossary=None))
 
+    lesson = _finalise_lesson(draft, subject, repo)
 
-def test_parse_lesson_unwraps_a_single_element_array(subject):
-    """Models wrap a lone object in an array surprisingly often."""
-    repo = _fake_repo()
-    wrapped = "[" + _writer_output() + "]"
-    assert _parse_lesson(wrapped, subject, repo).commit_hash == SHA
-
-
-@pytest.mark.parametrize("bad", ["[]", '"a string"', "not json at all"])
-def test_parse_lesson_rejects_unusable_output(subject, bad):
-    repo = _fake_repo()
-    with pytest.raises((ValueError, json.JSONDecodeError)):
-        _parse_lesson(bad, subject, repo)
+    assert lesson.further_reading == []
+    assert lesson.primer_glossary == []
 
 
 # ---------------------------------------------------------------------------
@@ -327,12 +338,17 @@ def test_stub_lesson_is_valid_and_marked(subject):
 
 
 # ---------------------------------------------------------------------------
-# Dossier parsing must survive a real model's output
+# The dossier must survive a real model's output
 # ---------------------------------------------------------------------------
 #
-# Both of the first two production runs failed at this stage, and the cost of a
-# failure here is the whole article — every tool call in the research loop has
-# already been paid for by the time the parse runs. It must be generous.
+# Every lesson on disk as of 2026-09-14 is a stub and all four died here, where
+# a failure costs the whole article — every tool call in the research loop has
+# already been paid for by the time the dossier is assembled.
+#
+# JSON *encoding* is the provider's job now: the dossier arrives as structured
+# output rather than prose the pipeline parses. What is left to prove is the
+# repair either side of it — caps trimmed rather than enforced, a null read as
+# "nothing to report", identity taken from the subject and not the model.
 
 def _research_json(**overrides) -> dict:
     payload: dict = {
@@ -352,40 +368,46 @@ def _research_json(**overrides) -> dict:
     return payload
 
 
-def test_parses_json_wrapped_in_prose(subject):
-    """A reasoning model narrates. That must not cost the article."""
-    import json as _json
+def _research_draft(**overrides):
+    return LessonResearchDraft(**_research_json(**overrides))
 
-    from agents.lesson_agent import _parse_research
 
-    text = (
-        "Sure! I explored the tree. Here is the dossier you asked for:\n\n"
-        "```json\n" + _json.dumps(_research_json()) + "\n```\n\n"
-        "Let me know if you'd like me to look at anything else."
-    )
-    research = _parse_research(text, subject)
+def test_finalise_research_end_to_end(subject):
+    from agents.lesson_agent import _finalise_research
+
+    research = _finalise_research(_research_draft(), subject)
+
     assert research.what_changed == "A parameter is now marked dead."
+    assert research.subsystem == "gcc/ipa"
+    assert research.excerpts[0].code == "int x;"
 
 
-def test_parses_bare_json_with_a_trailing_remark(subject):
-    import json as _json
+def test_research_identity_is_forced_from_the_subject(subject):
+    """A hallucinated SHA would attach the dossier to the wrong commit."""
+    from agents.lesson_agent import _finalise_research
 
-    from agents.lesson_agent import _parse_research
-
-    text = _json.dumps(_research_json()) + "\n\nHope that helps!"
-    assert _parse_research(text, subject).subsystem == "gcc/ipa"
-
-
-def test_braces_inside_strings_do_not_confuse_the_scan(subject):
-    import json as _json
-
-    from agents.lesson_agent import _parse_research
-
-    payload = _research_json(
-        what_changed='Handles the `struct { int a; }` case and a quote \\" too.'
+    research = _finalise_research(
+        _research_draft(commit_hash="b" * 40, subsystem=""), subject
     )
-    text = "Preamble.\n" + _json.dumps(payload) + "\nTrailer."
-    assert "struct { int a; }" in _parse_research(text, subject).what_changed
+
+    assert research.commit_hash == SHA
+    assert research.subsystem == "gcc/ipa"
+
+
+def test_null_is_read_as_nothing_to_report(subject):
+    """``"external_context": null`` means "I found nothing", not a type error.
+
+    Two of the four stubs on disk as of 2026-09-14 died on exactly this, and a
+    ValidationError here is non-retryable — it costs the whole week's lesson.
+    """
+    from agents.lesson_agent import _finalise_research
+
+    research = _finalise_research(
+        _research_draft(external_context=None, open_questions=None), subject
+    )
+
+    assert research.external_context == []
+    assert research.open_questions == []
 
 
 def test_oversized_excerpt_is_clamped_not_rejected(subject):
@@ -395,55 +417,59 @@ def test_oversized_excerpt_is_clamped_not_rejected(subject):
     produces a value pydantic rejects. Losing the tail of one excerpt beats
     losing the whole dossier.
     """
-    import json as _json
-
-    from agents.lesson_agent import _EXCERPT_STR_CAPS, _parse_research
+    from agents.lesson_agent import _EXCERPT_STR_CAPS, _finalise_research
 
     cap = _EXCERPT_STR_CAPS["code"]
-    payload = _research_json(
+    draft = _research_draft(
         excerpts=[{"path": "gcc/ipa-sra.cc", "code": "x" * (cap + 2192)}]
     )
-    research = _parse_research(_json.dumps(payload), subject)
-    assert len(research.excerpts[0].code) == cap
+    assert len(_finalise_research(draft, subject).excerpts[0].code) == cap
 
 
 def test_too_many_excerpts_are_trimmed(subject):
-    import json as _json
-
-    from agents.lesson_agent import _RESEARCH_LIST_CAPS, _parse_research
+    from agents.lesson_agent import _RESEARCH_LIST_CAPS, _finalise_research
 
     cap = _RESEARCH_LIST_CAPS["excerpts"]
-    payload = _research_json(
+    draft = _research_draft(
         excerpts=[{"path": f"f{i}.cc", "code": "y"} for i in range(cap + 5)]
     )
-    research = _parse_research(_json.dumps(payload), subject)
-    assert len(research.excerpts) == cap
+    assert len(_finalise_research(draft, subject).excerpts) == cap
 
 
 def test_over_long_prose_is_clamped(subject):
-    import json as _json
-
-    from agents.lesson_agent import _RESEARCH_STR_CAPS, _parse_research
+    from agents.lesson_agent import _RESEARCH_STR_CAPS, _finalise_research
 
     cap = _RESEARCH_STR_CAPS["how_it_works"]
-    payload = _research_json(how_it_works="z" * (cap + 500))
-    research = _parse_research(_json.dumps(payload), subject)
-    assert len(research.how_it_works) == cap
+    draft = _research_draft(how_it_works="z" * (cap + 500))
+    assert len(_finalise_research(draft, subject).how_it_works) == cap
 
 
-def test_output_with_no_json_still_raises(subject):
-    """Generosity has a limit — nothing parseable is still a failure."""
-    from agents.lesson_agent import _parse_research
+def test_the_draft_carries_no_caps_of_its_own():
+    """The caps are repairs, not requirements — the model must not hit them.
 
-    with pytest.raises(ValueError, match="no JSON object"):
-        _parse_research("I was unable to complete this task.", subject)
+    Put them in the output schema and an over-long excerpt comes back as a
+    validation failure and a paid reprompt, instead of being quietly trimmed.
+    """
+    # `cast` because the twin is generated at import time: pyright sees a
+    # plain BaseModel, which is exactly why the drift test below exists.
+    draft = cast(Any, _research_draft(
+        how_it_works="z" * 99_000,
+        excerpts=[{"path": "f.cc", "code": "y" * 99_000}],
+    ))
+
+    assert len(draft.how_it_works) == 99_000
+    assert len(draft.excerpts[0].code) == 99_000
 
 
-def test_unterminated_json_raises(subject):
-    from agents.lesson_agent import _parse_research
+def test_research_draft_mirrors_the_strict_model():
+    """The twin is derived, so it cannot drift — this fails if it ever does.
 
-    with pytest.raises(ValueError, match="unterminated"):
-        _parse_research('{"commit_message": "truncated mid', subject)
+    ``tool_calls_used`` is the one deliberate omission: the explorer cannot
+    count its own budget, so the agent fills it in from the real counter.
+    """
+    assert set(LessonResearchDraft.model_fields) | {"tool_calls_used"} == set(
+        LessonResearch.model_fields
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -478,3 +504,70 @@ def test_stage_reason_is_single_line_and_bounded():
     reason = _stage_reason("writer_failed", ValueError("line one\nline two\n" + "q" * 500))
     assert "\n" not in reason
     assert len(reason) == _MAX_STUB_REASON
+
+
+# ---------------------------------------------------------------------------
+# Both stages run against a real Agent
+# ---------------------------------------------------------------------------
+#
+# The tests above exercise the code either side of the model. This one builds
+# the actual `pydantic_ai.Agent` — with the real `output_type`, the real tools
+# and PydanticAI's own structured-output machinery — against `TestModel`, which
+# synthesises a reply from the output schema and calls every tool once.
+#
+# It is here because the unit tests cannot see a constructor argument that
+# PydanticAI doesn't accept, or an `output_type` a version bump stops
+# supporting. Both fail the whole lesson at runtime, in the nightly job, after
+# the research loop has been paid for.
+
+def _agent_repo() -> SourceRepo:
+    """A repo stub that answers every navigation tool."""
+    class _Repo:
+        def changed_dirs(self, sha): return ["gcc/ipa"]
+        def changed_paths(self, sha): return ["gcc/ipa-sra.cc"]
+        def show_commit(self, sha): return "Fix the thing\n\n--- a\n+++ b\n"
+        def read_file(self, sha, path, start_line=1, end_line=None): return "int x;"
+        def list_dir(self, sha, path): return "ipa-sra.cc"
+        def grep_repo(self, sha, pattern, paths): return "gcc/ipa-sra.cc:1:int x;"
+        def find_symbol(self, sha, name, paths): return "gcc/ipa-sra.cc:1:int x;"
+
+    return cast(SourceRepo, _Repo())
+
+
+@pytest.fixture
+def offline_models(monkeypatch):
+    """Both stages on TestModel, with the network and the ledger stubbed out."""
+    from pydantic_ai.models.test import TestModel
+
+    import agents.lesson_agent as la
+
+    monkeypatch.setattr(la, "build_model", lambda *a, **k: TestModel())
+    monkeypatch.setattr(la, "append_usage", lambda *a, **k: None)
+    monkeypatch.setattr(la, "search_context", lambda query: ["offline"])
+    return la
+
+
+def test_research_stage_wires_up_and_returns_a_dossier(subject, offline_models):
+    errors: list[str] = []
+
+    research = offline_models.run_research(subject, _agent_repo(), errors=errors)
+
+    assert errors == []
+    assert isinstance(research, LessonResearch)
+    assert research.commit_hash == SHA          # forced, not echoed
+    assert research.tool_calls_used > 0         # counted by us, not the model
+
+
+def test_writer_stage_wires_up_and_returns_a_lesson(subject, offline_models):
+    errors: list[str] = []
+    research = offline_models.run_research(subject, _agent_repo(), errors=errors)
+
+    lesson = offline_models.run_writer(
+        subject, research, _agent_repo(), errors=errors
+    )
+
+    assert errors == []
+    assert isinstance(lesson, LessonDigest)
+    assert lesson.lesson_id == "gcc:2026-W36"
+    assert lesson.url == subject.url
+    assert lesson.is_stub is False

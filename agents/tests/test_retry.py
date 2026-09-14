@@ -132,3 +132,24 @@ def test_transient_http_statuses_still_retry(status):
     with pytest.raises(_FakeHTTPError):
         retry_with_backoff(fn, attempts=3, base_delay=0.0)
     assert calls["n"] == 3
+
+
+def test_structured_output_failure_is_not_retried(caplog):
+    """PydanticAI has already reprompted the model by the time we see this.
+
+    A retry here re-runs the entire agent loop. For the lesson's research
+    stage that means resending every tool result collected so far — the most
+    expensive call this project makes — to land in the same stub.
+    """
+    from pydantic_ai.exceptions import UnexpectedModelBehavior
+
+    calls = {"n": 0}
+
+    def fn():
+        calls["n"] += 1
+        raise UnexpectedModelBehavior("Exceeded maximum retries for output")
+
+    with pytest.raises(UnexpectedModelBehavior):
+        retry_with_backoff(fn, attempts=3, base_delay=0.0)
+
+    assert calls["n"] == 1

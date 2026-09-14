@@ -32,7 +32,6 @@ Both calls are logged to ``agents/output/usage.log`` under distinct agent names
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime, timezone
 from types import UnionType
@@ -50,7 +49,13 @@ from agents._openrouter import (
 )
 from agents._retry import retry_with_backoff
 from agents.lesson_picker import LessonSubject
-from agents.models.lesson import LessonDigest, LessonResearch, SourceExcerpt
+from agents.models.lesson import (
+    LessonDigest,
+    LessonDraft,
+    LessonResearch,
+    LessonResearchDraft,
+    SourceExcerpt,
+)
 from agents.tools.glossary_filter import filter_glossary
 from agents.tools.source_repo import SourceRepo
 from agents.tools.web_search import search_context
@@ -113,7 +118,7 @@ METHOD (work in this order):
 Your exploration budget is limited. Spend it on the three or four files that
 actually explain the change, not on a survey of the subsystem.
 
-RETURN one JSON object (raw JSON, no markdown fences) with these fields:
+RETURN the dossier through the output tool, filling these fields:
 - ``commit_hash``, ``subsystem`` — echo from the input.
 - ``commit_message`` — the commit message, verbatim.
 - ``diff`` — the diff, verbatim (trim to the hunks that matter if it is huge).
@@ -232,15 +237,6 @@ def _build_tools(repo: SourceRepo, sha: str, budget: _ToolBudget) -> list:
     return [show_commit, read_file, list_dir, grep_repo, find_symbol, search_web]
 
 
-def _strip_fences(text: str) -> str:
-    text = text.strip()
-    if text.startswith("```"):
-        text = text[text.index("\n") + 1:] if "\n" in text else text[3:]
-    if text.endswith("```"):
-        text = text[: text.rindex("```")].rstrip()
-    return text
-
-
 def _max_lengths(model: type[BaseModel], kinds: tuple[type, ...]) -> dict[str, int]:
     """`{field: max_length}` read off the model itself, not copied from it.
 
@@ -268,44 +264,6 @@ def _max_lengths(model: type[BaseModel], kinds: tuple[type, ...]) -> dict[str, i
 _RESEARCH_STR_CAPS = _max_lengths(LessonResearch, (str,))
 _RESEARCH_LIST_CAPS = _max_lengths(LessonResearch, (list,))
 _EXCERPT_STR_CAPS = _max_lengths(SourceExcerpt, (str,))
-
-
-def _extract_json_object(text: str) -> str:
-    """Pull the outermost JSON object out of a model's free-text answer.
-
-    Requiring the *whole* reply to be JSON is a bad bet against a reasoning
-    model: a preamble ("Here's the dossier:"), a trailing remark, or a fenced
-    block mid-message all make `json.loads` throw — after every tool call in
-    the run has already been paid for. So scan for the outermost balanced
-    ``{…}`` instead, ignoring braces inside strings.
-    """
-    stripped = _strip_fences(text)
-    start = stripped.find("{")
-    if start == -1:
-        raise ValueError("no JSON object found in the research output")
-
-    depth = 0
-    in_string = False
-    escaped = False
-    for i in range(start, len(stripped)):
-        ch = stripped[i]
-        if in_string:
-            if escaped:
-                escaped = False
-            elif ch == "\\":
-                escaped = True
-            elif ch == '"':
-                in_string = False
-            continue
-        if ch == '"':
-            in_string = True
-        elif ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                return stripped[start : i + 1]
-    raise ValueError("research output ends inside an unterminated JSON object")
 
 
 def _clamp_to_schema(parsed: dict) -> None:
@@ -340,14 +298,14 @@ def _clamp_to_schema(parsed: dict) -> None:
                     item[field] = _cut(item[field], limit)
 
 
-def _parse_research(text: str, subject: LessonSubject) -> LessonResearch:
-    parsed = json.loads(_extract_json_object(text))
-    if isinstance(parsed, list):
-        if not parsed:
-            raise ValueError("research model returned an empty array")
-        parsed = parsed[0]
-    if not isinstance(parsed, dict):
-        raise ValueError(f"expected a JSON object, got {type(parsed).__name__}")
+def _finalise_research(draft: BaseModel, subject: LessonSubject) -> LessonResearch:
+    """Turn the model's draft dossier into a validated ``LessonResearch``.
+
+    ``exclude_none=True`` is what makes a null mean "nothing to report": the key
+    disappears and the strict model's own default applies. See
+    agents/models/draft.py.
+    """
+    parsed = draft.model_dump(exclude_none=True)
 
     # Identity is ours, not the model's — a typo here would misattribute the
     # whole dossier to the wrong commit.
@@ -372,8 +330,7 @@ def _research_prompt(subject: LessonSubject, repo: SourceRepo) -> str:
         f"landing_tldr: {subject.tldr}\n\n"
         "Files this commit touched:\n  " + "\n  ".join(paths) + "\n\n"
         f"Default grep scope (the directories above): {', '.join(scope)}\n\n"
-        "Call show_commit first, then read the code. Return one JSON object — "
-        "raw JSON, no markdown fences."
+        "Call show_commit first, then read the code, then return the dossier."
     )
 
 
@@ -391,9 +348,14 @@ def run_research(
     """
     model_name = model_from_env("LESSON_RESEARCH_MODEL", DEFAULT_LESSON_RESEARCH_MODEL)
     budget = _ToolBudget()
-    agent: Agent[None, str] = Agent(
+    agent: Agent[None, BaseModel] = Agent(
         model=build_model(model_name),
-        output_type=str,
+        # Structured output, not prose the pipeline parses: the dossier carries
+        # a raw diff and verbatim C, and hand-encoding that as JSON is what the
+        # model kept getting wrong. See agents/models/draft.py. PydanticAI's
+        # default `retries=1` covers the one reprompt worth paying for here —
+        # a second would resend every tool result in the run a third time.
+        output_type=LessonResearchDraft,
         system_prompt=_RESEARCH_PROMPT,
         tools=_build_tools(repo, subject.commit_hash, budget),  # type: ignore[arg-type]
     )
@@ -419,13 +381,13 @@ def run_research(
                 "\033[1;32m── lesson research ◀ RESPONSE FROM %s ──\n%s\033[0m",
                 model_name, r.output,
             )
-        return r, _parse_research(r.output, subject)
+        return r, _finalise_research(r.output, subject)
 
     try:
         result, research = retry_with_backoff(
             _call, label=f"lesson_research {subject.project}/{subject.commit_hash[:12]}"
         )
-    except (ValidationError, json.JSONDecodeError, ValueError) as exc:
+    except (ValidationError, ValueError) as exc:
         logger.error("lesson_agent[research]: unusable output (%s)", exc, exc_info=True)
         if errors is not None:
             errors.append(_stage_reason("research_failed", exc))
@@ -490,7 +452,7 @@ WRITING RULES
   snippets, bullet lists where they earn their place. No headings inside a
   section body — the ``heading`` field is the heading.
 
-FIELDS (return ONE JSON object, raw JSON only, no markdown fences):
+FIELDS (return the article through the output tool):
 - ``headline`` — the lesson's title, <= 140 chars. Names the concept, not the
   commit. Not a commit subject line.
 - ``hook`` — <= 200 chars, why a reader should spend ten minutes here.
@@ -527,9 +489,6 @@ FIELDS (return ONE JSON object, raw JSON only, no markdown fences):
   restate this commit's effect. Never define the top-level project itself
   ("GCC", "binutils", "glibc", "Linux") — the reader knows what paper this is.
   Err on the side of more entries.
-
-VERBATIM FIELDS (echo exactly as given in the input, do not invent):
-``commit_hash``, ``project``, ``source_type``, ``url``.
 """
 
 
@@ -639,19 +598,11 @@ def _drop_unread_code_refs(item: dict, repo: SourceRepo, sha: str) -> None:
     item["code_tour"] = kept
 
 
-def _parse_lesson(
-    text: str, subject: LessonSubject, repo: SourceRepo
+def _finalise_lesson(
+    draft: BaseModel, subject: LessonSubject, repo: SourceRepo
 ) -> LessonDigest:
-    """Parse the writer's JSON object into a validated LessonDigest."""
-    parsed = json.loads(_strip_fences(text))
-    # Tolerate a single-element array — models wrap objects surprisingly often.
-    if isinstance(parsed, list):
-        if not parsed:
-            raise ValueError("writer returned an empty array")
-        parsed = parsed[0]
-    if not isinstance(parsed, dict):
-        raise ValueError(f"expected a JSON object, got {type(parsed).__name__}")
-
+    """Turn the writer's draft article into a validated ``LessonDigest``."""
+    parsed = draft.model_dump(exclude_none=True)
     _repair_lesson_item(parsed, subject)
     _drop_unread_code_refs(parsed, repo, subject.commit_hash)
     return LessonDigest.model_validate(parsed)
@@ -714,7 +665,7 @@ def _render_dossier(research: LessonResearch, subject: LessonSubject) -> str:
             "External context:",
             "\n".join(f"- {c}" for c in research.external_context),
         ]
-    lines += ["", "Return one JSON object — raw JSON, no markdown fences."]
+    lines += ["", "Return the article through the output tool."]
     return "\n".join(lines)
 
 
@@ -729,9 +680,9 @@ def run_writer(
     ``errors`` is the same failure sink ``run_research`` takes.
     """
     model_name = model_from_env("LESSON_WRITER_MODEL", DEFAULT_LESSON_WRITER_MODEL)
-    agent: Agent[None, str] = Agent(
+    agent: Agent[None, BaseModel] = Agent(
         model=build_model(model_name, max_tokens=LESSON_WRITER_MAX_TOKENS),
-        output_type=str,
+        output_type=LessonDraft,
         system_prompt=_WRITER_PROMPT,
     )
     prompt = _render_dossier(research, subject)
@@ -753,13 +704,13 @@ def run_writer(
                 "\033[1;32m── lesson writer ◀ RESPONSE FROM %s ──\n%s\033[0m",
                 model_name, r.output,
             )
-        return r, _parse_lesson(r.output, subject, repo)
+        return r, _finalise_lesson(r.output, subject, repo)
 
     try:
         result, lesson = retry_with_backoff(
             _call, label=f"lesson_writer {subject.project}/{subject.commit_hash[:12]}"
         )
-    except (ValidationError, json.JSONDecodeError, ValueError) as exc:
+    except (ValidationError, ValueError) as exc:
         logger.error("lesson_agent[writer]: unusable output (%s)", exc, exc_info=True)
         if errors is not None:
             errors.append(_stage_reason("writer_failed", exc))

@@ -19,6 +19,7 @@ from datetime import date, datetime
 from pydantic import BaseModel, Field, model_validator
 
 from agents.models.base import BimodalBase
+from agents.models.draft import draft_model
 
 
 class LessonSection(BaseModel):
@@ -163,3 +164,47 @@ class LessonResearch(BaseModel):
             for key, value in data.items()
             if not (value is None and key in optional)
         }
+
+
+# ---------------------------------------------------------------------------
+# Structured-output twins
+# ---------------------------------------------------------------------------
+#
+# What the two agents are actually asked to produce. Both are lenient
+# derivations of the strict models above — see agents/models/draft.py for why
+# the models are not pointed straight at LessonResearch / LessonDigest.
+
+#: Stage 1's output shape. ``commit_hash`` and ``subsystem`` stay required and
+#: are overwritten from the subject afterwards, so a typo cannot misattribute
+#: the dossier. ``tool_calls_used`` is dropped: the explorer cannot count its
+#: own budget, and the agent fills it in from the real counter.
+LessonResearchDraft = draft_model(
+    LessonResearch, name="LessonResearchDraft", exclude=frozenset({"tool_calls_used"})
+)
+
+#: Fields of ``LessonDigest`` the pipeline fills in from the subject rather
+#: than the writer: identity, provenance, the week's dates, and the stub flags.
+#: Asking a model to echo them costs tokens and invites a typo in exactly the
+#: values that decide which commit the article is about.
+LESSON_INJECTED_FIELDS = frozenset(
+    {
+        "project",
+        "patch_id",
+        "lesson_id",
+        "commit_hash",
+        "source_type",
+        "url",
+        "landing_slug",
+        "week_start",
+        "week_end",
+        "commit_date",
+        "date",
+        "is_stub",
+        "stub_reason",
+    }
+)
+
+#: Stage 2's output shape: the article fields the writer actually authors.
+LessonDraft = draft_model(
+    LessonDigest, name="LessonDraft", exclude=LESSON_INJECTED_FIELDS
+)
