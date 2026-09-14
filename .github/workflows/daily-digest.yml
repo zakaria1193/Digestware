@@ -251,18 +251,26 @@ jobs:
             echo "::warning::No lesson this run — the month's AI budget is spent. Lessons resume on the 1st."
           fi
 
-      # Gate: never commit content that would break the Cloudflare Pages build.
-      # The pipeline pushes straight to master, so a malformed frontmatter block
-      # takes the public site down until someone notices the failed deploy.
+      # `continue-on-error`: this is a DIAGNOSTIC upload sitting upstream of
+      # the validate → build → commit steps, so anything that fails it throws
+      # away the whole night's content. That is not hypothetical: runs 196 and
+      # 197 both died here on "Artifact storage quota has been hit", and two
+      # nights of digests were never committed because a log file could not be
+      # stored. Retention is short for the same reason — a lesson log is only
+      # ever read in the days after the run that produced it.
       - name: Upload lesson run log
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: lesson-run
           path: lesson-run.log
-          retention-days: 14
+          retention-days: 5
           if-no-files-found: ignore
 
+      # Gate: never commit content that would break the Cloudflare Pages build.
+      # The pipeline pushes straight to master, so a malformed frontmatter block
+      # takes the public site down until someone notices the failed deploy.
       - name: Validate generated content
         run: |
           python -m agents.tools.validate_content
@@ -342,12 +350,19 @@ jobs:
             python -m agents.index.build
           fi
 
+      # `continue-on-error` for the same reason as the lesson log: the .db is
+      # derived and regenerable, so failing the night over it is never right.
+      # It is also the biggest thing this workflow stores — a nightly upload of
+      # the whole corpus index is what exhausts the account's artifact quota —
+      # hence the short retention. Anyone who needs an older one rebuilds it
+      # with `python -m agents.index.build --full`.
       - name: Upload Pulse index artifact
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: pulse-index
           path: agents/index/pulse.db
-          retention-days: 14
+          retention-days: 3
           if-no-files-found: error
 
       # LAST on purpose. The GitHub logs API returns only the TAIL of a job

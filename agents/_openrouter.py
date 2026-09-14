@@ -10,6 +10,7 @@ import os
 from openai import OpenAI
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.settings import ModelSettings
 
 BASE_URL = "https://openrouter.ai/api/v1"
 
@@ -71,6 +72,23 @@ DEFAULT_LESSON_RESEARCH_MODEL = "google/gemini-2.5-flash"
 # premium digest re-run had been silently falling back to the cheap summary.
 DEFAULT_LESSON_WRITER_MODEL = "anthropic/claude-opus-5"
 
+# OpenRouter does not bill max_tokens — but it does *reserve* against it, and
+# rejects the request outright with a 402 when the key's remaining balance
+# cannot cover the reservation. Sending no max_tokens means the model's own
+# ceiling applies, which for claude-opus-5 is 65536 output tokens; with a
+# nearly-spent balance that is an unaffordable reservation and every writer
+# call fails before a single token is generated. That is exactly what turned
+# the 2026-09-13 and -14 lessons into `writer_failed` stubs: "You requested up
+# to 65536 tokens, but can only afford 49590."
+#
+# A lesson cannot approach that ceiling anyway. LessonDigest caps the article
+# at 8 sections x 4000 chars plus the surrounding fields — roughly 45k
+# characters, ~13k tokens of JSON at the absolute maximum. 20000 leaves ample
+# headroom while cutting the reservation to under a third, so the call fits in
+# a balance that the unbounded default does not. Raise it only if a real
+# article is ever observed truncating.
+LESSON_WRITER_MAX_TOKENS = 20000
+
 
 def model_from_env(key: str, default: str) -> str:
     """The model named by env var *key*, falling back to *default*.
@@ -123,10 +141,16 @@ def fetch_models(client: object | None = None) -> list[dict]:
     return [entry for entry in data if isinstance(entry, dict)]
 
 
-def build_model(model_name: str) -> OpenAIChatModel:
-    """Return a PydanticAI OpenAIChatModel routed through OpenRouter."""
+def build_model(model_name: str, *, max_tokens: int | None = None) -> OpenAIChatModel:
+    """Return a PydanticAI OpenAIChatModel routed through OpenRouter.
+
+    ``max_tokens`` caps the output reservation. See LESSON_WRITER_MAX_TOKENS
+    for why that matters on OpenRouter even though the reservation itself is
+    never billed.
+    """
     provider = OpenAIProvider(base_url=BASE_URL, api_key=_api_key())
-    return OpenAIChatModel(model_name, provider=provider)
+    settings = ModelSettings(max_tokens=max_tokens) if max_tokens else None
+    return OpenAIChatModel(model_name, provider=provider, settings=settings)
 
 
 def build_client() -> OpenAI:

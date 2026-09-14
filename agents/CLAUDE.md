@@ -652,6 +652,24 @@ and hundreds of MB.
 - **`continue-on-error` plus stub-on-failure can hide a total failure.** The
   step goes green and commits placeholder articles. When a run "succeeds",
   check `is_stub` in the output before believing it.
+- **The writer sends an explicit `max_tokens` (`LESSON_WRITER_MAX_TOKENS`) and
+  must keep doing so.** OpenRouter doesn't bill the reservation but it does
+  *reserve* against the key's balance and returns a hard 402 when the balance
+  can't cover it. With no cap the model's own ceiling applies — 65536 tokens
+  for claude-opus-5 — which is unaffordable on a nearly-spent key, so every
+  writer call fails before generating a single token. That is what stubbed the
+  2026-09-13 and -14 lessons. A lesson tops out around 13k tokens; the cap is
+  headroom, not a quality lever.
+- **A null is not a validation failure for the dossier.** `LessonResearch`
+  drops explicit `null`s for fields that have defaults, because a model
+  answering `"external_context": null` means "found nothing" and a
+  ValidationError there is non-retryable — it costs the whole week's lesson.
+  Required identity fields still reject a null.
+- **Nothing diagnostic may sit between the pipeline and the commit step.** The
+  `lesson-run` artifact upload is `continue-on-error` for this reason: it runs
+  *before* validate → build → commit, and when the account's artifact storage
+  quota filled up it failed the job and threw away two nights of digests. A
+  log file must never be able to block publishing content.
 - **Never let the budget guard price something at zero.** An unknown model or a
   null token count must be charged at the pessimistic rate in `budget.py`.
   Failing toward "free" silently disables the cap, which is worse than having

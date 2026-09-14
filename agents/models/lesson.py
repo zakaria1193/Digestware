@@ -16,7 +16,7 @@ with the same ``<Content />`` pipeline as every other article type.
 
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from agents.models.base import BimodalBase
 
@@ -134,3 +134,32 @@ class LessonResearch(BaseModel):
     # Outside grounding (papers, wiki pages, ISA notes) from search_web.
     external_context: list[str] = Field(default_factory=list, max_length=10)
     tool_calls_used: int = 0
+
+    @model_validator(mode="before")
+    @classmethod
+    def _null_means_absent(cls, data: object) -> object:
+        """Treat an explicit ``null`` as "not provided" for optional fields.
+
+        Most fields above carry a default, but a default only applies when the
+        key is *missing*, not when it is present and null. Models routinely emit
+        ``"external_context": null`` for "I found nothing", which Pydantic
+        rejects as a type error — and since a ValidationError here is
+        non-retryable, that one null costs the whole lesson. Two of the four
+        stubs on disk as of 2026-09-14 are exactly this, both on
+        ``external_context``.
+
+        Dropping the null lets the default_factory produce ``[]``, which is
+        what the model meant. Required fields are untouched: removing a null
+        for ``commit_hash`` still raises "field required", which is the honest
+        error rather than a silently empty article.
+        """
+        if not isinstance(data, dict):
+            return data
+        optional = {
+            name for name, field in cls.model_fields.items() if not field.is_required()
+        }
+        return {
+            key: value
+            for key, value in data.items()
+            if not (value is None and key in optional)
+        }

@@ -44,6 +44,7 @@ from pydantic_ai import Agent
 from agents._openrouter import (
     DEFAULT_LESSON_RESEARCH_MODEL,
     DEFAULT_LESSON_WRITER_MODEL,
+    LESSON_WRITER_MAX_TOKENS,
     build_model,
     model_from_env,
 )
@@ -729,7 +730,7 @@ def run_writer(
     """
     model_name = model_from_env("LESSON_WRITER_MODEL", DEFAULT_LESSON_WRITER_MODEL)
     agent: Agent[None, str] = Agent(
-        model=build_model(model_name),
+        model=build_model(model_name, max_tokens=LESSON_WRITER_MAX_TOKENS),
         output_type=str,
         system_prompt=_WRITER_PROMPT,
     )

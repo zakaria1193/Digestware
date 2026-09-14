@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from agents.models.base import BimodalBase, ConsensusStatus
 from agents.models.discussion import DiscussionDigest
 from agents.models.landing import LandingDigest
+from agents.models.lesson import LessonResearch
 
 _DUMMY_DATE = datetime(2026, 4, 14, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -158,3 +159,44 @@ class TestLandingDigest:
     def test_serialisation_roundtrip(self, sample_landing_digest: LandingDigest):
         landing = LandingDigest.model_validate(sample_landing_digest.model_dump())
         assert landing == sample_landing_digest
+
+
+# ---------------------------------------------------------------------------
+# LessonResearch — an explicit null must not cost the whole lesson
+# ---------------------------------------------------------------------------
+
+
+def test_lesson_research_accepts_null_for_optional_fields():
+    """``"external_context": null`` means "found nothing", not a type error.
+
+    A ValidationError here is non-retryable and drops straight to a stub, so
+    this one null used to cost the entire week's lesson — twice in the stubs
+    on disk as of 2026-09-14.
+    """
+    research = LessonResearch.model_validate(
+        {
+            "commit_hash": "83998f47450c",
+            "subsystem": "rs6000",
+            "external_context": None,
+            "open_questions": None,
+            "excerpts": None,
+            "changed_files": None,
+            "what_changed": None,
+            "diff": None,
+            "tool_calls_used": None,
+        }
+    )
+
+    assert research.external_context == []
+    assert research.open_questions == []
+    assert research.excerpts == []
+    assert research.changed_files == []
+    assert research.what_changed == ""
+    assert research.diff == ""
+    assert research.tool_calls_used == 0
+
+
+def test_lesson_research_still_requires_its_identity_fields():
+    """Nulling a required field must stay an error, not an empty article."""
+    with pytest.raises(ValidationError, match="commit_hash"):
+        LessonResearch.model_validate({"commit_hash": None, "subsystem": "rs6000"})

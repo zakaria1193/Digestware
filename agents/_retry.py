@@ -28,6 +28,20 @@ _NON_RETRYABLE: tuple[type[BaseException], ...] = (
     json.JSONDecodeError,
 )
 
+# HTTP statuses that mean "this will fail identically until a human changes
+# something". 401/403 is a bad or unauthorised key; 402 is OpenRouter refusing
+# because the key's remaining balance cannot cover the request's max_tokens
+# reservation; 404 is a model slug that doesn't exist. None of these get better
+# in 2, 4, or 8 seconds — the three attempts just push the real cause 40 lines
+# further up a log that CI truncates from the front.
+_NON_RETRYABLE_STATUS = frozenset({401, 402, 403, 404})
+
+
+def _is_permanent(exc: BaseException) -> bool:
+    """True when *exc* carries an HTTP status that retrying cannot fix."""
+    status = getattr(exc, "status_code", None)
+    return isinstance(status, int) and status in _NON_RETRYABLE_STATUS
+
 
 def retry_with_backoff(
     fn: Callable[[], T],
@@ -53,6 +67,13 @@ def retry_with_backoff(
             raise
         except Exception as exc:
             last_exc = exc
+            if _is_permanent(exc):
+                logger.warning(
+                    "%s failed with non-retryable HTTP %s on attempt %d — "
+                    "not retrying: %s",
+                    label, getattr(exc, "status_code", "?"), attempt, exc,
+                )
+                raise
             if attempt >= attempts:
                 break
             delay = base_delay * (2 ** (attempt - 1))
