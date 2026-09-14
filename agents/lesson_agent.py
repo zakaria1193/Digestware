@@ -334,6 +334,7 @@ def _max_lengths(model: type[BaseModel], kinds: tuple[type, ...]) -> dict[str, i
 _RESEARCH_STR_CAPS = _max_lengths(LessonResearch, (str,))
 _RESEARCH_LIST_CAPS = _max_lengths(LessonResearch, (list,))
 _EXCERPT_STR_CAPS = _max_lengths(SourceExcerpt, (str,))
+_LESSON_LIST_CAPS = _max_lengths(LessonDigest, (list,))
 
 
 def _clamp_to_schema(parsed: dict) -> None:
@@ -700,18 +701,6 @@ def _repair_lesson_item(item: dict, subject: LessonSubject) -> None:
         if key in item:
             item[key] = _clip(item.get(key), limit)
 
-    for key, cap in (
-        ("prerequisites", 6),
-        ("sections", 8),
-        ("code_tour", 10),
-        ("takeaways", 6),
-        ("further_reading", 6),
-        ("tags", 5),
-    ):
-        val = item.get(key)
-        if isinstance(val, list) and len(val) > cap:
-            item[key] = val[:cap]
-
     for section in item.get("sections") or []:
         if isinstance(section, dict):
             section["heading"] = _clip(section.get("heading") or "", 120)
@@ -731,6 +720,21 @@ def _repair_lesson_item(item: dict, subject: LessonSubject) -> None:
                 entry.get("definition") or "", _GLOSSARY_DEF_MAX
             )
         item["primer_glossary"] = filter_glossary(glossary)
+
+    # Every capped list, trimmed. Derived from the model rather than listed
+    # here, because the hand-written version left `primer_glossary` out and
+    # that cost a run: the writer is told to "err on the side of more entries"
+    # and duly produced 17 against a cap of 10, so an article that was written,
+    # paid for and otherwise valid died on `too_long`. A new capped field on
+    # `LessonDigest` is now covered the day it is added.
+    #
+    # After the glossary filtering above, not before — `filter_glossary` can
+    # drop entries, and trimming first would discard good ones to make room
+    # for entries that were about to be removed anyway.
+    for key, cap in _LESSON_LIST_CAPS.items():
+        value = item.get(key)
+        if isinstance(value, list) and len(value) > cap:
+            item[key] = value[:cap]
 
     # Fields the model must echo, forced from the subject regardless. These
     # identify the article; an LLM typo here mislabels the whole piece.

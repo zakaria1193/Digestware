@@ -756,3 +756,42 @@ def test_note_excerpt_rejects_an_empty_path():
 
     assert "[error]" in tools["note_excerpt"]("   ")
     assert log.records == []
+
+
+def test_every_capped_list_is_trimmed_not_rejected(subject):
+    """Derived from the model, because the hand-written list missed one.
+
+    `primer_glossary` was absent from the old hardcoded caps, so when the
+    writer followed its instruction to "err on the side of more entries" and
+    produced 17 against a cap of 10, a finished and paid-for article died on
+    `too_long`. Deriving the caps covers any capped list the model grows.
+    """
+    from agents.lesson_agent import _LESSON_LIST_CAPS
+
+    assert "primer_glossary" in _LESSON_LIST_CAPS
+
+    item = _writer_item(
+        primer_glossary=[
+            {"term": f"T{i}", "definition": f"Definition number {i}."}
+            for i in range(17)
+        ],
+        prerequisites=[f"p{i}" for i in range(20)],
+    )
+    _repair_lesson_item(item, subject)
+
+    for key, cap in _LESSON_LIST_CAPS.items():
+        assert len(item.get(key) or []) <= cap, key
+    # …and the whole thing still validates, which is the point.
+    assert LessonDigest.model_validate(item).primer_glossary
+
+
+def test_list_caps_match_the_model_exactly():
+    """A drifting mirror of the schema is how the last failure happened."""
+    from agents.lesson_agent import _LESSON_LIST_CAPS
+
+    for name, field in LessonDigest.model_fields.items():
+        caps = [getattr(m, "max_length", None) for m in field.metadata]
+        caps = [c for c in caps if c is not None]
+        origin = getattr(field.annotation, "__origin__", field.annotation)
+        if caps and origin is list:
+            assert _LESSON_LIST_CAPS.get(name) == caps[0], name
