@@ -153,3 +153,48 @@ def test_structured_output_failure_is_not_retried(caplog):
         retry_with_backoff(fn, attempts=3, base_delay=0.0)
 
     assert calls["n"] == 1
+
+
+class _FakeBodyHTTPError(Exception):
+    """Mimics pydantic_ai.exceptions.ModelHTTPError, which carries `.body`."""
+
+    def __init__(self, status_code: int, body: object):
+        super().__init__(f"status_code: {status_code}")
+        self.status_code = status_code
+        self.body = body
+
+
+def test_402_for_an_empty_balance_is_not_retried():
+    """No amount of backoff adds credit to the key."""
+    calls = {"n": 0}
+
+    def fn():
+        calls["n"] += 1
+        raise _FakeBodyHTTPError(402, {"message": "Insufficient credits."})
+
+    with pytest.raises(_FakeBodyHTTPError):
+        retry_with_backoff(fn, attempts=3, base_delay=0.0)
+
+    assert calls["n"] == 1
+
+
+def test_402_for_an_in_flight_hold_is_retried():
+    """OpenRouter's concurrency hold clears on its own — and says so.
+
+    Treating it as permanent throws away the week's lesson after the research
+    stage has already been paid for.
+    """
+    calls = {"n": 0}
+
+    def fn():
+        calls["n"] += 1
+        if calls["n"] < 2:
+            raise _FakeBodyHTTPError(402, {
+                "message": "This request would exceed your available credits "
+                           "given your current in-flight requests. Retry after "
+                           "some of them complete.",
+            })
+        return "ok"
+
+    assert retry_with_backoff(fn, attempts=3, base_delay=0.0) == "ok"
+    assert calls["n"] == 2

@@ -45,11 +45,30 @@ _NON_RETRYABLE: tuple[type[BaseException], ...] = (
 # further up a log that CI truncates from the front.
 _NON_RETRYABLE_STATUS = frozenset({401, 402, 403, 404})
 
+# …with one exception. OpenRouter also returns 402 for a *temporary* hold:
+# "This request would exceed your available credits given your current
+# in-flight requests. Retry after…". That is concurrency, not an empty
+# balance — the credits are reserved by calls still running, and the request
+# it refused may well succeed once they finish. It says so itself.
+#
+# Worth separating because the two are a stub apart: treating the transient
+# one as permanent throws away a week's lesson after the research stage has
+# already been paid for, which is precisely what it cost on 2026-09-14.
+_TRANSIENT_402 = "in-flight"
+
 
 def _is_permanent(exc: BaseException) -> bool:
     """True when *exc* carries an HTTP status that retrying cannot fix."""
     status = getattr(exc, "status_code", None)
-    return isinstance(status, int) and status in _NON_RETRYABLE_STATUS
+    if not (isinstance(status, int) and status in _NON_RETRYABLE_STATUS):
+        return False
+    if status == 402:
+        body = getattr(exc, "body", None) or getattr(
+            getattr(exc, "response", None), "text", ""
+        )
+        if _TRANSIENT_402 in str(body):
+            return False
+    return True
 
 
 def retry_with_backoff(
