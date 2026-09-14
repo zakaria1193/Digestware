@@ -816,3 +816,38 @@ def test_an_oversized_read_is_clamped_not_rejected(subject):
     research = _finalised(subject, cast(SourceRepo, repo))
 
     assert len(research.excerpts[0].code) == cap
+
+
+def test_every_nested_string_cap_is_repaired(subject):
+    """`code_tour.path/symbol/lines` and `further_reading.title/url` had none.
+
+    Each was a way to lose a finished, paid-for article to a mechanical
+    overshoot. The repair is derived from the nested models so it cannot fall
+    behind the schema the way the hand-written mirrors did.
+    """
+    item = _writer_item(
+        sections=[{"heading": "H" * 400, "body": "B" * 9000}],
+        code_tour=[{
+            "path": "p" * 900, "symbol": "s" * 900,
+            "lines": "l" * 900, "why": "w" * 900,
+        }],
+        further_reading=[{"title": "t" * 900, "url": "u" * 900}],
+        primer_glossary=[{"term": "T" * 900, "definition": "D" * 900}],
+    )
+    _repair_lesson_item(item, subject)
+
+    # Validation is the assertion: every cap above is enforced by the model.
+    lesson = LessonDigest.model_validate(item)
+    assert lesson.code_tour[0].path
+    assert lesson.further_reading[0].url
+
+
+def test_an_optional_nested_string_stays_absent_not_empty(subject):
+    """`symbol: null` must not become `symbol: ""` in the frontmatter."""
+    item = _writer_item(
+        code_tour=[{"path": "gcc/ipa-sra.cc", "why": "because"}],
+    )
+    _repair_lesson_item(item, subject)
+
+    assert "symbol" not in item["code_tour"][0]
+    assert LessonDigest.model_validate(item).code_tour[0].symbol is None

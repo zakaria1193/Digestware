@@ -50,11 +50,15 @@ from agents._openrouter import (
 )
 from agents._retry import retry_with_backoff
 from agents.lesson_picker import LessonSubject
+from agents.models.base import GlossaryEntry
 from agents.models.lesson import (
+    CodeRef,
+    FurtherReading,
     LessonDigest,
     LessonDraft,
     LessonResearch,
     LessonResearchDraft,
+    LessonSection,
     SourceExcerpt,
 )
 from agents.tools.glossary_filter import filter_glossary
@@ -84,17 +88,6 @@ _BUDGET_EXHAUSTED = (
     "have already read. Do not cite files you did not open."
 )
 
-# Mirrors of the Pydantic caps in models/lesson.py, so an overrun is repaired
-# rather than failing the whole run.
-_HEADLINE_MAX = 140
-_HOOK_MAX = 200
-_TLDR_MAX = 160
-_CONCEPT_MAX = 300
-_SECTION_BODY_MAX = 4000
-_PRIMER_EXPERT_MAX = 600
-_GLOSSARY_TERM_MAX = 80
-_GLOSSARY_DEF_MAX = 400
-_CODE_REF_WHY_MAX = 300
 
 _RESEARCH_ADAPTER: TypeAdapter[LessonResearch] = TypeAdapter(LessonResearch)
 
@@ -335,6 +328,27 @@ _RESEARCH_STR_CAPS = _max_lengths(LessonResearch, (str,))
 _RESEARCH_LIST_CAPS = _max_lengths(LessonResearch, (list,))
 _EXCERPT_STR_CAPS = _max_lengths(SourceExcerpt, (str,))
 _LESSON_LIST_CAPS = _max_lengths(LessonDigest, (list,))
+_LESSON_STR_CAPS = _max_lengths(LessonDigest, (str,))
+
+# The caps inside each list-of-objects field. Every one of these was a way to
+# lose a finished article: `code_tour.path`/`symbol`/`lines` and
+# `further_reading.title`/`url` had no repair at all, and the hand-written
+# mirrors that did exist are how `primer_glossary` got missed. Derived from the
+# models so the repair cannot fall behind the schema.
+_LESSON_NESTED_CAPS: dict[str, type[BaseModel]] = {
+    "sections": LessonSection,
+    "code_tour": CodeRef,
+    "further_reading": FurtherReading,
+    "primer_glossary": GlossaryEntry,
+}
+_NESTED_STR_CAPS = {
+    field: _max_lengths(model, (str,))
+    for field, model in _LESSON_NESTED_CAPS.items()
+}
+_NESTED_REQUIRED = {
+    field: {n for n, f in model.model_fields.items() if f.is_required()}
+    for field, model in _LESSON_NESTED_CAPS.items()
+}
 
 
 def _clamp_to_schema(parsed: dict) -> None:
@@ -697,34 +711,27 @@ def _repair_lesson_item(item: dict, subject: LessonSubject) -> None:
     overshoots a length cap by ten characters should not cost us the whole
     run, and these are all mechanical fixes with no editorial judgement.
     """
-    for key, limit in (
-        ("headline", _HEADLINE_MAX),
-        ("hook", _HOOK_MAX),
-        ("tldr", _TLDR_MAX),
-        ("concept", _CONCEPT_MAX),
-        ("primer_expert", _PRIMER_EXPERT_MAX),
-    ):
+    for key, limit in _LESSON_STR_CAPS.items():
         if key in item:
             item[key] = _clip(item.get(key), limit)
 
-    for section in item.get("sections") or []:
-        if isinstance(section, dict):
-            section["heading"] = _clip(section.get("heading") or "", 120)
-            section["body"] = _clip(section.get("body") or "", _SECTION_BODY_MAX)
-
-    for ref in item.get("code_tour") or []:
-        if isinstance(ref, dict):
-            ref["why"] = _clip(ref.get("why") or "", _CODE_REF_WHY_MAX)
+    for field, caps in _NESTED_STR_CAPS.items():
+        for entry in item.get(field) or []:
+            if not isinstance(entry, dict):
+                continue
+            for key, limit in caps.items():
+                value = entry.get(key)
+                if isinstance(value, str):
+                    entry[key] = _clip(value, limit)
+                elif key in _NESTED_REQUIRED[field]:
+                    # A required string the model left out: "" validates and
+                    # renders as empty, which beats losing the article. An
+                    # absent *optional* one stays absent, so `symbol: null`
+                    # does not become `symbol: ""` in the frontmatter.
+                    entry[key] = ""
 
     glossary = item.get("primer_glossary")
     if isinstance(glossary, list):
-        for entry in glossary:
-            if not isinstance(entry, dict):
-                continue
-            entry["term"] = _clip(entry.get("term") or "", _GLOSSARY_TERM_MAX)
-            entry["definition"] = _clip(
-                entry.get("definition") or "", _GLOSSARY_DEF_MAX
-            )
         item["primer_glossary"] = filter_glossary(glossary)
 
     # Every capped list, trimmed. Derived from the model rather than listed
