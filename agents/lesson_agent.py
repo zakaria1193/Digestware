@@ -399,15 +399,21 @@ def _split_commit_output(text: str) -> tuple[str, str]:
 
 def _read_excerpts(
     repo: SourceRepo, sha: str, requests: list[dict]
-) -> list[SourceExcerpt]:
+) -> list[dict]:
     """Turn the explorer's region requests into excerpts read from the clone.
 
     A request naming a path that does not exist at this commit is dropped, the
     same way ``_drop_unread_code_refs`` drops a fabricated citation from the
     writer — except here it costs nothing, because the bytes were never going
     to come from the model in the first place.
+
+    Returns plain dicts, deliberately. ``read_file`` hands back up to 8192
+    bytes and ``SourceExcerpt.code`` caps at 6000, so building the model here
+    would validate — and fail — before ``_clamp_to_schema`` ever got the
+    chance to trim. That cost a run: the caps are repairs applied to the dict,
+    and anything that constructs the strict model early opts out of them.
     """
-    excerpts: list[SourceExcerpt] = []
+    excerpts: list[dict] = []
     for request in requests:
         path = request.get("path")
         if not isinstance(path, str) or not path:
@@ -421,13 +427,13 @@ def _read_excerpts(
             )
             continue
         excerpts.append(
-            SourceExcerpt(
-                path=path,
-                lines=request.get("lines"),
-                symbol=request.get("symbol"),
-                code=code,
-                note=request.get("note") or "",
-            )
+            {
+                "path": path,
+                "lines": request.get("lines") or None,
+                "symbol": request.get("symbol") or None,
+                "code": code,
+                "note": request.get("note") or "",
+            }
         )
     return excerpts
 

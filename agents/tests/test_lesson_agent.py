@@ -795,3 +795,24 @@ def test_list_caps_match_the_model_exactly():
         origin = getattr(field.annotation, "__origin__", field.annotation)
         if caps and origin is list:
             assert _LESSON_LIST_CAPS.get(name) == caps[0], name
+
+
+def test_an_oversized_read_is_clamped_not_rejected(subject):
+    """`read_file` returns up to 8192 bytes; `SourceExcerpt.code` caps at 6000.
+
+    The excerpt is read from the clone, so overrunning the cap is the normal
+    case, not an edge one. `_read_excerpts` therefore hands back dicts and lets
+    `_clamp_to_schema` trim them — building the strict model early validates
+    before the clamp can run, which is exactly how a run was lost.
+    """
+    from agents.lesson_agent import _EXCERPT_STR_CAPS
+
+    cap = _EXCERPT_STR_CAPS["code"]
+    repo = FakeRepo()
+    repo.read_file = (                                   # type: ignore[method-assign]
+        lambda sha, path, start_line=1, end_line=None: "x" * (cap + 2192)
+    )
+
+    research = _finalised(subject, cast(SourceRepo, repo))
+
+    assert len(research.excerpts[0].code) == cap
