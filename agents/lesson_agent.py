@@ -32,11 +32,9 @@ Both calls are logged to ``agents/output/usage.log`` under distinct agent names
 
 from __future__ import annotations
 
-import json
 import logging
+import re
 from datetime import datetime, timezone
-from types import UnionType
-from typing import Union, get_args, get_origin
 
 from pydantic import BaseModel, TypeAdapter, ValidationError
 from pydantic_ai import Agent
@@ -50,7 +48,18 @@ from agents._openrouter import (
 )
 from agents._retry import retry_with_backoff
 from agents.lesson_picker import LessonSubject
-from agents.models.lesson import LessonDigest, LessonResearch, SourceExcerpt
+from agents.models.base import GlossaryEntry
+from agents.models.draft import max_lengths
+from agents.models.lesson import (
+    CodeRef,
+    FurtherReading,
+    LessonDigest,
+    LessonDraft,
+    LessonResearch,
+    LessonResearchDraft,
+    LessonSection,
+    SourceExcerpt,
+)
 from agents.tools.glossary_filter import filter_glossary
 from agents.tools.source_repo import SourceRepo
 from agents.tools.web_search import search_context
@@ -66,23 +75,24 @@ logger = logging.getLogger(__name__)
 # evidence; lower it first if the budget overruns.
 _MAX_TOOL_CALLS = 16
 
+# Excerpts the explorer may flag — the same "3 to 8" the prompt asks for, so
+# the cap and the instruction agree. It was 12 (the schema's own ceiling), and
+# the explorer duly used all of them: the writer's prompt went from 13k chars
+# on the run that produced a real article to 43k, tripling the input cost of
+# the single most expensive call this project makes. That article was written
+# from ONE excerpt, so more is not obviously better here.
+#
+# ``note_excerpt`` is deliberately NOT charged to the tool budget above: it
+# reads nothing, and making bookkeeping compete with the read budget would buy
+# fewer files read.
+_MAX_EXCERPTS = 8
+
 _BUDGET_EXHAUSTED = (
     "[budget] The source-exploration budget for this lesson is spent. Stop "
     "calling tools and return the research dossier now, using only what you "
     "have already read. Do not cite files you did not open."
 )
 
-# Mirrors of the Pydantic caps in models/lesson.py, so an overrun is repaired
-# rather than failing the whole run.
-_HEADLINE_MAX = 140
-_HOOK_MAX = 200
-_TLDR_MAX = 160
-_CONCEPT_MAX = 300
-_SECTION_BODY_MAX = 4000
-_PRIMER_EXPERT_MAX = 600
-_GLOSSARY_TERM_MAX = 80
-_GLOSSARY_DEF_MAX = 400
-_CODE_REF_WHY_MAX = 300
 
 _RESEARCH_ADAPTER: TypeAdapter[LessonResearch] = TypeAdapter(LessonResearch)
 
@@ -105,25 +115,29 @@ METHOD (work in this order):
 1. ``show_commit`` — read the full message and diff first.
 2. ``read_file`` — open the region each hunk touches, plus enough surrounding
    context to see what the code is actually for.
-3. ``grep_repo`` / ``find_symbol`` — chase the one or two symbols that carry
+3. ``note_excerpt`` — the moment a region is worth showing the reader, mark it:
+   ``note_excerpt(path, lines, symbol, note)``. Do this AS YOU READ, 3 to 8
+   times over the run. You are naming the region, not copying it — the code is
+   fetched from the repository for you. A region you do not mark does not
+   reach the writer.
+4. ``grep_repo`` / ``find_symbol`` — chase the one or two symbols that carry
    the concept: the caller, the data structure, the invariant being kept.
-4. ``search_web`` — OUTSIDE background only (a paper, a wiki page, an ISA
+5. ``search_web`` — OUTSIDE background only (a paper, a wiki page, an ISA
    note). Never a substitute for reading the code.
 
 Your exploration budget is limited. Spend it on the three or four files that
 actually explain the change, not on a survey of the subsystem.
 
-RETURN one JSON object (raw JSON, no markdown fences) with these fields:
+DO NOT finish before you have read the code and called ``note_excerpt`` at
+least once. A dossier with no excerpts is rejected outright — the writer
+cannot open a file, so it would have nothing to ground the article in.
+
+DO NOT copy code into your answer. The commit message, the diff and the file
+contents are read from the repository for you. Your final answer is prose
+only.
+
+FINISH by returning these fields, all plain text:
 - ``commit_hash``, ``subsystem`` — echo from the input.
-- ``commit_message`` — the commit message, verbatim.
-- ``diff`` — the diff, verbatim (trim to the hunks that matter if it is huge).
-- ``changed_files`` — the paths this commit touched.
-- ``excerpts`` — 3 to 8 objects ``{path, lines, symbol, code, note}``. ``code``
-  is the region COPIED VERBATIM from the file — not summarised, not
-  reformatted, not re-indented. This is the writer's only view of the source,
-  and a paraphrase here becomes a wrong identifier in the published article.
-  ``lines`` is the range you read ("1204-1231"); ``note`` is one sentence on
-  why you opened it.
 - ``what_changed`` — what this commit does, mechanically, in your own words.
 - ``how_it_works`` — how the surrounding machinery works: the pass, the data
   structure, the invariant, the control flow the reader needs to follow the
@@ -153,7 +167,37 @@ class _ToolBudget:
         return True
 
 
-def _build_tools(repo: SourceRepo, sha: str, budget: _ToolBudget) -> list:
+class _ExcerptLog:
+    """Regions the explorer flagged while reading, in the order it read them.
+
+    Excerpts arrive as tool calls rather than as part of the final answer, for
+    two reasons. The schema one is decisive: a list of ``{path, lines, symbol,
+    note}`` objects in the output schema means ``$defs``/``$ref``, which
+    Gemini's function-calling dialect does not support — and OpenRouter's
+    OpenAI-compatible endpoint means pydantic-ai does not rewrite it away.
+    Three runs died there. A tool with four plain string parameters is the
+    best-supported shape there is.
+
+    The second is that it fits how the work actually happens: the explorer
+    flags a region at the moment it reads it, instead of having to remember
+    every region until the end.
+    """
+
+    def __init__(self, limit: int = _MAX_EXCERPTS) -> None:
+        self.limit = limit
+        self.records: list[dict] = []
+
+    def add(self, record: dict) -> bool:
+        """Record a region. False once the log is full."""
+        if len(self.records) >= self.limit:
+            return False
+        self.records.append(record)
+        return True
+
+
+def _build_tools(
+    repo: SourceRepo, sha: str, budget: _ToolBudget, excerpts: _ExcerptLog
+) -> list:
     """Return repo-navigation tools bound to one clone at one commit.
 
     The SHA is closed over rather than passed by the model: the model has no
@@ -220,6 +264,32 @@ def _build_tools(repo: SourceRepo, sha: str, budget: _ToolBudget) -> list:
             return _BUDGET_EXHAUSTED
         return repo.find_symbol(sha, name, paths or default_scope)
 
+    def note_excerpt(
+        path: str, lines: str = "", symbol: str = "", note: str = ""
+    ) -> str:
+        """Mark a region you have read as one the article should quote.
+
+        Call this as you read, once per region worth showing the reader. The
+        code itself is fetched from the repository — you are naming the region,
+        not copying it.
+
+        Args:
+            path: repo-relative file you read, e.g. "gcc/ipa-sra.cc".
+            lines: the range it covers, e.g. "1204-1231".
+            symbol: the function, struct or macro it covers, if one fits.
+            note: one sentence on why this region matters.
+        """
+        if not path.strip():
+            return "[error] note_excerpt needs a path."
+        if not excerpts.add(
+            {"path": path.strip(), "lines": lines, "symbol": symbol, "note": note}
+        ):
+            return (
+                f"[budget] Already holding {excerpts.limit} excerpts — that is "
+                "enough. Finish your findings and return."
+            )
+        return f"Recorded excerpt {len(excerpts.records)}: {path} {lines}".strip()
+
     def search_web(query: str) -> list[str]:
         """Look up OUTSIDE background: a paper, a wiki page, an ISA manual.
 
@@ -229,83 +299,37 @@ def _build_tools(repo: SourceRepo, sha: str, budget: _ToolBudget) -> list:
             return [_BUDGET_EXHAUSTED]
         return search_context(query)
 
-    return [show_commit, read_file, list_dir, grep_repo, find_symbol, search_web]
+    return [
+        show_commit, read_file, list_dir, grep_repo, find_symbol,
+        note_excerpt, search_web,
+    ]
 
 
-def _strip_fences(text: str) -> str:
-    text = text.strip()
-    if text.startswith("```"):
-        text = text[text.index("\n") + 1:] if "\n" in text else text[3:]
-    if text.endswith("```"):
-        text = text[: text.rindex("```")].rstrip()
-    return text
+_RESEARCH_STR_CAPS = max_lengths(LessonResearch, (str,))
+_RESEARCH_LIST_CAPS = max_lengths(LessonResearch, (list,))
+_EXCERPT_STR_CAPS = max_lengths(SourceExcerpt, (str,))
+_LESSON_LIST_CAPS = max_lengths(LessonDigest, (list,))
+_LESSON_STR_CAPS = max_lengths(LessonDigest, (str,))
 
-
-def _max_lengths(model: type[BaseModel], kinds: tuple[type, ...]) -> dict[str, int]:
-    """`{field: max_length}` read off the model itself, not copied from it.
-
-    Derived rather than hardcoded so the clamp can never drift out of step with
-    the schema it exists to satisfy.
-    """
-    caps: dict[str, int] = {}
-    for name, field in model.model_fields.items():
-        for meta in field.metadata:
-            limit = getattr(meta, "max_length", None)
-            if limit is None:
-                continue
-            annotation = field.annotation
-            origin = get_origin(annotation) or annotation
-            # `str | None` is types.UnionType on 3.10+, typing.Union when
-            # spelled Optional[str] — unwrap either and check the real type.
-            if origin in (Union, UnionType):
-                if any(a in kinds for a in get_args(annotation)):
-                    caps[name] = limit
-            elif any(origin is k for k in kinds):
-                caps[name] = limit
-    return caps
-
-
-_RESEARCH_STR_CAPS = _max_lengths(LessonResearch, (str,))
-_RESEARCH_LIST_CAPS = _max_lengths(LessonResearch, (list,))
-_EXCERPT_STR_CAPS = _max_lengths(SourceExcerpt, (str,))
-
-
-def _extract_json_object(text: str) -> str:
-    """Pull the outermost JSON object out of a model's free-text answer.
-
-    Requiring the *whole* reply to be JSON is a bad bet against a reasoning
-    model: a preamble ("Here's the dossier:"), a trailing remark, or a fenced
-    block mid-message all make `json.loads` throw — after every tool call in
-    the run has already been paid for. So scan for the outermost balanced
-    ``{…}`` instead, ignoring braces inside strings.
-    """
-    stripped = _strip_fences(text)
-    start = stripped.find("{")
-    if start == -1:
-        raise ValueError("no JSON object found in the research output")
-
-    depth = 0
-    in_string = False
-    escaped = False
-    for i in range(start, len(stripped)):
-        ch = stripped[i]
-        if in_string:
-            if escaped:
-                escaped = False
-            elif ch == "\\":
-                escaped = True
-            elif ch == '"':
-                in_string = False
-            continue
-        if ch == '"':
-            in_string = True
-        elif ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                return stripped[start : i + 1]
-    raise ValueError("research output ends inside an unterminated JSON object")
+# The caps inside each list-of-objects field. Every one of these was a way to
+# lose a finished article: `code_tour.path`/`symbol`/`lines` and
+# `further_reading.title`/`url` had no repair at all, and the hand-written
+# mirrors that did exist are how `primer_glossary` got missed. Derived from the
+# models so the repair cannot fall behind the schema.
+_LESSON_NESTED_CAPS: dict[str, type[BaseModel]] = {
+    "sections": LessonSection,
+    "code_tour": CodeRef,
+    "further_reading": FurtherReading,
+    "primer_glossary": GlossaryEntry,
+}
+_NESTED_STR_CAPS = {
+    field: max_lengths(model, (str,))
+    for field, model in _LESSON_NESTED_CAPS.items()
+}
+_NESTED_REQUIRED = {
+    field: {n for n, f in model.model_fields.items() if f.is_required()}
+    for field, model in _LESSON_NESTED_CAPS.items()
+}
 
 
 def _clamp_to_schema(parsed: dict) -> None:
@@ -340,14 +364,123 @@ def _clamp_to_schema(parsed: dict) -> None:
                     item[field] = _cut(item[field], limit)
 
 
-def _parse_research(text: str, subject: LessonSubject) -> LessonResearch:
-    parsed = json.loads(_extract_json_object(text))
-    if isinstance(parsed, list):
-        if not parsed:
-            raise ValueError("research model returned an empty array")
-        parsed = parsed[0]
-    if not isinstance(parsed, dict):
-        raise ValueError(f"expected a JSON object, got {type(parsed).__name__}")
+_LINE_RANGE = re.compile(r"(\d+)\s*[-–—:]\s*(\d+)")
+
+
+def _parse_line_range(lines: str | None) -> tuple[int, int | None]:
+    """``"1204-1231"`` -> ``(1204, 1231)``; anything unusable -> ``(1, None)``.
+
+    A malformed range is not worth failing a dossier over — ``read_file``'s
+    default window is a perfectly good fallback, and the excerpt still names
+    the file the explorer meant.
+    """
+    if not lines:
+        return 1, None
+    match = _LINE_RANGE.search(lines)
+    if match:
+        start, end = int(match.group(1)), int(match.group(2))
+        return (start, end) if end >= start else (end, start)
+    digits = re.search(r"\d+", lines)
+    return (int(digits.group()), None) if digits else (1, None)
+
+
+def _split_commit_output(text: str) -> tuple[str, str]:
+    """Split ``git show`` output into (message-and-diffstat, patch)."""
+    marker = text.find("diff --git")
+    if marker == -1:
+        return text.strip(), ""
+    return text[:marker].strip(), text[marker:].strip()
+
+
+def _read_excerpts(
+    repo: SourceRepo, sha: str, requests: list[dict]
+) -> list[dict]:
+    """Turn the explorer's region requests into excerpts read from the clone.
+
+    A request naming a path that does not exist at this commit is dropped, the
+    same way ``_drop_unread_code_refs`` drops a fabricated citation from the
+    writer — except here it costs nothing, because the bytes were never going
+    to come from the model in the first place.
+
+    Returns plain dicts, deliberately. ``read_file`` hands back up to 8192
+    bytes and ``SourceExcerpt.code`` caps at 6000, so building the model here
+    would validate — and fail — before ``_clamp_to_schema`` ever got the
+    chance to trim. That cost a run: the caps are repairs applied to the dict,
+    and anything that constructs the strict model early opts out of them.
+    """
+    excerpts: list[dict] = []
+    for request in requests:
+        path = request.get("path")
+        if not isinstance(path, str) or not path:
+            continue
+        start, end = _parse_line_range(request.get("lines"))
+        code = repo.read_file(sha, path, start_line=start, end_line=end)
+        if code.startswith("[error]"):
+            logger.warning(
+                "lesson_agent[research]: dropping excerpt %r — not readable at %s",
+                path, sha[:12],
+            )
+            continue
+        excerpts.append(
+            {
+                "path": path,
+                "lines": request.get("lines") or None,
+                "symbol": request.get("symbol") or None,
+                "code": code,
+                "note": request.get("note") or "",
+            }
+        )
+    return excerpts
+
+
+def _assert_dossier_has_evidence(research: LessonResearch) -> None:
+    """Refuse a dossier the writer could not honestly write from.
+
+    The writer never opens a file: the commit message, the diff and the
+    excerpts are its entire view of the source. Hand it an empty dossier and it
+    does not fail — it writes, truthfully and at length, about having no
+    evidence. That article is ``is_stub: false``, so it passes validation, gets
+    committed, and publishes.
+
+    That is not hypothetical. On 2026-09-14 the explorer returned after one
+    tool call and 53 tokens, and $0.08 of Opus went on "No Dossier, No Lesson:
+    Why This Week's Article Cannot Be Written", which was one merge away from
+    the front page.
+
+    A stub is the right outcome for this: it is visible in /admin, it never
+    claims its week, and the next night retries. So the emptiness is caught
+    here, where it still reads as the stage-1 failure it actually is, rather
+    than downstream where it reads as an editorial decision.
+
+    Raised as a ``ValueError`` on purpose, which ``retry_with_backoff`` does
+    retry. Unlike a schema mismatch, an explorer that returned early may well
+    do the work on a second ask, and stage 1 runs on the cheap tier — the
+    empty run above cost $0.0008. Three attempts at that price beats losing
+    the week.
+    """
+    if not research.excerpts:
+        raise ValueError(
+            "dossier has no source excerpts — the writer would have nothing "
+            "to ground the article in"
+        )
+    if not research.diff.strip() and not research.commit_message.strip():
+        raise ValueError("dossier has neither a diff nor a commit message")
+
+
+def _finalise_research(
+    draft: BaseModel,
+    subject: LessonSubject,
+    repo: SourceRepo,
+    requests: list[dict],
+) -> LessonResearch:
+    """Assemble the dossier: the explorer's findings plus the code, from git.
+
+    The model supplies judgement — what changed, how the machinery works, which
+    regions matter. Everything quotable is read from the clone at this commit,
+    so the excerpts are verbatim by construction rather than by instruction,
+    and stage 1's output stays small enough to cross the wire intact.
+    """
+    parsed = draft.model_dump(exclude_none=True)
 
     # Identity is ours, not the model's — a typo here would misattribute the
     # whole dossier to the wrong commit.
@@ -355,8 +488,16 @@ def _parse_research(text: str, subject: LessonSubject) -> LessonResearch:
     if not parsed.get("subsystem"):
         parsed["subsystem"] = subject.subsystem
 
+    message, diff = _split_commit_output(repo.show_commit(subject.commit_hash))
+    parsed["commit_message"] = message
+    parsed["diff"] = diff
+    parsed["changed_files"] = repo.changed_paths(subject.commit_hash)
+    parsed["excerpts"] = _read_excerpts(repo, subject.commit_hash, requests)
+
     _clamp_to_schema(parsed)
-    return _RESEARCH_ADAPTER.validate_python(parsed)
+    research = _RESEARCH_ADAPTER.validate_python(parsed)
+    _assert_dossier_has_evidence(research)
+    return research
 
 
 def _research_prompt(subject: LessonSubject, repo: SourceRepo) -> str:
@@ -372,8 +513,8 @@ def _research_prompt(subject: LessonSubject, repo: SourceRepo) -> str:
         f"landing_tldr: {subject.tldr}\n\n"
         "Files this commit touched:\n  " + "\n  ".join(paths) + "\n\n"
         f"Default grep scope (the directories above): {', '.join(scope)}\n\n"
-        "Call show_commit first, then read the code. Return one JSON object — "
-        "raw JSON, no markdown fences."
+        "Call show_commit first, then read the code, calling note_excerpt on "
+        "each region worth quoting. Return your findings last."
     )
 
 
@@ -391,11 +532,19 @@ def run_research(
     """
     model_name = model_from_env("LESSON_RESEARCH_MODEL", DEFAULT_LESSON_RESEARCH_MODEL)
     budget = _ToolBudget()
-    agent: Agent[None, str] = Agent(
+    excerpts = _ExcerptLog()
+    agent: Agent[None, BaseModel] = Agent(
         model=build_model(model_name),
-        output_type=str,
+        # Structured output, not prose the pipeline parses: the dossier carries
+        # a raw diff and verbatim C, and hand-encoding that as JSON is what the
+        # model kept getting wrong. See agents/models/draft.py. PydanticAI's
+        # default `retries=1` covers the one reprompt worth paying for here —
+        # a second would resend every tool result in the run a third time.
+        output_type=LessonResearchDraft,
         system_prompt=_RESEARCH_PROMPT,
-        tools=_build_tools(repo, subject.commit_hash, budget),  # type: ignore[arg-type]
+        tools=_build_tools(  # type: ignore[arg-type]
+            repo, subject.commit_hash, budget, excerpts
+        ),
     )
     prompt = _research_prompt(subject, repo)
 
@@ -419,13 +568,13 @@ def run_research(
                 "\033[1;32m── lesson research ◀ RESPONSE FROM %s ──\n%s\033[0m",
                 model_name, r.output,
             )
-        return r, _parse_research(r.output, subject)
+        return r, _finalise_research(r.output, subject, repo, excerpts.records)
 
     try:
         result, research = retry_with_backoff(
             _call, label=f"lesson_research {subject.project}/{subject.commit_hash[:12]}"
         )
-    except (ValidationError, json.JSONDecodeError, ValueError) as exc:
+    except (ValidationError, ValueError) as exc:
         logger.error("lesson_agent[research]: unusable output (%s)", exc, exc_info=True)
         if errors is not None:
             errors.append(_stage_reason("research_failed", exc))
@@ -490,7 +639,7 @@ WRITING RULES
   snippets, bullet lists where they earn their place. No headings inside a
   section body — the ``heading`` field is the heading.
 
-FIELDS (return ONE JSON object, raw JSON only, no markdown fences):
+FIELDS (return the article through the output tool):
 - ``headline`` — the lesson's title, <= 140 chars. Names the concept, not the
   commit. Not a commit subject line.
 - ``hook`` — <= 200 chars, why a reader should spend ten minutes here.
@@ -527,9 +676,6 @@ FIELDS (return ONE JSON object, raw JSON only, no markdown fences):
   restate this commit's effect. Never define the top-level project itself
   ("GCC", "binutils", "glibc", "Linux") — the reader knows what paper this is.
   Err on the side of more entries.
-
-VERBATIM FIELDS (echo exactly as given in the input, do not invent):
-``commit_hash``, ``project``, ``source_type``, ``url``.
 """
 
 
@@ -546,47 +692,43 @@ def _repair_lesson_item(item: dict, subject: LessonSubject) -> None:
     overshoots a length cap by ten characters should not cost us the whole
     run, and these are all mechanical fixes with no editorial judgement.
     """
-    for key, limit in (
-        ("headline", _HEADLINE_MAX),
-        ("hook", _HOOK_MAX),
-        ("tldr", _TLDR_MAX),
-        ("concept", _CONCEPT_MAX),
-        ("primer_expert", _PRIMER_EXPERT_MAX),
-    ):
+    for key, limit in _LESSON_STR_CAPS.items():
         if key in item:
             item[key] = _clip(item.get(key), limit)
 
-    for key, cap in (
-        ("prerequisites", 6),
-        ("sections", 8),
-        ("code_tour", 10),
-        ("takeaways", 6),
-        ("further_reading", 6),
-        ("tags", 5),
-    ):
-        val = item.get(key)
-        if isinstance(val, list) and len(val) > cap:
-            item[key] = val[:cap]
-
-    for section in item.get("sections") or []:
-        if isinstance(section, dict):
-            section["heading"] = _clip(section.get("heading") or "", 120)
-            section["body"] = _clip(section.get("body") or "", _SECTION_BODY_MAX)
-
-    for ref in item.get("code_tour") or []:
-        if isinstance(ref, dict):
-            ref["why"] = _clip(ref.get("why") or "", _CODE_REF_WHY_MAX)
+    for field, caps in _NESTED_STR_CAPS.items():
+        for entry in item.get(field) or []:
+            if not isinstance(entry, dict):
+                continue
+            for key, limit in caps.items():
+                value = entry.get(key)
+                if isinstance(value, str):
+                    entry[key] = _clip(value, limit)
+                elif key in _NESTED_REQUIRED[field]:
+                    # A required string the model left out: "" validates and
+                    # renders as empty, which beats losing the article. An
+                    # absent *optional* one stays absent, so `symbol: null`
+                    # does not become `symbol: ""` in the frontmatter.
+                    entry[key] = ""
 
     glossary = item.get("primer_glossary")
     if isinstance(glossary, list):
-        for entry in glossary:
-            if not isinstance(entry, dict):
-                continue
-            entry["term"] = _clip(entry.get("term") or "", _GLOSSARY_TERM_MAX)
-            entry["definition"] = _clip(
-                entry.get("definition") or "", _GLOSSARY_DEF_MAX
-            )
         item["primer_glossary"] = filter_glossary(glossary)
+
+    # Every capped list, trimmed. Derived from the model rather than listed
+    # here, because the hand-written version left `primer_glossary` out and
+    # that cost a run: the writer is told to "err on the side of more entries"
+    # and duly produced 17 against a cap of 10, so an article that was written,
+    # paid for and otherwise valid died on `too_long`. A new capped field on
+    # `LessonDigest` is now covered the day it is added.
+    #
+    # After the glossary filtering above, not before — `filter_glossary` can
+    # drop entries, and trimming first would discard good ones to make room
+    # for entries that were about to be removed anyway.
+    for key, cap in _LESSON_LIST_CAPS.items():
+        value = item.get(key)
+        if isinstance(value, list) and len(value) > cap:
+            item[key] = value[:cap]
 
     # Fields the model must echo, forced from the subject regardless. These
     # identify the article; an LLM typo here mislabels the whole piece.
@@ -639,19 +781,11 @@ def _drop_unread_code_refs(item: dict, repo: SourceRepo, sha: str) -> None:
     item["code_tour"] = kept
 
 
-def _parse_lesson(
-    text: str, subject: LessonSubject, repo: SourceRepo
+def _finalise_lesson(
+    draft: BaseModel, subject: LessonSubject, repo: SourceRepo
 ) -> LessonDigest:
-    """Parse the writer's JSON object into a validated LessonDigest."""
-    parsed = json.loads(_strip_fences(text))
-    # Tolerate a single-element array — models wrap objects surprisingly often.
-    if isinstance(parsed, list):
-        if not parsed:
-            raise ValueError("writer returned an empty array")
-        parsed = parsed[0]
-    if not isinstance(parsed, dict):
-        raise ValueError(f"expected a JSON object, got {type(parsed).__name__}")
-
+    """Turn the writer's draft article into a validated ``LessonDigest``."""
+    parsed = draft.model_dump(exclude_none=True)
     _repair_lesson_item(parsed, subject)
     _drop_unread_code_refs(parsed, repo, subject.commit_hash)
     return LessonDigest.model_validate(parsed)
@@ -714,7 +848,7 @@ def _render_dossier(research: LessonResearch, subject: LessonSubject) -> str:
             "External context:",
             "\n".join(f"- {c}" for c in research.external_context),
         ]
-    lines += ["", "Return one JSON object — raw JSON, no markdown fences."]
+    lines += ["", "Return the article through the output tool."]
     return "\n".join(lines)
 
 
@@ -729,9 +863,9 @@ def run_writer(
     ``errors`` is the same failure sink ``run_research`` takes.
     """
     model_name = model_from_env("LESSON_WRITER_MODEL", DEFAULT_LESSON_WRITER_MODEL)
-    agent: Agent[None, str] = Agent(
+    agent: Agent[None, BaseModel] = Agent(
         model=build_model(model_name, max_tokens=LESSON_WRITER_MAX_TOKENS),
-        output_type=str,
+        output_type=LessonDraft,
         system_prompt=_WRITER_PROMPT,
     )
     prompt = _render_dossier(research, subject)
@@ -753,13 +887,13 @@ def run_writer(
                 "\033[1;32m── lesson writer ◀ RESPONSE FROM %s ──\n%s\033[0m",
                 model_name, r.output,
             )
-        return r, _parse_lesson(r.output, subject, repo)
+        return r, _finalise_lesson(r.output, subject, repo)
 
     try:
         result, lesson = retry_with_backoff(
             _call, label=f"lesson_writer {subject.project}/{subject.commit_hash[:12]}"
         )
-    except (ValidationError, json.JSONDecodeError, ValueError) as exc:
+    except (ValidationError, ValueError) as exc:
         logger.error("lesson_agent[writer]: unusable output (%s)", exc, exc_info=True)
         if errors is not None:
             errors.append(_stage_reason("writer_failed", exc))

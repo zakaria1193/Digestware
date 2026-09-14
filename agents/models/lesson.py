@@ -19,6 +19,7 @@ from datetime import date, datetime
 from pydantic import BaseModel, Field, model_validator
 
 from agents.models.base import BimodalBase
+from agents.models.draft import draft_model, max_lengths
 
 
 class LessonSection(BaseModel):
@@ -114,6 +115,27 @@ class SourceExcerpt(BaseModel):
     note: str = Field(default="", max_length=400)   # why the explorer opened it
 
 
+class ExcerptRequest(BaseModel):
+    """A region the explorer wants in the dossier — named, not copied.
+
+    The counterpart to ``SourceExcerpt``: same identity fields, no ``code``.
+    The explorer says *which* lines matter and why; ``lesson_agent`` reads the
+    bytes back out of git at the lesson's commit.
+
+    That split is why it exists. Asking the model to re-type the region put
+    thousands of characters of verbatim C into a single tool call — expensive,
+    and on 2026-09-14 the thing that broke stage 1 outright ("Exceeded maximum
+    output retries") once the dossier's evidence fields became required. Reading
+    from the clone is cheaper, cannot truncate, and makes "verbatim" structural
+    rather than an instruction the model is asked to honour.
+    """
+
+    path: str = Field(..., max_length=300)
+    lines: str | None = Field(default=None, max_length=40)    # "1204-1231"
+    symbol: str | None = Field(default=None, max_length=160)
+    note: str = Field(default="", max_length=400)   # why the explorer opened it
+
+
 class LessonResearch(BaseModel):
     """What the explorer found. The sole input to the writing pass."""
 
@@ -163,3 +185,108 @@ class LessonResearch(BaseModel):
             for key, value in data.items()
             if not (value is None and key in optional)
         }
+
+
+#: How long a lesson body may legitimately be, in words, derived from what the
+#: schema actually permits: every section at its cap.
+#:
+#: Derived because the hand-written figure was 1600 while the schema allowed
+#: more than three times that, and `writer._sanitise_body` does not trim an
+#: over-long body — it replaces the whole article with "Summary unavailable".
+#: So a finished, correct, $0.24 article was written, validated, committed and
+#: published as a placeholder, with `is_stub: false` hiding it from every
+#: alarm. A bound that contradicts the schema it guards is not a safety net.
+#:
+#: Six characters per word is the usual English average including the space.
+LESSON_BODY_MAX_WORDS = (
+    max_lengths(LessonDigest, (list,))["sections"]
+    * max_lengths(LessonSection, (str,))["body"]
+) // 6
+
+
+# ---------------------------------------------------------------------------
+# Structured-output twins
+# ---------------------------------------------------------------------------
+#
+# What the two agents are actually asked to produce. Both are lenient
+# derivations of the strict models above — see agents/models/draft.py for why
+# the models are not pointed straight at LessonResearch / LessonDigest.
+
+#: What the explorer must supply in its final answer. The evidence does not
+#: appear here: ``commit_message``, ``diff`` and ``changed_files`` are read
+#: from the clone, and the excerpts are recorded through the ``note_excerpt``
+#: tool as the explorer reads, then hydrated from the clone too.
+#:
+#: These carry defaults on ``LessonResearch`` because a stub has to be
+#: constructible; the explorer is not free to omit them. See the ``require``
+#: note in models/draft.py.
+LESSON_RESEARCH_REQUIRED = frozenset(
+    {
+        "what_changed",
+        "how_it_works",
+        "why_it_matters",
+    }
+)
+
+#: Fields the pipeline supplies rather than asking the model for. The first
+#: three are deterministic facts we already hold — making a model re-type them
+#: costs output tokens and invites a paraphrase where the article conventions
+#: demand exact bytes. ``excerpts`` is assembled from ``note_excerpt`` tool
+#: calls plus the clone.
+#:
+#: Keeping them out has a second, harder consequence: it leaves stage 1's
+#: schema completely flat — strings and arrays of strings, no nested object,
+#: so no ``$ref``. Gemini's function-calling dialect supports neither ``$ref``
+#: nor ``anyOf``, and OpenRouter's OpenAI-compatible endpoint means pydantic-ai
+#: applies its OpenAI schema transformer, not its Google one, so whatever we
+#: put here reaches Gemini verbatim. A nested excerpt object is what produced
+#: three consecutive "Exceeded maximum output retries" stubs on 2026-09-14.
+LESSON_RESEARCH_FROM_REPO = frozenset(
+    {"commit_message", "diff", "changed_files", "excerpts"}
+)
+
+#: Stage 1's output shape. ``commit_hash`` stays required and is overwritten
+#: from the subject afterwards, so a typo cannot misattribute the dossier.
+#: ``tool_calls_used`` is dropped: the explorer cannot count its own budget,
+#: and the agent fills it in from the real counter.
+LessonResearchDraft = draft_model(
+    LessonResearch,
+    name="LessonResearchDraft",
+    exclude=frozenset({"tool_calls_used"}) | LESSON_RESEARCH_FROM_REPO,
+    require=LESSON_RESEARCH_REQUIRED,
+)
+
+#: Fields of ``LessonDigest`` the pipeline fills in from the subject rather
+#: than the writer: identity, provenance, the week's dates, and the stub flags.
+#: Asking a model to echo them costs tokens and invites a typo in exactly the
+#: values that decide which commit the article is about.
+LESSON_INJECTED_FIELDS = frozenset(
+    {
+        "project",
+        "patch_id",
+        "lesson_id",
+        "commit_hash",
+        "source_type",
+        "url",
+        "landing_slug",
+        "week_start",
+        "week_end",
+        "commit_date",
+        "date",
+        "is_stub",
+        "stub_reason",
+    }
+)
+
+#: Stage 2's output shape: the article fields the writer actually authors.
+#: ``sections`` and ``takeaways`` are required for the same reason as the
+#: dossier's evidence fields — a lesson without a body is not a lesson, and
+#: their defaults on ``LessonDigest`` exist to let a stub be constructed.
+#: ``code_tour`` stays optional: ``_drop_unread_code_refs`` can legitimately
+#: empty it, so requiring it here would promise something we then take away.
+LessonDraft = draft_model(
+    LessonDigest,
+    name="LessonDraft",
+    exclude=LESSON_INJECTED_FIELDS,
+    require=frozenset({"sections", "takeaways"}),
+)

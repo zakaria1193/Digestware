@@ -121,7 +121,8 @@ agents/
 │   ├── raw.py              # RawDiscussion, RawCommit (source-agnostic)
 │   ├── discussion.py       # DiscussionDigest (Lab output)
 │   ├── landing.py          # LandingDigest (Factory output)
-│   └── lesson.py           # LessonDigest + LessonResearch (Lesson output/dossier)
+│   ├── lesson.py           # LessonDigest + LessonResearch (Lesson output/dossier)
+│   └── draft.py            # lenient twins of those, used as agent output_types
 │
 ├── tools/                  # Small, single-purpose helpers registered with the Agent
 │   ├── patch_id.py         # `git patch-id --stable` wrapper (cross-ref key)
@@ -665,6 +666,70 @@ and hundreds of MB.
   answering `"external_context": null` means "found nothing" and a
   ValidationError there is non-retryable — it costs the whole week's lesson.
   Required identity fields still reject a null.
+- **Neither lesson stage parses JSON out of a model's prose.** Both use a
+  PydanticAI `output_type`, like the discussion and landing agents, so
+  *encoding* is the provider's job. That is not cosmetic: the dossier carries a
+  raw diff and verbatim C, and hand-encoding those into JSON strings is what
+  killed two of the four stubs on disk (`Invalid \escape`,
+  `Expecting ',' delimiter`), thousands of characters in, after the whole
+  research loop had been paid for. Don't go back to `output_type=str` plus a
+  brace scanner.
+- **The `output_type` is the lenient draft, never the strict model.** The caps
+  in `models/lesson.py` are *repairs* applied after generation
+  (`_clamp_to_schema`, `_repair_lesson_item`), not requirements the model has
+  to satisfy — `read_file` hands back 8192 bytes where `SourceExcerpt.code`
+  caps at 6000, so a model that copies an excerpt verbatim, exactly as
+  instructed, overruns. Put those caps in the schema and a trim becomes a
+  validation failure and a paid reprompt. `models/draft.py` derives the twins;
+  `test_research_draft_mirrors_the_strict_model` fails if they ever drift.
+- **The writer is not asked to echo identity.** `LessonDraft` omits every field
+  `_repair_lesson_item` forces from the subject (commit hash, project, url, the
+  three dates). Adding them back spends tokens on values a typo would
+  mislabel the whole article with.
+- **A nullable-everything schema is an invitation the model will take.** The
+  draft strips length *caps*, not *obligations*. When every dossier field was
+  nullable, the explorer read the schema as "the two identity fields are a
+  complete answer", returned after one tool call and 53 tokens, and the writer
+  spent $0.08 of Opus truthfully explaining that it had no evidence — an
+  article with `is_stub: false`, committed, one merge from the front page.
+  Under `output_type=str` the prompt carried that obligation; with a schema,
+  the schema carries it. `LESSON_RESEARCH_REQUIRED` in `models/lesson.py` is
+  what keeps the diff and the excerpts non-optional.
+- **Stage 1's output schema must stay flat: no `$ref`, no `anyOf`, no null.**
+  Gemini's function-calling dialect supports none of them, and we reach Gemini
+  through OpenRouter's *OpenAI-compatible* endpoint, so pydantic-ai applies its
+  OpenAI schema transformer rather than its Google one — whatever the schema
+  says goes out verbatim. A nested `{path, lines, symbol, note}` object in the
+  research output produced `$defs`/`$ref` and three consecutive
+  `UnexpectedModelBehavior: Exceeded maximum output retries` stubs. The tell
+  was that the *first* run, with nothing required but two identity strings,
+  answered instantly and validly — the model never had to construct the
+  `$ref`'d object. `test_research_schema_is_flat_enough_for_gemini` fails the
+  build if a nested type creeps back in. The writer runs on Opus and tolerates
+  nesting, which is why `LessonDraft` may keep its `sections` objects.
+- **Anything structured the cheap model must produce goes through a tool, not
+  the output schema.** `note_excerpt(path, lines, symbol, note)` — four plain
+  strings — is the best-supported shape in every function-calling
+  implementation, and it fits the work: the explorer flags a region as it
+  reads it rather than having to remember every region until the end.
+- **The explorer names regions; the pipeline quotes them.** The dossier's
+  `commit_message`, `diff`, `changed_files` and every excerpt's `code` are read
+  from the clone, not asked for — the model returns `{path, lines, symbol,
+  note}` and `_read_excerpts` fetches the bytes at that commit. Asking it to
+  re-type them put a 12k-char diff and several 6k-char excerpts into one tool
+  call, which is what broke stage 1 with `UnexpectedModelBehavior: Exceeded
+  maximum output retries` once those fields became required. It also made
+  "verbatim" a request rather than a fact; now the article conventions'
+  exact-identifier rule holds by construction. Stage 1's output went from
+  ~15k tokens to a few hundred.
+- **An empty dossier must fail as a stub, never as an article.** The writer
+  never opens a file, so with nothing to work from it does not error — it
+  writes *about* having nothing, at length and in good faith, and that passes
+  every downstream check. `_assert_dossier_has_evidence` rejects a dossier with
+  no excerpts, or with neither a diff nor a commit message, so the failure
+  reads as the stage-1 failure it is. It raises `ValueError`, which *is*
+  retried: unlike a schema mismatch, an explorer that returned early often does
+  the work on a second ask, and stage 1 is the cheap tier.
 - **Nothing diagnostic may sit between the pipeline and the commit step.** The
   `lesson-run` artifact upload is `continue-on-error` for this reason: it runs
   *before* validate → build → commit, and when the account's artifact storage

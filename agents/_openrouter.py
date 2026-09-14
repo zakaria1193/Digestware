@@ -88,6 +88,14 @@ DEFAULT_LESSON_WRITER_MODEL = "anthropic/claude-opus-5"
 # a balance that the unbounded default does not. Raise it only if a real
 # article is ever observed truncating.
 LESSON_WRITER_MAX_TOKENS = 20000
+# Do not tune this to a balance. On 2026-09-14 the key ran low and OpenRouter
+# started refusing the reservation — "you requested up to 20000 tokens, but can
+# only afford 10383". Lowering it to fit chased a figure that kept moving as
+# each run spent a little more (10383, then 9840, then under 9000), and landed
+# no article. The remedy the 402 itself names first is the real one: add
+# credits. A measured, complete six-section lesson is 7832 output tokens, so
+# 20000 is honest headroom for the article rather than a number picked to
+# squeeze past a balance.
 
 
 def model_from_env(key: str, default: str) -> str:

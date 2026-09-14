@@ -12,6 +12,7 @@ from collections.abc import Callable
 from typing import TypeVar
 
 from pydantic import ValidationError
+from pydantic_ai.exceptions import UnexpectedModelBehavior
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +24,17 @@ _DEFAULT_BASE_DELAY = 2.0  # seconds; 2, 4, 8 …
 # Errors that won't be fixed by trying again with the same prompt. Retrying a
 # schema mismatch or a truncated JSON response just burns OpenRouter budget
 # until we land in the same stub path anyway.
+#
+# ``UnexpectedModelBehavior`` is PydanticAI giving up on a structured output —
+# it has already reprompted the model itself by the time we see it. Retrying
+# here would re-run the *whole* agent loop, and the lesson's research stage
+# resends every tool result it has collected on every turn: three attempts at
+# a model that cannot fill the schema is three times the most expensive call
+# this project makes, for the same stub.
 _NON_RETRYABLE: tuple[type[BaseException], ...] = (
     ValidationError,
     json.JSONDecodeError,
+    UnexpectedModelBehavior,
 )
 
 # HTTP statuses that mean "this will fail identically until a human changes
@@ -36,11 +45,30 @@ _NON_RETRYABLE: tuple[type[BaseException], ...] = (
 # further up a log that CI truncates from the front.
 _NON_RETRYABLE_STATUS = frozenset({401, 402, 403, 404})
 
+# …with one exception. OpenRouter also returns 402 for a *temporary* hold:
+# "This request would exceed your available credits given your current
+# in-flight requests. Retry after…". That is concurrency, not an empty
+# balance — the credits are reserved by calls still running, and the request
+# it refused may well succeed once they finish. It says so itself.
+#
+# Worth separating because the two are a stub apart: treating the transient
+# one as permanent throws away a week's lesson after the research stage has
+# already been paid for, which is precisely what it cost on 2026-09-14.
+_TRANSIENT_402 = "in-flight"
+
 
 def _is_permanent(exc: BaseException) -> bool:
     """True when *exc* carries an HTTP status that retrying cannot fix."""
     status = getattr(exc, "status_code", None)
-    return isinstance(status, int) and status in _NON_RETRYABLE_STATUS
+    if not (isinstance(status, int) and status in _NON_RETRYABLE_STATUS):
+        return False
+    if status == 402:
+        body = getattr(exc, "body", None) or getattr(
+            getattr(exc, "response", None), "text", ""
+        )
+        if _TRANSIENT_402 in str(body):
+            return False
+    return True
 
 
 def retry_with_backoff(

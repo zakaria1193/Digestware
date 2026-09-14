@@ -304,8 +304,17 @@ jobs:
           if [ "${LESSON_ONLY}" = "true" ]; then
             MSG="chore(lessons): manual lesson run $(date -u +%Y-%m-%d)"
           fi
-          git diff --cached --quiet && echo "No content change." || \
-            git commit -m "${MSG}" && git push
+          # Spelled out rather than chained. `A && B || C && D` is
+          # left-associative, so the old one-liner ran `git push` even on the
+          # "no content change" path — normally a harmless "Everything
+          # up-to-date", but a hard failure whenever the branch has moved
+          # since checkout, which fails a job that had nothing to commit.
+          if git diff --cached --quiet; then
+            echo "No content change."
+          else
+            git commit -m "${MSG}"
+            git push
+          fi
 
       # ── Pulse search index ────────────────────────────────────────────────
       # Derived from the Markdown just committed, so it runs last. The .db is
@@ -393,5 +402,9 @@ jobs:
           PY
           echo
           echo "----- errors and warnings from the lesson run -----"
-          grep -E "ERROR|WARNING|Traceback|lesson_agent|Budget check|budget is spent" \
+          # `agents.writer` matters as much as `agents.lesson_agent`: the body
+          # sanitiser logs *there* when it discards an article, and because it
+          # was missing from this pattern a complete lesson was replaced by
+          # "Summary unavailable" with nothing in the diagnostics to say why.
+          grep -E "ERROR|WARNING|Traceback|lesson_agent|agents.writer|Budget check|budget is spent" \
             lesson-run.log 2>/dev/null | tail -40 || echo "(no lesson-run.log)"
