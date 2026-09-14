@@ -304,8 +304,17 @@ jobs:
           if [ "${LESSON_ONLY}" = "true" ]; then
             MSG="chore(lessons): manual lesson run $(date -u +%Y-%m-%d)"
           fi
-          git diff --cached --quiet && echo "No content change." || \
-            git commit -m "${MSG}" && git push
+          # Spelled out rather than chained. `A && B || C && D` is
+          # left-associative, so the old one-liner ran `git push` even on the
+          # "no content change" path — normally a harmless "Everything
+          # up-to-date", but a hard failure whenever the branch has moved
+          # since checkout, which fails a job that had nothing to commit.
+          if git diff --cached --quiet; then
+            echo "No content change."
+          else
+            git commit -m "${MSG}"
+            git push
+          fi
 
       # ── Pulse search index ────────────────────────────────────────────────
       # Derived from the Markdown just committed, so it runs last. The .db is
