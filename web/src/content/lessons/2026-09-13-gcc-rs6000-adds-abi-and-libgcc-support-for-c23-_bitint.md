@@ -29,8 +29,9 @@ week_end: '2026-09-13'
 commit_date: '2026-09-11'
 date: '2026-09-13'
 is_stub: true
-stub_reason: 'research_failed: UnexpectedModelBehavior: Exceeded maximum output retries
-  (1)'
+stub_reason: 'writer_failed: ValidationError: 1 validation error for LessonDigest
+  primer_glossary List should have at most 10 items after validation, not 17 [type=too_long,
+  input_value=[{''term'': ''_BitInt'', ''def...n'
 ---
 
 Summary unavailable — see source link.
