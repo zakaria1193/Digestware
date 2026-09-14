@@ -207,3 +207,36 @@ def test_stub_for_another_week_is_left_alone(tmp_path: Path):
     )
     write_lesson(_lesson(), output_dir=tmp_path)
     assert other.exists(), "only the same lesson_id may be superseded"
+
+
+def test_a_full_length_article_survives_sanitisation(tmp_path):
+    """The body bound must not contradict the schema it guards.
+
+    `_sanitise_body` does not trim an over-long body — it replaces the whole
+    article with "Summary unavailable". With a hand-picked 1600-word bound
+    against a schema permitting ~5300, a complete, correct, paid-for lesson was
+    written, validated, committed and published as a placeholder, with
+    `is_stub: false` so nothing flagged it.
+    """
+    from agents.models.lesson import LESSON_BODY_MAX_WORDS, LessonSection
+
+    # Eight sections at the schema's cap: the largest legitimate article.
+    paragraph = ("word " * 400).strip()
+    digest = _lesson(sections=[
+        LessonSection(heading=f"Section {i}", body=paragraph + ".")
+        for i in range(8)
+    ])
+
+    path = write_lesson(digest, output_dir=tmp_path)
+    body = path.read_text(encoding="utf-8").split("---", 2)[2]
+
+    assert "Summary unavailable" not in body
+    assert "Section 7" in body
+    assert LESSON_BODY_MAX_WORDS > 3000
+
+
+def test_the_word_bound_matches_what_the_schema_permits():
+    from agents.models.lesson import LESSON_BODY_MAX_WORDS
+    from agents.writer import _MAX_LESSON_WORDS
+
+    assert _MAX_LESSON_WORDS == LESSON_BODY_MAX_WORDS

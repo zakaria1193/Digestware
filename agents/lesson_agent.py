@@ -35,8 +35,6 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime, timezone
-from types import UnionType
-from typing import Union, get_args, get_origin
 
 from pydantic import BaseModel, TypeAdapter, ValidationError
 from pydantic_ai import Agent
@@ -51,6 +49,7 @@ from agents._openrouter import (
 from agents._retry import retry_with_backoff
 from agents.lesson_picker import LessonSubject
 from agents.models.base import GlossaryEntry
+from agents.models.draft import max_lengths
 from agents.models.lesson import (
     CodeRef,
     FurtherReading,
@@ -300,35 +299,11 @@ def _build_tools(
     ]
 
 
-def _max_lengths(model: type[BaseModel], kinds: tuple[type, ...]) -> dict[str, int]:
-    """`{field: max_length}` read off the model itself, not copied from it.
-
-    Derived rather than hardcoded so the clamp can never drift out of step with
-    the schema it exists to satisfy.
-    """
-    caps: dict[str, int] = {}
-    for name, field in model.model_fields.items():
-        for meta in field.metadata:
-            limit = getattr(meta, "max_length", None)
-            if limit is None:
-                continue
-            annotation = field.annotation
-            origin = get_origin(annotation) or annotation
-            # `str | None` is types.UnionType on 3.10+, typing.Union when
-            # spelled Optional[str] — unwrap either and check the real type.
-            if origin in (Union, UnionType):
-                if any(a in kinds for a in get_args(annotation)):
-                    caps[name] = limit
-            elif any(origin is k for k in kinds):
-                caps[name] = limit
-    return caps
-
-
-_RESEARCH_STR_CAPS = _max_lengths(LessonResearch, (str,))
-_RESEARCH_LIST_CAPS = _max_lengths(LessonResearch, (list,))
-_EXCERPT_STR_CAPS = _max_lengths(SourceExcerpt, (str,))
-_LESSON_LIST_CAPS = _max_lengths(LessonDigest, (list,))
-_LESSON_STR_CAPS = _max_lengths(LessonDigest, (str,))
+_RESEARCH_STR_CAPS = max_lengths(LessonResearch, (str,))
+_RESEARCH_LIST_CAPS = max_lengths(LessonResearch, (list,))
+_EXCERPT_STR_CAPS = max_lengths(SourceExcerpt, (str,))
+_LESSON_LIST_CAPS = max_lengths(LessonDigest, (list,))
+_LESSON_STR_CAPS = max_lengths(LessonDigest, (str,))
 
 # The caps inside each list-of-objects field. Every one of these was a way to
 # lose a finished article: `code_tour.path`/`symbol`/`lines` and
@@ -342,7 +317,7 @@ _LESSON_NESTED_CAPS: dict[str, type[BaseModel]] = {
     "primer_glossary": GlossaryEntry,
 }
 _NESTED_STR_CAPS = {
-    field: _max_lengths(model, (str,))
+    field: max_lengths(model, (str,))
     for field, model in _LESSON_NESTED_CAPS.items()
 }
 _NESTED_REQUIRED = {

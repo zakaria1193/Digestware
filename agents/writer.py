@@ -28,7 +28,7 @@ from pathlib import Path
 
 from agents.models.discussion import DiscussionDigest
 from agents.models.landing import LandingDigest
-from agents.models.lesson import LessonDigest
+from agents.models.lesson import LESSON_BODY_MAX_WORDS, LessonDigest
 from agents.tools.frontmatter import dump_frontmatter, load_frontmatter
 
 logger = logging.getLogger(__name__)
@@ -43,8 +43,15 @@ _MAX_BODY_WORDS = 260
 
 # Lessons are long-form by design — the digest bounds above would reject every
 # one of them. The quoted-email and truncation detectors still apply.
+#
+# The upper bound is derived from the schema rather than chosen, because this
+# check does not trim: over the bound, the entire article is replaced by
+# `_FALLBACK_BODY`. A hand-picked 1600 against a schema that permits ~5300
+# silently turned a complete, paid-for lesson into "Summary unavailable" —
+# with `is_stub: false`, so nothing flagged it. The bound exists to catch
+# runaway output, not to enforce an editorial length the schema disagrees with.
 _MIN_LESSON_WORDS = 200
-_MAX_LESSON_WORDS = 1600
+_MAX_LESSON_WORDS = LESSON_BODY_MAX_WORDS
 
 
 # ---------------------------------------------------------------------------

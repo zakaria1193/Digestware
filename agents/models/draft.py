@@ -45,6 +45,31 @@ from typing import Any, Union, cast, get_args, get_origin
 
 from pydantic import BaseModel, create_model, model_validator
 
+
+def max_lengths(model: type[BaseModel], kinds: tuple[type, ...]) -> dict[str, int]:
+    """`{field: max_length}` read off the model itself, not copied from it.
+
+    Derived rather than hardcoded so a limit can never drift out of step with
+    the schema it exists to satisfy. Every place this project hand-copied a cap
+    eventually disagreed with the model and cost a run.
+    """
+    caps: dict[str, int] = {}
+    for name, field in model.model_fields.items():
+        for meta in field.metadata:
+            limit = getattr(meta, "max_length", None)
+            if limit is None:
+                continue
+            annotation = field.annotation
+            origin = get_origin(annotation) or annotation
+            # `str | None` is types.UnionType on 3.10+, typing.Union when
+            # spelled Optional[str] — unwrap either and check the real type.
+            if origin in (Union, UnionType):
+                if any(a in kinds for a in get_args(annotation)):
+                    caps[name] = limit
+            elif any(origin is k for k in kinds):
+                caps[name] = limit
+    return caps
+
 _EMPTY_FOR: dict[Any, Any] = {str: "", int: 0, float: 0.0, bool: False}
 
 

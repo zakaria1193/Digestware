@@ -19,7 +19,7 @@ from datetime import date, datetime
 from pydantic import BaseModel, Field, model_validator
 
 from agents.models.base import BimodalBase
-from agents.models.draft import draft_model
+from agents.models.draft import draft_model, max_lengths
 
 
 class LessonSection(BaseModel):
@@ -185,6 +185,23 @@ class LessonResearch(BaseModel):
             for key, value in data.items()
             if not (value is None and key in optional)
         }
+
+
+#: How long a lesson body may legitimately be, in words, derived from what the
+#: schema actually permits: every section at its cap.
+#:
+#: Derived because the hand-written figure was 1600 while the schema allowed
+#: more than three times that, and `writer._sanitise_body` does not trim an
+#: over-long body — it replaces the whole article with "Summary unavailable".
+#: So a finished, correct, $0.24 article was written, validated, committed and
+#: published as a placeholder, with `is_stub: false` hiding it from every
+#: alarm. A bound that contradicts the schema it guards is not a safety net.
+#:
+#: Six characters per word is the usual English average including the space.
+LESSON_BODY_MAX_WORDS = (
+    max_lengths(LessonDigest, (list,))["sections"]
+    * max_lengths(LessonSection, (str,))["body"]
+) // 6
 
 
 # ---------------------------------------------------------------------------
