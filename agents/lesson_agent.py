@@ -33,6 +33,7 @@ Both calls are logged to ``agents/output/usage.log`` under distinct agent names
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 from types import UnionType
 from typing import Union, get_args, get_origin
@@ -119,21 +120,23 @@ Your exploration budget is limited. Spend it on the three or four files that
 actually explain the change, not on a survey of the subsystem.
 
 DO NOT return the dossier before you have read the code. A dossier with no
-source excerpts, or with no diff and no commit message, is rejected outright —
-the writer cannot open a file, so an empty dossier costs the whole article.
-Call the tools first; the output tool is the last thing you do.
+excerpts is rejected outright — the writer cannot open a file, so an empty
+dossier costs the whole article. Call the tools first; the output tool is the
+last thing you do.
+
+DO NOT copy code into your answer. The commit message, the diff and the file
+contents are read from the repository for you; re-typing them wastes your
+output budget and risks a paraphrase where the article needs exact bytes. You
+name the regions; the pipeline quotes them.
 
 RETURN the dossier through the output tool, filling these fields:
 - ``commit_hash``, ``subsystem`` — echo from the input.
-- ``commit_message`` — the commit message, verbatim.
-- ``diff`` — the diff, verbatim (trim to the hunks that matter if it is huge).
-- ``changed_files`` — the paths this commit touched.
-- ``excerpts`` — 3 to 8 objects ``{path, lines, symbol, code, note}``. ``code``
-  is the region COPIED VERBATIM from the file — not summarised, not
-  reformatted, not re-indented. This is the writer's only view of the source,
-  and a paraphrase here becomes a wrong identifier in the published article.
-  ``lines`` is the range you read ("1204-1231"); ``note`` is one sentence on
-  why you opened it.
+- ``excerpts`` — 3 to 8 objects ``{path, lines, symbol, note}`` naming the
+  regions the writer should see. ``path`` is the repo-relative file you read;
+  ``lines`` is the range ("1204-1231"); ``symbol`` is the function, struct or
+  macro it covers; ``note`` is one sentence on why it matters. The region is
+  fetched from the tree at this commit, so name it accurately — a path that
+  does not exist at this commit is dropped.
 - ``what_changed`` — what this commit does, mechanically, in your own words.
 - ``how_it_works`` — how the surrounding machinery works: the pass, the data
   structure, the invariant, the control flow the reader needs to follow the
@@ -303,6 +306,69 @@ def _clamp_to_schema(parsed: dict) -> None:
                     item[field] = _cut(item[field], limit)
 
 
+_LINE_RANGE = re.compile(r"(\d+)\s*[-–—:]\s*(\d+)")
+
+
+def _parse_line_range(lines: str | None) -> tuple[int, int | None]:
+    """``"1204-1231"`` -> ``(1204, 1231)``; anything unusable -> ``(1, None)``.
+
+    A malformed range is not worth failing a dossier over — ``read_file``'s
+    default window is a perfectly good fallback, and the excerpt still names
+    the file the explorer meant.
+    """
+    if not lines:
+        return 1, None
+    match = _LINE_RANGE.search(lines)
+    if match:
+        start, end = int(match.group(1)), int(match.group(2))
+        return (start, end) if end >= start else (end, start)
+    digits = re.search(r"\d+", lines)
+    return (int(digits.group()), None) if digits else (1, None)
+
+
+def _split_commit_output(text: str) -> tuple[str, str]:
+    """Split ``git show`` output into (message-and-diffstat, patch)."""
+    marker = text.find("diff --git")
+    if marker == -1:
+        return text.strip(), ""
+    return text[:marker].strip(), text[marker:].strip()
+
+
+def _read_excerpts(
+    repo: SourceRepo, sha: str, requests: list[dict]
+) -> list[SourceExcerpt]:
+    """Turn the explorer's region requests into excerpts read from the clone.
+
+    A request naming a path that does not exist at this commit is dropped, the
+    same way ``_drop_unread_code_refs`` drops a fabricated citation from the
+    writer — except here it costs nothing, because the bytes were never going
+    to come from the model in the first place.
+    """
+    excerpts: list[SourceExcerpt] = []
+    for request in requests:
+        path = request.get("path")
+        if not isinstance(path, str) or not path:
+            continue
+        start, end = _parse_line_range(request.get("lines"))
+        code = repo.read_file(sha, path, start_line=start, end_line=end)
+        if code.startswith("[error]"):
+            logger.warning(
+                "lesson_agent[research]: dropping excerpt %r — not readable at %s",
+                path, sha[:12],
+            )
+            continue
+        excerpts.append(
+            SourceExcerpt(
+                path=path,
+                lines=request.get("lines"),
+                symbol=request.get("symbol"),
+                code=code,
+                note=request.get("note") or "",
+            )
+        )
+    return excerpts
+
+
 def _assert_dossier_has_evidence(research: LessonResearch) -> None:
     """Refuse a dossier the writer could not honestly write from.
 
@@ -337,20 +403,30 @@ def _assert_dossier_has_evidence(research: LessonResearch) -> None:
         raise ValueError("dossier has neither a diff nor a commit message")
 
 
-def _finalise_research(draft: BaseModel, subject: LessonSubject) -> LessonResearch:
-    """Turn the model's draft dossier into a validated ``LessonResearch``.
+def _finalise_research(
+    draft: BaseModel, subject: LessonSubject, repo: SourceRepo
+) -> LessonResearch:
+    """Assemble the dossier: the explorer's findings plus the code, from git.
 
-    ``exclude_none=True`` is what makes a null mean "nothing to report": the key
-    disappears and the strict model's own default applies. See
-    agents/models/draft.py.
+    The model supplies judgement — what changed, how the machinery works, which
+    regions matter. Everything quotable is read from the clone at this commit,
+    so the excerpts are verbatim by construction rather than by instruction,
+    and stage 1's output stays small enough to cross the wire intact.
     """
     parsed = draft.model_dump(exclude_none=True)
+    requests = parsed.pop("excerpts", None) or []
 
     # Identity is ours, not the model's — a typo here would misattribute the
     # whole dossier to the wrong commit.
     parsed["commit_hash"] = subject.commit_hash
     if not parsed.get("subsystem"):
         parsed["subsystem"] = subject.subsystem
+
+    message, diff = _split_commit_output(repo.show_commit(subject.commit_hash))
+    parsed["commit_message"] = message
+    parsed["diff"] = diff
+    parsed["changed_files"] = repo.changed_paths(subject.commit_hash)
+    parsed["excerpts"] = _read_excerpts(repo, subject.commit_hash, requests)
 
     _clamp_to_schema(parsed)
     research = _RESEARCH_ADAPTER.validate_python(parsed)
@@ -422,7 +498,7 @@ def run_research(
                 "\033[1;32m── lesson research ◀ RESPONSE FROM %s ──\n%s\033[0m",
                 model_name, r.output,
             )
-        return r, _finalise_research(r.output, subject)
+        return r, _finalise_research(r.output, subject, repo)
 
     try:
         result, research = retry_with_backoff(

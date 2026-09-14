@@ -695,6 +695,16 @@ and hundreds of MB.
   Under `output_type=str` the prompt carried that obligation; with a schema,
   the schema carries it. `LESSON_RESEARCH_REQUIRED` in `models/lesson.py` is
   what keeps the diff and the excerpts non-optional.
+- **The explorer names regions; the pipeline quotes them.** The dossier's
+  `commit_message`, `diff`, `changed_files` and every excerpt's `code` are read
+  from the clone, not asked for — the model returns `{path, lines, symbol,
+  note}` and `_read_excerpts` fetches the bytes at that commit. Asking it to
+  re-type them put a 12k-char diff and several 6k-char excerpts into one tool
+  call, which is what broke stage 1 with `UnexpectedModelBehavior: Exceeded
+  maximum output retries` once those fields became required. It also made
+  "verbatim" a request rather than a fact; now the article conventions'
+  exact-identifier rule holds by construction. Stage 1's output went from
+  ~15k tokens to a few hundred.
 - **An empty dossier must fail as a stub, never as an article.** The writer
   never opens a file, so with nothing to work from it does not error — it
   writes *about* having nothing, at length and in good faith, and that passes

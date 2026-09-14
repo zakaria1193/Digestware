@@ -115,6 +115,27 @@ class SourceExcerpt(BaseModel):
     note: str = Field(default="", max_length=400)   # why the explorer opened it
 
 
+class ExcerptRequest(BaseModel):
+    """A region the explorer wants in the dossier — named, not copied.
+
+    The counterpart to ``SourceExcerpt``: same identity fields, no ``code``.
+    The explorer says *which* lines matter and why; ``lesson_agent`` reads the
+    bytes back out of git at the lesson's commit.
+
+    That split is why it exists. Asking the model to re-type the region put
+    thousands of characters of verbatim C into a single tool call — expensive,
+    and on 2026-09-14 the thing that broke stage 1 outright ("Exceeded maximum
+    output retries") once the dossier's evidence fields became required. Reading
+    from the clone is cheaper, cannot truncate, and makes "verbatim" structural
+    rather than an instruction the model is asked to honour.
+    """
+
+    path: str = Field(..., max_length=300)
+    lines: str | None = Field(default=None, max_length=40)    # "1204-1231"
+    symbol: str | None = Field(default=None, max_length=160)
+    note: str = Field(default="", max_length=400)   # why the explorer opened it
+
+
 class LessonResearch(BaseModel):
     """What the explorer found. The sole input to the writing pass."""
 
@@ -174,15 +195,14 @@ class LessonResearch(BaseModel):
 # derivations of the strict models above — see agents/models/draft.py for why
 # the models are not pointed straight at LessonResearch / LessonDigest.
 
-#: The evidence a dossier is worthless without. These carry defaults on
-#: ``LessonResearch`` — a stub needs to be constructible — but the *explorer*
-#: is not free to omit them, and a schema that says otherwise is an invitation
-#: it will take. See the ``require`` note in models/draft.py.
+#: What the explorer must supply itself. The dossier's other evidence —
+#: ``commit_message``, ``diff``, ``changed_files`` and each excerpt's ``code``
+#: — is read from the clone instead, so it is absent from the draft entirely.
+#: These carry defaults on ``LessonResearch`` because a stub has to be
+#: constructible; the explorer is not free to omit them. See the ``require``
+#: note in models/draft.py.
 LESSON_RESEARCH_REQUIRED = frozenset(
     {
-        "commit_message",
-        "diff",
-        "changed_files",
         "excerpts",
         "what_changed",
         "how_it_works",
@@ -190,15 +210,22 @@ LESSON_RESEARCH_REQUIRED = frozenset(
     }
 )
 
-#: Stage 1's output shape. ``commit_hash`` and ``subsystem`` stay required and
-#: are overwritten from the subject afterwards, so a typo cannot misattribute
-#: the dossier. ``tool_calls_used`` is dropped: the explorer cannot count its
-#: own budget, and the agent fills it in from the real counter.
+#: Fields the pipeline reads out of the source clone rather than asking for.
+#: Deterministic facts we already hold: making a model re-type them costs
+#: output tokens, risks truncation, and invites a paraphrase where the article
+#: conventions demand the exact bytes.
+LESSON_RESEARCH_FROM_REPO = frozenset({"commit_message", "diff", "changed_files"})
+
+#: Stage 1's output shape. ``commit_hash`` stays required and is overwritten
+#: from the subject afterwards, so a typo cannot misattribute the dossier.
+#: ``tool_calls_used`` is dropped: the explorer cannot count its own budget,
+#: and the agent fills it in from the real counter.
 LessonResearchDraft = draft_model(
     LessonResearch,
     name="LessonResearchDraft",
-    exclude=frozenset({"tool_calls_used"}),
+    exclude=frozenset({"tool_calls_used"}) | LESSON_RESEARCH_FROM_REPO,
     require=LESSON_RESEARCH_REQUIRED,
+    override={"excerpts": list[ExcerptRequest]},
 )
 
 #: Fields of ``LessonDigest`` the pipeline fills in from the subject rather

@@ -67,9 +67,11 @@ class FakeRepo:
     def __init__(self, present: set[str] | None = None) -> None:
         self.present = present if present is not None else {"gcc/ipa-sra.cc"}
         self.calls: list[str] = []
+        self.ranges: list[tuple[str, int, int | None]] = []
 
     def read_file(self, sha, path, start_line=1, end_line=None):
         self.calls.append(path)
+        self.ranges.append((path, start_line, end_line))
         if path in self.present:
             return f"# {path} @ {sha[:12]} — lines 1-1 of 10\n     1  code"
         return f"[error] cannot read {path} at {sha[:12]}: no such path"
@@ -81,7 +83,12 @@ class FakeRepo:
         return ["gcc/ipa-sra.cc"]
 
     def show_commit(self, sha):
-        return "commit body"
+        return (
+            "commit aaaa\n\n    ipa-sra: fix parameter liveness\n\n"
+            " gcc/ipa-sra.cc | 2 +-\n\n"
+            "diff --git a/gcc/ipa-sra.cc b/gcc/ipa-sra.cc\n"
+            "--- a/gcc/ipa-sra.cc\n+++ b/gcc/ipa-sra.cc\n@@ -1 +1 @@\n-old\n+new\n"
+        )
 
     def list_dir(self, sha, path="."):
         return "ipa-sra.cc"
@@ -265,7 +272,7 @@ def test_tools_refuse_to_run_once_the_budget_is_spent():
     budget = _ToolBudget(limit=2)
     tools = {t.__name__: t for t in _build_tools(repo, SHA, budget)}
 
-    assert tools["show_commit"]() == "commit body"
+    assert "ipa-sra: fix parameter liveness" in tools["show_commit"]()
     assert tools["list_dir"]() == "ipa-sra.cc"
     for name in ("show_commit", "grep_repo", "find_symbol"):
         out = tools[name]("x") if name != "show_commit" else tools[name]()
@@ -354,11 +361,8 @@ def _research_json(**overrides) -> dict:
     payload: dict = {
         "commit_hash": "a" * 40,
         "subsystem": "gcc/ipa",
-        "commit_message": "Fix the thing",
-        "diff": "--- a\n+++ b\n",
-        "changed_files": ["gcc/ipa-sra.cc"],
         "excerpts": [
-            {"path": "gcc/ipa-sra.cc", "lines": "1-3", "code": "int x;", "note": "why"}
+            {"path": "gcc/ipa-sra.cc", "lines": "1-3", "note": "why"}
         ],
         "what_changed": "A parameter is now marked dead.",
         "how_it_works": "The pass re-runs liveness.",
@@ -372,23 +376,88 @@ def _research_draft(**overrides):
     return LessonResearchDraft(**_research_json(**overrides))
 
 
-def test_finalise_research_end_to_end(subject):
+def _finalised(subject, repo=None, **overrides):
     from agents.lesson_agent import _finalise_research
 
-    research = _finalise_research(_research_draft(), subject)
+    return _finalise_research(_research_draft(**overrides), subject, repo or _fake_repo())
+
+
+def test_finalise_research_end_to_end(subject):
+    research = _finalised(subject)
 
     assert research.what_changed == "A parameter is now marked dead."
     assert research.subsystem == "gcc/ipa"
-    assert research.excerpts[0].code == "int x;"
+    assert research.excerpts[0].path == "gcc/ipa-sra.cc"
+
+
+def test_the_quotable_material_comes_from_git_not_the_model(subject):
+    """The explorer names regions; the pipeline reads the bytes.
+
+    Re-typing a 12k-char diff and several 6k-char excerpts into one tool call
+    is what broke stage 1 on 2026-09-14 ("Exceeded maximum output retries"),
+    and it risks a paraphrase where the article conventions demand exact bytes.
+    """
+    research = _finalised(subject)
+
+    assert "ipa-sra: fix parameter liveness" in research.commit_message
+    assert research.diff.startswith("diff --git")
+    assert research.changed_files == ["gcc/ipa-sra.cc"]
+    assert "code" in research.excerpts[0].code
+    # …and the model is not even offered the fields it used to have to echo.
+    assert {"commit_message", "diff", "changed_files"}.isdisjoint(
+        LessonResearchDraft.model_fields
+    )
+
+
+def test_excerpt_line_ranges_are_passed_through_to_the_read(subject):
+    repo = FakeRepo()
+    _finalised(
+        subject, cast(SourceRepo, repo),
+        excerpts=[{"path": "gcc/ipa-sra.cc", "lines": "1204-1231", "note": "why"}],
+    )
+
+    assert ("gcc/ipa-sra.cc", 1204, 1231) in repo.ranges
+
+
+def test_an_unreadable_excerpt_path_is_dropped(subject):
+    """Same guard as the writer's citations, one stage earlier and free."""
+    repo = _fake_repo(present={"gcc/ipa-sra.cc"})
+    research = _finalised(
+        subject, repo,
+        excerpts=[
+            {"path": "gcc/ipa-sra.cc", "note": "real"},
+            {"path": "gcc/invented.cc", "note": "not there at this commit"},
+        ],
+    )
+
+    assert [e.path for e in research.excerpts] == ["gcc/ipa-sra.cc"]
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("1204-1231", (1204, 1231)),
+        ("1204–1231", (1204, 1231)),   # en dash
+        ("1231-1204", (1204, 1231)),   # reversed
+        ("1204", (1204, None)),
+        ("the top of the file", (1, None)),
+        (None, (1, None)),
+        ("", (1, None)),
+    ],
+)
+def test_line_range_parsing(value, expected):
+    """A malformed range falls back to read_file's window, never an error.
+
+    Losing the exact window of one excerpt is not worth failing a paid run.
+    """
+    from agents.lesson_agent import _parse_line_range
+
+    assert _parse_line_range(value) == expected
 
 
 def test_research_identity_is_forced_from_the_subject(subject):
     """A hallucinated SHA would attach the dossier to the wrong commit."""
-    from agents.lesson_agent import _finalise_research
-
-    research = _finalise_research(
-        _research_draft(commit_hash="b" * 40, subsystem=""), subject
-    )
+    research = _finalised(subject, commit_hash="b" * 40, subsystem="")
 
     assert research.commit_hash == SHA
     assert research.subsystem == "gcc/ipa"
@@ -400,76 +469,54 @@ def test_null_is_read_as_nothing_to_report(subject):
     Two of the four stubs on disk as of 2026-09-14 died on exactly this, and a
     ValidationError here is non-retryable — it costs the whole week's lesson.
     """
-    from agents.lesson_agent import _finalise_research
-
-    research = _finalise_research(
-        _research_draft(external_context=None, open_questions=None), subject
-    )
+    research = _finalised(subject, external_context=None, open_questions=None)
 
     assert research.external_context == []
     assert research.open_questions == []
 
 
-def test_oversized_excerpt_is_clamped_not_rejected(subject):
-    """`read_file` returns up to 8192 bytes; SourceExcerpt.code caps at 6000.
-
-    A model copying an excerpt verbatim — exactly as instructed — therefore
-    produces a value pydantic rejects. Losing the tail of one excerpt beats
-    losing the whole dossier.
-    """
-    from agents.lesson_agent import _EXCERPT_STR_CAPS, _finalise_research
-
-    cap = _EXCERPT_STR_CAPS["code"]
-    draft = _research_draft(
-        excerpts=[{"path": "gcc/ipa-sra.cc", "code": "x" * (cap + 2192)}]
-    )
-    assert len(_finalise_research(draft, subject).excerpts[0].code) == cap
-
-
 def test_too_many_excerpts_are_trimmed(subject):
-    from agents.lesson_agent import _RESEARCH_LIST_CAPS, _finalise_research
+    from agents.lesson_agent import _RESEARCH_LIST_CAPS
 
     cap = _RESEARCH_LIST_CAPS["excerpts"]
-    draft = _research_draft(
-        excerpts=[{"path": f"f{i}.cc", "code": "y"} for i in range(cap + 5)]
+    paths = {f"f{i}.cc" for i in range(cap + 5)}
+    research = _finalised(
+        subject, _fake_repo(present=paths),
+        excerpts=[{"path": f"f{i}.cc"} for i in range(cap + 5)],
     )
-    assert len(_finalise_research(draft, subject).excerpts) == cap
+    assert len(research.excerpts) == cap
 
 
 def test_over_long_prose_is_clamped(subject):
-    from agents.lesson_agent import _RESEARCH_STR_CAPS, _finalise_research
+    from agents.lesson_agent import _RESEARCH_STR_CAPS
 
     cap = _RESEARCH_STR_CAPS["how_it_works"]
-    draft = _research_draft(how_it_works="z" * (cap + 500))
-    assert len(_finalise_research(draft, subject).how_it_works) == cap
+    research = _finalised(subject, how_it_works="z" * (cap + 500))
+    assert len(research.how_it_works) == cap
 
 
 def test_the_draft_carries_no_caps_of_its_own():
     """The caps are repairs, not requirements — the model must not hit them.
 
-    Put them in the output schema and an over-long excerpt comes back as a
+    Put them in the output schema and an over-long field comes back as a
     validation failure and a paid reprompt, instead of being quietly trimmed.
     """
-    # `cast` because the twin is generated at import time: pyright sees a
-    # plain BaseModel, which is exactly why the drift test below exists.
-    draft = cast(Any, _research_draft(
-        how_it_works="z" * 99_000,
-        excerpts=[{"path": "f.cc", "code": "y" * 99_000}],
-    ))
+    draft = cast(Any, _research_draft(how_it_works="z" * 99_000))
 
     assert len(draft.how_it_works) == 99_000
-    assert len(draft.excerpts[0].code) == 99_000
 
 
-def test_research_draft_mirrors_the_strict_model():
-    """The twin is derived, so it cannot drift — this fails if it ever does.
+def test_research_draft_asks_only_for_what_the_model_can_supply():
+    """The twin is derived, so it cannot drift — this fails if it ever does."""
+    from agents.models.lesson import LESSON_RESEARCH_FROM_REPO
 
-    ``tool_calls_used`` is the one deliberate omission: the explorer cannot
-    count its own budget, so the agent fills it in from the real counter.
-    """
-    assert set(LessonResearchDraft.model_fields) | {"tool_calls_used"} == set(
-        LessonResearch.model_fields
-    )
+    asked = set(LessonResearchDraft.model_fields)
+    strict = set(LessonResearch.model_fields)
+
+    # Everything asked for exists on the strict model…
+    assert asked <= strict
+    # …minus what git supplies and what the agent counts itself.
+    assert asked == strict - LESSON_RESEARCH_FROM_REPO - {"tool_calls_used"}
 
 
 # ---------------------------------------------------------------------------
@@ -585,29 +632,24 @@ def test_writer_stage_wires_up_and_returns_a_lesson(subject, offline_models):
 # it passed validation and was committed, one merge from the front page.
 
 def test_dossier_without_excerpts_is_rejected(subject):
-    from agents.lesson_agent import _finalise_research
-
     with pytest.raises(ValueError, match="no source excerpts"):
-        _finalise_research(_research_draft(excerpts=[]), subject)
+        _finalised(subject, excerpts=[])
+
+
+def test_dossier_whose_every_excerpt_was_dropped_is_rejected(subject):
+    """Naming only paths that don't exist leaves the writer with nothing."""
+    with pytest.raises(ValueError, match="no source excerpts"):
+        _finalised(subject, _fake_repo(present=set()),
+                   excerpts=[{"path": "gcc/invented.cc"}])
 
 
 def test_dossier_without_diff_or_message_is_rejected(subject):
-    from agents.lesson_agent import _finalise_research
+    """An empty `git show` means the clone cannot back the article up."""
+    repo = _fake_repo()
+    repo.show_commit = lambda sha: "   "          # type: ignore[method-assign]
 
     with pytest.raises(ValueError, match="neither a diff nor a commit message"):
-        _finalise_research(_research_draft(diff="  ", commit_message=""), subject)
-
-
-def test_a_dossier_with_evidence_passes(subject):
-    """The guard must not fire on a thin but real dossier."""
-    from agents.lesson_agent import _finalise_research
-
-    draft = _research_draft(
-        diff="", commit_message="Fix the thing",
-        excerpts=[{"path": "gcc/ipa-sra.cc", "code": "int x;"}],
-    )
-
-    assert _finalise_research(draft, subject).commit_hash == SHA
+        _finalised(subject, repo)
 
 
 def test_the_evidence_fields_are_required_of_the_explorer():
@@ -618,7 +660,7 @@ def test_the_evidence_fields_are_required_of_the_explorer():
     """
     required = set(LessonResearchDraft.model_json_schema()["required"])
 
-    assert {"diff", "excerpts", "commit_message", "what_changed"} <= required
+    assert {"excerpts", "what_changed", "how_it_works"} <= required
     # …while the genuinely optional ones stay omittable.
     assert {"open_questions", "external_context"}.isdisjoint(required)
 
