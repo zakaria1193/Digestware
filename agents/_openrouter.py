@@ -87,7 +87,14 @@ DEFAULT_LESSON_WRITER_MODEL = "anthropic/claude-opus-5"
 # headroom while cutting the reservation to under a third, so the call fits in
 # a balance that the unbounded default does not. Raise it only if a real
 # article is ever observed truncating.
-LESSON_WRITER_MAX_TOKENS = 20000
+LESSON_WRITER_MAX_TOKENS = 10000
+# 20000 until 2026-09-14, when the key's balance stopped covering the
+# reservation: "You requested up to 20000 tokens, but can only afford 10383."
+# The measured size of a real, complete six-section lesson is 7832 output
+# tokens, so 10000 keeps ~28% headroom over observed while fitting what the
+# balance allows. This number tracks a balance, not a quality decision — put it
+# back up once the key is topped up, and read the 402's "can only afford N"
+# rather than guessing if it bites again.
 
 
 def model_from_env(key: str, default: str) -> str:
