@@ -75,11 +75,17 @@ logger = logging.getLogger(__name__)
 # evidence; lower it first if the budget overruns.
 _MAX_TOOL_CALLS = 16
 
-# Excerpts the explorer may flag. Mirrors the cap on ``LessonResearch.excerpts``
-# so the log cannot outrun what the dossier can hold. ``note_excerpt`` is
-# deliberately NOT charged to the tool budget above: it reads nothing, and
-# making bookkeeping compete with the read budget would buy fewer files read.
-_MAX_EXCERPTS = 12
+# Excerpts the explorer may flag — the same "3 to 8" the prompt asks for, so
+# the cap and the instruction agree. It was 12 (the schema's own ceiling), and
+# the explorer duly used all of them: the writer's prompt went from 13k chars
+# on the run that produced a real article to 43k, tripling the input cost of
+# the single most expensive call this project makes. That article was written
+# from ONE excerpt, so more is not obviously better here.
+#
+# ``note_excerpt`` is deliberately NOT charged to the tool budget above: it
+# reads nothing, and making bookkeeping compete with the read budget would buy
+# fewer files read.
+_MAX_EXCERPTS = 8
 
 _BUDGET_EXHAUSTED = (
     "[budget] The source-exploration budget for this lesson is spent. Stop "
