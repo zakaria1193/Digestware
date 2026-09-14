@@ -86,3 +86,49 @@ def test_no_body_log_when_exception_has_none(monkeypatch, caplog):
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
     assert warnings
     assert all("body=" not in r.getMessage() for r in warnings)
+
+
+class _FakeHTTPError(Exception):
+    """Stands in for pydantic_ai.exceptions.ModelHTTPError."""
+
+    def __init__(self, status_code: int, message: str = "http error"):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+@pytest.mark.parametrize("status", [401, 402, 403, 404])
+def test_permanent_http_statuses_are_not_retried(status, caplog):
+    """A 402 from OpenRouter is a spent balance, not a blip.
+
+    Run 197 of the nightly digest burned three attempts and six seconds of
+    backoff on the same "requires more credits" refusal before stubbing the
+    lesson. Nothing about the second and third call could have differed.
+    """
+    calls = {"n": 0}
+
+    def fn():
+        calls["n"] += 1
+        raise _FakeHTTPError(status, "This request requires more credits")
+
+    caplog.set_level(logging.WARNING, logger="agents._retry")
+    with pytest.raises(_FakeHTTPError):
+        retry_with_backoff(fn, attempts=3, base_delay=0.0)
+
+    assert calls["n"] == 1
+    assert any(
+        "not retrying" in r.getMessage() for r in caplog.records
+    ), "expected the refusal to be logged as non-retryable"
+
+
+@pytest.mark.parametrize("status", [429, 500, 502, 503])
+def test_transient_http_statuses_still_retry(status):
+    """Rate limits and upstream 5xx are exactly what the backoff is for."""
+    calls = {"n": 0}
+
+    def fn():
+        calls["n"] += 1
+        raise _FakeHTTPError(status)
+
+    with pytest.raises(_FakeHTTPError):
+        retry_with_backoff(fn, attempts=3, base_delay=0.0)
+    assert calls["n"] == 3
