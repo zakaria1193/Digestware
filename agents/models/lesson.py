@@ -195,26 +195,38 @@ class LessonResearch(BaseModel):
 # derivations of the strict models above — see agents/models/draft.py for why
 # the models are not pointed straight at LessonResearch / LessonDigest.
 
-#: What the explorer must supply itself. The dossier's other evidence —
-#: ``commit_message``, ``diff``, ``changed_files`` and each excerpt's ``code``
-#: — is read from the clone instead, so it is absent from the draft entirely.
+#: What the explorer must supply in its final answer. The evidence does not
+#: appear here: ``commit_message``, ``diff`` and ``changed_files`` are read
+#: from the clone, and the excerpts are recorded through the ``note_excerpt``
+#: tool as the explorer reads, then hydrated from the clone too.
+#:
 #: These carry defaults on ``LessonResearch`` because a stub has to be
 #: constructible; the explorer is not free to omit them. See the ``require``
 #: note in models/draft.py.
 LESSON_RESEARCH_REQUIRED = frozenset(
     {
-        "excerpts",
         "what_changed",
         "how_it_works",
         "why_it_matters",
     }
 )
 
-#: Fields the pipeline reads out of the source clone rather than asking for.
-#: Deterministic facts we already hold: making a model re-type them costs
-#: output tokens, risks truncation, and invites a paraphrase where the article
-#: conventions demand the exact bytes.
-LESSON_RESEARCH_FROM_REPO = frozenset({"commit_message", "diff", "changed_files"})
+#: Fields the pipeline supplies rather than asking the model for. The first
+#: three are deterministic facts we already hold — making a model re-type them
+#: costs output tokens and invites a paraphrase where the article conventions
+#: demand exact bytes. ``excerpts`` is assembled from ``note_excerpt`` tool
+#: calls plus the clone.
+#:
+#: Keeping them out has a second, harder consequence: it leaves stage 1's
+#: schema completely flat — strings and arrays of strings, no nested object,
+#: so no ``$ref``. Gemini's function-calling dialect supports neither ``$ref``
+#: nor ``anyOf``, and OpenRouter's OpenAI-compatible endpoint means pydantic-ai
+#: applies its OpenAI schema transformer, not its Google one, so whatever we
+#: put here reaches Gemini verbatim. A nested excerpt object is what produced
+#: three consecutive "Exceeded maximum output retries" stubs on 2026-09-14.
+LESSON_RESEARCH_FROM_REPO = frozenset(
+    {"commit_message", "diff", "changed_files", "excerpts"}
+)
 
 #: Stage 1's output shape. ``commit_hash`` stays required and is overwritten
 #: from the subject afterwards, so a typo cannot misattribute the dossier.
@@ -225,7 +237,6 @@ LessonResearchDraft = draft_model(
     name="LessonResearchDraft",
     exclude=frozenset({"tool_calls_used"}) | LESSON_RESEARCH_FROM_REPO,
     require=LESSON_RESEARCH_REQUIRED,
-    override={"excerpts": list[ExcerptRequest]},
 )
 
 #: Fields of ``LessonDigest`` the pipeline fills in from the subject rather

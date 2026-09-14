@@ -40,10 +40,42 @@ of the schema that silently drifts from the first.
 
 from __future__ import annotations
 
-from types import UnionType
-from typing import Any, Union, get_args, get_origin
+from types import NoneType, UnionType
+from typing import Any, Union, cast, get_args, get_origin
 
-from pydantic import BaseModel, create_model
+from pydantic import BaseModel, create_model, model_validator
+
+_EMPTY_FOR: dict[Any, Any] = {str: "", int: 0, float: 0.0, bool: False}
+
+
+def _denull(annotation: Any) -> Any:
+    """Drop ``None`` out of a union.
+
+    Nullability is expressed in the schema as ``anyOf: [{...}, {"type":
+    "null"}]``, and Gemini's function-calling dialect does not handle that —
+    nor ``$ref``. We reach Gemini through OpenRouter's *OpenAI-compatible*
+    endpoint, so pydantic-ai applies its OpenAI schema transformer rather than
+    its Google one and the union goes out untouched. Tolerating a null is
+    still worth having, so ``_drop_nulls`` below does it in the validator
+    instead, where no schema has to describe it.
+    """
+    origin = get_origin(annotation)
+    if origin in (Union, UnionType):
+        args = tuple(a for a in get_args(annotation) if a is not NoneType)
+        if not args:
+            return annotation
+        return args[0] if len(args) == 1 else Union[args]
+    return annotation
+
+
+def _empty_default(annotation: Any) -> Any:
+    """A concrete stand-in for an omitted optional field."""
+    origin = get_origin(annotation) or annotation
+    if origin in (list, set, tuple):
+        return []
+    if origin is dict:
+        return {}
+    return _EMPTY_FOR.get(origin, "")
 
 
 def _relax(annotation: Any, seen: dict) -> Any:
@@ -65,6 +97,21 @@ def _relax(annotation: Any, seen: dict) -> Any:
     if origin in (Union, UnionType):
         return Union[args]
     return origin[args]
+
+
+@model_validator(mode="before")
+@classmethod
+def _drop_nulls(cls, data: object) -> object:
+    """Remove explicit ``null``s so the field's default applies instead.
+
+    The schema no longer offers null (see ``_denull``), but a model can still
+    send one, and models routinely answer ``"external_context": null`` for "I
+    found nothing". Dropping the key turns that into the empty default rather
+    than a validation error — which, at this stage, costs the week's lesson.
+    """
+    if not isinstance(data, dict):
+        return data
+    return {key: value for key, value in data.items() if value is not None}
 
 
 def draft_model(
@@ -128,12 +175,20 @@ def draft_model(
             annotation = override[field_name]
         else:
             annotation = _relax(field.annotation, seen)
+        annotation = _denull(annotation)
         if field.is_required() or field_name in require:
             fields[field_name] = (annotation, ...)
         else:
-            fields[field_name] = (Union[annotation, None], None)
+            fields[field_name] = (annotation, _empty_default(annotation))
 
-    draft = create_model(name or f"{model.__name__}Draft", **fields)
+    draft = create_model(
+        name or f"{model.__name__}Draft",
+        # `create_model` types `__validators__` as plain callables; a
+        # `@model_validator` is a descriptor proxy, which is what it actually
+        # wants here. Runtime is correct — see the null-handling tests.
+        __validators__=cast(Any, {"_drop_nulls": _drop_nulls}),
+        **fields,
+    )
     draft.__doc__ = (
         f"Lenient twin of {model.__name__} — see agents/models/draft.py."
     )

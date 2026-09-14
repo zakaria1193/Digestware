@@ -16,6 +16,7 @@ the model:
 
 from __future__ import annotations
 
+import json
 from datetime import date
 from typing import Any, cast
 
@@ -24,6 +25,7 @@ import pytest
 from agents.lesson_agent import (
     _build_tools,
     _drop_unread_code_refs,
+    _ExcerptLog,
     _finalise_lesson,
     _render_dossier,
     _repair_lesson_item,
@@ -270,7 +272,7 @@ def test_tools_refuse_to_run_once_the_budget_is_spent():
     """The cap is the dominant cost lever — it has to actually bind."""
     repo = _fake_repo()
     budget = _ToolBudget(limit=2)
-    tools = {t.__name__: t for t in _build_tools(repo, SHA, budget)}
+    tools = {t.__name__: t for t in _build_tools(repo, SHA, budget, _ExcerptLog())}
 
     assert "ipa-sra: fix parameter liveness" in tools["show_commit"]()
     assert tools["list_dir"]() == "ipa-sra.cc"
@@ -283,7 +285,7 @@ def test_grep_defaults_to_the_commits_own_directories():
     repo = _fake_repo()
     captured = {}
     repo.grep_repo = lambda sha, pattern, paths: captured.setdefault("paths", paths)
-    tools = {t.__name__: t for t in _build_tools(repo, SHA, _ToolBudget())}
+    tools = {t.__name__: t for t in _build_tools(repo, SHA, _ToolBudget(), _ExcerptLog())}
 
     tools["grep_repo"]("pattern")
     assert captured["paths"] == ["gcc"]
@@ -361,9 +363,6 @@ def _research_json(**overrides) -> dict:
     payload: dict = {
         "commit_hash": "a" * 40,
         "subsystem": "gcc/ipa",
-        "excerpts": [
-            {"path": "gcc/ipa-sra.cc", "lines": "1-3", "note": "why"}
-        ],
         "what_changed": "A parameter is now marked dead.",
         "how_it_works": "The pass re-runs liveness.",
         "why_it_matters": "Fewer spills.",
@@ -372,14 +371,23 @@ def _research_json(**overrides) -> dict:
     return payload
 
 
+#: What `note_excerpt` would have logged during the run.
+_NOTED = [{"path": "gcc/ipa-sra.cc", "lines": "1-3", "symbol": "", "note": "why"}]
+
+
 def _research_draft(**overrides):
     return LessonResearchDraft(**_research_json(**overrides))
 
 
-def _finalised(subject, repo=None, **overrides):
+def _finalised(subject, repo=None, excerpts=None, **overrides):
     from agents.lesson_agent import _finalise_research
 
-    return _finalise_research(_research_draft(**overrides), subject, repo or _fake_repo())
+    return _finalise_research(
+        _research_draft(**overrides),
+        subject,
+        repo or _fake_repo(),
+        _NOTED if excerpts is None else excerpts,
+    )
 
 
 def test_finalise_research_end_to_end(subject):
@@ -404,7 +412,7 @@ def test_the_quotable_material_comes_from_git_not_the_model(subject):
     assert research.changed_files == ["gcc/ipa-sra.cc"]
     assert "code" in research.excerpts[0].code
     # …and the model is not even offered the fields it used to have to echo.
-    assert {"commit_message", "diff", "changed_files"}.isdisjoint(
+    assert {"commit_message", "diff", "changed_files", "excerpts"}.isdisjoint(
         LessonResearchDraft.model_fields
     )
 
@@ -660,7 +668,7 @@ def test_the_evidence_fields_are_required_of_the_explorer():
     """
     required = set(LessonResearchDraft.model_json_schema()["required"])
 
-    assert {"excerpts", "what_changed", "how_it_works"} <= required
+    assert {"what_changed", "how_it_works", "why_it_matters"} <= required
     # …while the genuinely optional ones stay omittable.
     assert {"open_questions", "external_context"}.isdisjoint(required)
 
@@ -673,3 +681,78 @@ def test_the_writer_must_return_a_body():
     # `_drop_unread_code_refs` can legitimately empty the code tour, so
     # requiring it here would promise something the pipeline then removes.
     assert "code_tour" not in required
+
+
+# ---------------------------------------------------------------------------
+# Stage 1's schema has to be one Gemini can actually fill
+# ---------------------------------------------------------------------------
+#
+# Three consecutive runs on 2026-09-14 stubbed with `UnexpectedModelBehavior:
+# Exceeded maximum output retries` because the research output schema carried
+# `$defs`/`$ref` (a nested excerpt object) and `anyOf: [..., null]`. Gemini's
+# function-calling dialect supports neither, and because OpenRouter speaks the
+# OpenAI-compatible API, pydantic-ai applies its OpenAI schema transformer
+# rather than its Google one — whatever the schema says goes out verbatim.
+#
+# The tell was run 1: with nothing required but the two identity strings, the
+# model answered instantly and validly, because it never had to construct the
+# `$ref`'d object. Make that object required and it cannot answer at all.
+
+def test_research_schema_is_flat_enough_for_gemini():
+    schema = json.dumps(LessonResearchDraft.model_json_schema())
+
+    assert "$ref" not in schema
+    assert "$defs" not in schema
+    assert "anyOf" not in schema
+    assert '"null"' not in schema
+
+
+def test_research_schema_is_only_strings_and_string_lists():
+    """The shapes every function-calling implementation agrees on."""
+    props = LessonResearchDraft.model_json_schema()["properties"]
+
+    for name, spec in props.items():
+        assert spec["type"] in ("string", "array"), f"{name} is {spec['type']}"
+        if spec["type"] == "array":
+            assert spec["items"] == {"type": "string"}, name
+
+
+def test_note_excerpt_records_what_the_explorer_read():
+    log = _ExcerptLog()
+    tools = {t.__name__: t for t in _build_tools(_fake_repo(), SHA, _ToolBudget(), log)}
+
+    tools["note_excerpt"]("gcc/ipa-sra.cc", "1204-1231", "isra", "the invariant")
+
+    assert log.records == [{
+        "path": "gcc/ipa-sra.cc", "lines": "1204-1231",
+        "symbol": "isra", "note": "the invariant",
+    }]
+
+
+def test_note_excerpt_does_not_spend_the_read_budget():
+    """Bookkeeping must not compete with reading files — that buys nothing."""
+    budget = _ToolBudget(limit=3)
+    tools = {t.__name__: t for t in _build_tools(_fake_repo(), SHA, budget, _ExcerptLog())}
+
+    for _ in range(5):
+        tools["note_excerpt"]("gcc/ipa-sra.cc")
+
+    assert budget.used == 0
+
+
+def test_note_excerpt_stops_at_the_cap():
+    log = _ExcerptLog(limit=2)
+    tools = {t.__name__: t for t in _build_tools(_fake_repo(), SHA, _ToolBudget(), log)}
+
+    replies = [tools["note_excerpt"](f"f{i}.cc") for i in range(4)]
+
+    assert len(log.records) == 2
+    assert "[budget]" in replies[-1]
+
+
+def test_note_excerpt_rejects_an_empty_path():
+    log = _ExcerptLog()
+    tools = {t.__name__: t for t in _build_tools(_fake_repo(), SHA, _ToolBudget(), log)}
+
+    assert "[error]" in tools["note_excerpt"]("   ")
+    assert log.records == []

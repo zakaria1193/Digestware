@@ -72,6 +72,12 @@ logger = logging.getLogger(__name__)
 # evidence; lower it first if the budget overruns.
 _MAX_TOOL_CALLS = 16
 
+# Excerpts the explorer may flag. Mirrors the cap on ``LessonResearch.excerpts``
+# so the log cannot outrun what the dossier can hold. ``note_excerpt`` is
+# deliberately NOT charged to the tool budget above: it reads nothing, and
+# making bookkeeping compete with the read budget would buy fewer files read.
+_MAX_EXCERPTS = 12
+
 _BUDGET_EXHAUSTED = (
     "[budget] The source-exploration budget for this lesson is spent. Stop "
     "calling tools and return the research dossier now, using only what you "
@@ -111,32 +117,29 @@ METHOD (work in this order):
 1. ``show_commit`` — read the full message and diff first.
 2. ``read_file`` — open the region each hunk touches, plus enough surrounding
    context to see what the code is actually for.
-3. ``grep_repo`` / ``find_symbol`` — chase the one or two symbols that carry
+3. ``note_excerpt`` — the moment a region is worth showing the reader, mark it:
+   ``note_excerpt(path, lines, symbol, note)``. Do this AS YOU READ, 3 to 8
+   times over the run. You are naming the region, not copying it — the code is
+   fetched from the repository for you. A region you do not mark does not
+   reach the writer.
+4. ``grep_repo`` / ``find_symbol`` — chase the one or two symbols that carry
    the concept: the caller, the data structure, the invariant being kept.
-4. ``search_web`` — OUTSIDE background only (a paper, a wiki page, an ISA
+5. ``search_web`` — OUTSIDE background only (a paper, a wiki page, an ISA
    note). Never a substitute for reading the code.
 
 Your exploration budget is limited. Spend it on the three or four files that
 actually explain the change, not on a survey of the subsystem.
 
-DO NOT return the dossier before you have read the code. A dossier with no
-excerpts is rejected outright — the writer cannot open a file, so an empty
-dossier costs the whole article. Call the tools first; the output tool is the
-last thing you do.
+DO NOT finish before you have read the code and called ``note_excerpt`` at
+least once. A dossier with no excerpts is rejected outright — the writer
+cannot open a file, so it would have nothing to ground the article in.
 
 DO NOT copy code into your answer. The commit message, the diff and the file
-contents are read from the repository for you; re-typing them wastes your
-output budget and risks a paraphrase where the article needs exact bytes. You
-name the regions; the pipeline quotes them.
+contents are read from the repository for you. Your final answer is prose
+only.
 
-RETURN the dossier through the output tool, filling these fields:
+FINISH by returning these fields, all plain text:
 - ``commit_hash``, ``subsystem`` — echo from the input.
-- ``excerpts`` — 3 to 8 objects ``{path, lines, symbol, note}`` naming the
-  regions the writer should see. ``path`` is the repo-relative file you read;
-  ``lines`` is the range ("1204-1231"); ``symbol`` is the function, struct or
-  macro it covers; ``note`` is one sentence on why it matters. The region is
-  fetched from the tree at this commit, so name it accurately — a path that
-  does not exist at this commit is dropped.
 - ``what_changed`` — what this commit does, mechanically, in your own words.
 - ``how_it_works`` — how the surrounding machinery works: the pass, the data
   structure, the invariant, the control flow the reader needs to follow the
@@ -166,7 +169,37 @@ class _ToolBudget:
         return True
 
 
-def _build_tools(repo: SourceRepo, sha: str, budget: _ToolBudget) -> list:
+class _ExcerptLog:
+    """Regions the explorer flagged while reading, in the order it read them.
+
+    Excerpts arrive as tool calls rather than as part of the final answer, for
+    two reasons. The schema one is decisive: a list of ``{path, lines, symbol,
+    note}`` objects in the output schema means ``$defs``/``$ref``, which
+    Gemini's function-calling dialect does not support — and OpenRouter's
+    OpenAI-compatible endpoint means pydantic-ai does not rewrite it away.
+    Three runs died there. A tool with four plain string parameters is the
+    best-supported shape there is.
+
+    The second is that it fits how the work actually happens: the explorer
+    flags a region at the moment it reads it, instead of having to remember
+    every region until the end.
+    """
+
+    def __init__(self, limit: int = _MAX_EXCERPTS) -> None:
+        self.limit = limit
+        self.records: list[dict] = []
+
+    def add(self, record: dict) -> bool:
+        """Record a region. False once the log is full."""
+        if len(self.records) >= self.limit:
+            return False
+        self.records.append(record)
+        return True
+
+
+def _build_tools(
+    repo: SourceRepo, sha: str, budget: _ToolBudget, excerpts: _ExcerptLog
+) -> list:
     """Return repo-navigation tools bound to one clone at one commit.
 
     The SHA is closed over rather than passed by the model: the model has no
@@ -233,6 +266,32 @@ def _build_tools(repo: SourceRepo, sha: str, budget: _ToolBudget) -> list:
             return _BUDGET_EXHAUSTED
         return repo.find_symbol(sha, name, paths or default_scope)
 
+    def note_excerpt(
+        path: str, lines: str = "", symbol: str = "", note: str = ""
+    ) -> str:
+        """Mark a region you have read as one the article should quote.
+
+        Call this as you read, once per region worth showing the reader. The
+        code itself is fetched from the repository — you are naming the region,
+        not copying it.
+
+        Args:
+            path: repo-relative file you read, e.g. "gcc/ipa-sra.cc".
+            lines: the range it covers, e.g. "1204-1231".
+            symbol: the function, struct or macro it covers, if one fits.
+            note: one sentence on why this region matters.
+        """
+        if not path.strip():
+            return "[error] note_excerpt needs a path."
+        if not excerpts.add(
+            {"path": path.strip(), "lines": lines, "symbol": symbol, "note": note}
+        ):
+            return (
+                f"[budget] Already holding {excerpts.limit} excerpts — that is "
+                "enough. Finish your findings and return."
+            )
+        return f"Recorded excerpt {len(excerpts.records)}: {path} {lines}".strip()
+
     def search_web(query: str) -> list[str]:
         """Look up OUTSIDE background: a paper, a wiki page, an ISA manual.
 
@@ -242,7 +301,10 @@ def _build_tools(repo: SourceRepo, sha: str, budget: _ToolBudget) -> list:
             return [_BUDGET_EXHAUSTED]
         return search_context(query)
 
-    return [show_commit, read_file, list_dir, grep_repo, find_symbol, search_web]
+    return [
+        show_commit, read_file, list_dir, grep_repo, find_symbol,
+        note_excerpt, search_web,
+    ]
 
 
 def _max_lengths(model: type[BaseModel], kinds: tuple[type, ...]) -> dict[str, int]:
@@ -404,7 +466,10 @@ def _assert_dossier_has_evidence(research: LessonResearch) -> None:
 
 
 def _finalise_research(
-    draft: BaseModel, subject: LessonSubject, repo: SourceRepo
+    draft: BaseModel,
+    subject: LessonSubject,
+    repo: SourceRepo,
+    requests: list[dict],
 ) -> LessonResearch:
     """Assemble the dossier: the explorer's findings plus the code, from git.
 
@@ -414,7 +479,6 @@ def _finalise_research(
     and stage 1's output stays small enough to cross the wire intact.
     """
     parsed = draft.model_dump(exclude_none=True)
-    requests = parsed.pop("excerpts", None) or []
 
     # Identity is ours, not the model's — a typo here would misattribute the
     # whole dossier to the wrong commit.
@@ -447,7 +511,8 @@ def _research_prompt(subject: LessonSubject, repo: SourceRepo) -> str:
         f"landing_tldr: {subject.tldr}\n\n"
         "Files this commit touched:\n  " + "\n  ".join(paths) + "\n\n"
         f"Default grep scope (the directories above): {', '.join(scope)}\n\n"
-        "Call show_commit first, then read the code, then return the dossier."
+        "Call show_commit first, then read the code, calling note_excerpt on "
+        "each region worth quoting. Return your findings last."
     )
 
 
@@ -465,6 +530,7 @@ def run_research(
     """
     model_name = model_from_env("LESSON_RESEARCH_MODEL", DEFAULT_LESSON_RESEARCH_MODEL)
     budget = _ToolBudget()
+    excerpts = _ExcerptLog()
     agent: Agent[None, BaseModel] = Agent(
         model=build_model(model_name),
         # Structured output, not prose the pipeline parses: the dossier carries
@@ -474,7 +540,9 @@ def run_research(
         # a second would resend every tool result in the run a third time.
         output_type=LessonResearchDraft,
         system_prompt=_RESEARCH_PROMPT,
-        tools=_build_tools(repo, subject.commit_hash, budget),  # type: ignore[arg-type]
+        tools=_build_tools(  # type: ignore[arg-type]
+            repo, subject.commit_hash, budget, excerpts
+        ),
     )
     prompt = _research_prompt(subject, repo)
 
@@ -498,7 +566,7 @@ def run_research(
                 "\033[1;32m── lesson research ◀ RESPONSE FROM %s ──\n%s\033[0m",
                 model_name, r.output,
             )
-        return r, _finalise_research(r.output, subject, repo)
+        return r, _finalise_research(r.output, subject, repo, excerpts.records)
 
     try:
         result, research = retry_with_backoff(

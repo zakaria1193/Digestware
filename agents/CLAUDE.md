@@ -695,6 +695,23 @@ and hundreds of MB.
   Under `output_type=str` the prompt carried that obligation; with a schema,
   the schema carries it. `LESSON_RESEARCH_REQUIRED` in `models/lesson.py` is
   what keeps the diff and the excerpts non-optional.
+- **Stage 1's output schema must stay flat: no `$ref`, no `anyOf`, no null.**
+  Gemini's function-calling dialect supports none of them, and we reach Gemini
+  through OpenRouter's *OpenAI-compatible* endpoint, so pydantic-ai applies its
+  OpenAI schema transformer rather than its Google one — whatever the schema
+  says goes out verbatim. A nested `{path, lines, symbol, note}` object in the
+  research output produced `$defs`/`$ref` and three consecutive
+  `UnexpectedModelBehavior: Exceeded maximum output retries` stubs. The tell
+  was that the *first* run, with nothing required but two identity strings,
+  answered instantly and validly — the model never had to construct the
+  `$ref`'d object. `test_research_schema_is_flat_enough_for_gemini` fails the
+  build if a nested type creeps back in. The writer runs on Opus and tolerates
+  nesting, which is why `LessonDraft` may keep its `sections` objects.
+- **Anything structured the cheap model must produce goes through a tool, not
+  the output schema.** `note_excerpt(path, lines, symbol, note)` — four plain
+  strings — is the best-supported shape in every function-calling
+  implementation, and it fits the work: the explorer flags a region as it
+  reads it rather than having to remember every region until the end.
 - **The explorer names regions; the pipeline quotes them.** The dossier's
   `commit_message`, `diff`, `changed_files` and every excerpt's `code` are read
   from the clone, not asked for — the model returns `{path, lines, symbol,
