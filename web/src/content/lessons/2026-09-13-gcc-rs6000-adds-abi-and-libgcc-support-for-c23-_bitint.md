@@ -31,7 +31,7 @@ date: '2026-09-13'
 is_stub: true
 stub_reason: 'writer_failed: ModelHTTPError: status_code: 402, model_name: anthropic/claude-opus-5,
   body: {''message'': "This request requires more credits, or fewer max_tokens. You
-  requested up to 20000 tokens, but '
+  requested up to 10000 tokens, but '
 ---
 
 Summary unavailable — see source link.
