@@ -72,6 +72,7 @@ def draft_model(
     *,
     name: str | None = None,
     exclude: frozenset[str] = frozenset(),
+    require: frozenset[str] = frozenset(),
     seen: dict | None = None,
 ) -> type[BaseModel]:
     """Build a lenient twin of *model* to use as an agent's ``output_type``.
@@ -82,14 +83,26 @@ def draft_model(
     from the subject afterwards (identity, dates), which the model should not be
     asked to echo and cannot get right anyway.
 
+    ``require`` is the counterweight, and it is not optional care. A schema
+    where every field may be null tells the model that returning the two
+    identity fields and nothing else is a complete answer — and on 2026-09-14
+    that is exactly what happened: the explorer called the output tool after
+    one tool call and 53 tokens, the dossier came back empty, and the writer
+    spent $0.08 of Opus honestly explaining that it had no evidence to teach
+    from. Under ``output_type=str`` the prompt alone carried that obligation;
+    with a schema, the schema carries it. So a field the caller cannot use the
+    result without is listed here and becomes required in the twin, even where
+    the strict model gives it a default for other reasons.
+
     Args:
         model: the strict model to mirror.
         name: class name for the twin; defaults to ``<Model>Draft``.
         exclude: field names to omit.
+        require: fields to make required even if the strict model defaults them.
         seen: internal cache so a model reached twice yields one twin.
     """
     seen = {} if seen is None else seen
-    key = (model, exclude)
+    key = (model, exclude, require)
     cached = seen.get(key)
     if cached is not None:
         return cached
@@ -102,7 +115,7 @@ def draft_model(
         # `Field(max_length=...)` constraints in `field.metadata`, which we
         # simply don't carry over.
         annotation = _relax(field.annotation, seen)
-        if field.is_required():
+        if field.is_required() or field_name in require:
             fields[field_name] = (annotation, ...)
         else:
             fields[field_name] = (Union[annotation, None], None)

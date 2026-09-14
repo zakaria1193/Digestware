@@ -118,6 +118,11 @@ METHOD (work in this order):
 Your exploration budget is limited. Spend it on the three or four files that
 actually explain the change, not on a survey of the subsystem.
 
+DO NOT return the dossier before you have read the code. A dossier with no
+source excerpts, or with no diff and no commit message, is rejected outright —
+the writer cannot open a file, so an empty dossier costs the whole article.
+Call the tools first; the output tool is the last thing you do.
+
 RETURN the dossier through the output tool, filling these fields:
 - ``commit_hash``, ``subsystem`` — echo from the input.
 - ``commit_message`` — the commit message, verbatim.
@@ -298,6 +303,40 @@ def _clamp_to_schema(parsed: dict) -> None:
                     item[field] = _cut(item[field], limit)
 
 
+def _assert_dossier_has_evidence(research: LessonResearch) -> None:
+    """Refuse a dossier the writer could not honestly write from.
+
+    The writer never opens a file: the commit message, the diff and the
+    excerpts are its entire view of the source. Hand it an empty dossier and it
+    does not fail — it writes, truthfully and at length, about having no
+    evidence. That article is ``is_stub: false``, so it passes validation, gets
+    committed, and publishes.
+
+    That is not hypothetical. On 2026-09-14 the explorer returned after one
+    tool call and 53 tokens, and $0.08 of Opus went on "No Dossier, No Lesson:
+    Why This Week's Article Cannot Be Written", which was one merge away from
+    the front page.
+
+    A stub is the right outcome for this: it is visible in /admin, it never
+    claims its week, and the next night retries. So the emptiness is caught
+    here, where it still reads as the stage-1 failure it actually is, rather
+    than downstream where it reads as an editorial decision.
+
+    Raised as a ``ValueError`` on purpose, which ``retry_with_backoff`` does
+    retry. Unlike a schema mismatch, an explorer that returned early may well
+    do the work on a second ask, and stage 1 runs on the cheap tier — the
+    empty run above cost $0.0008. Three attempts at that price beats losing
+    the week.
+    """
+    if not research.excerpts:
+        raise ValueError(
+            "dossier has no source excerpts — the writer would have nothing "
+            "to ground the article in"
+        )
+    if not research.diff.strip() and not research.commit_message.strip():
+        raise ValueError("dossier has neither a diff nor a commit message")
+
+
 def _finalise_research(draft: BaseModel, subject: LessonSubject) -> LessonResearch:
     """Turn the model's draft dossier into a validated ``LessonResearch``.
 
@@ -314,7 +353,9 @@ def _finalise_research(draft: BaseModel, subject: LessonSubject) -> LessonResear
         parsed["subsystem"] = subject.subsystem
 
     _clamp_to_schema(parsed)
-    return _RESEARCH_ADAPTER.validate_python(parsed)
+    research = _RESEARCH_ADAPTER.validate_python(parsed)
+    _assert_dossier_has_evidence(research)
+    return research
 
 
 def _research_prompt(subject: LessonSubject, repo: SourceRepo) -> str:

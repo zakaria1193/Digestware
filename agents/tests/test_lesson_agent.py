@@ -571,3 +571,63 @@ def test_writer_stage_wires_up_and_returns_a_lesson(subject, offline_models):
     assert lesson.lesson_id == "gcc:2026-W36"
     assert lesson.url == subject.url
     assert lesson.is_stub is False
+
+
+# ---------------------------------------------------------------------------
+# An empty dossier is a failure, not an article
+# ---------------------------------------------------------------------------
+#
+# The regression these guard against shipped and was caught in production on
+# 2026-09-14: with every draft field nullable, the explorer answered with the
+# two identity fields after one tool call and 53 tokens, and the writer — which
+# never opens a file — spent $0.08 of Opus writing "No Dossier, No Lesson: Why
+# This Week's Article Cannot Be Written". That article is `is_stub: false`, so
+# it passed validation and was committed, one merge from the front page.
+
+def test_dossier_without_excerpts_is_rejected(subject):
+    from agents.lesson_agent import _finalise_research
+
+    with pytest.raises(ValueError, match="no source excerpts"):
+        _finalise_research(_research_draft(excerpts=[]), subject)
+
+
+def test_dossier_without_diff_or_message_is_rejected(subject):
+    from agents.lesson_agent import _finalise_research
+
+    with pytest.raises(ValueError, match="neither a diff nor a commit message"):
+        _finalise_research(_research_draft(diff="  ", commit_message=""), subject)
+
+
+def test_a_dossier_with_evidence_passes(subject):
+    """The guard must not fire on a thin but real dossier."""
+    from agents.lesson_agent import _finalise_research
+
+    draft = _research_draft(
+        diff="", commit_message="Fix the thing",
+        excerpts=[{"path": "gcc/ipa-sra.cc", "code": "int x;"}],
+    )
+
+    assert _finalise_research(draft, subject).commit_hash == SHA
+
+
+def test_the_evidence_fields_are_required_of_the_explorer():
+    """A nullable-everything schema invites the empty answer that caused this.
+
+    These carry defaults on `LessonResearch` so a stub can be constructed; the
+    explorer is not free to use them.
+    """
+    required = set(LessonResearchDraft.model_json_schema()["required"])
+
+    assert {"diff", "excerpts", "commit_message", "what_changed"} <= required
+    # …while the genuinely optional ones stay omittable.
+    assert {"open_questions", "external_context"}.isdisjoint(required)
+
+
+def test_the_writer_must_return_a_body():
+    """A lesson with no sections is not a lesson."""
+    required = set(LessonDraft.model_json_schema()["required"])
+
+    assert {"sections", "takeaways"} <= required
+    # `_drop_unread_code_refs` can legitimately empty the code tour, so
+    # requiring it here would promise something the pipeline then removes.
+    assert "code_tour" not in required

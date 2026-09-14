@@ -174,12 +174,31 @@ class LessonResearch(BaseModel):
 # derivations of the strict models above — see agents/models/draft.py for why
 # the models are not pointed straight at LessonResearch / LessonDigest.
 
+#: The evidence a dossier is worthless without. These carry defaults on
+#: ``LessonResearch`` — a stub needs to be constructible — but the *explorer*
+#: is not free to omit them, and a schema that says otherwise is an invitation
+#: it will take. See the ``require`` note in models/draft.py.
+LESSON_RESEARCH_REQUIRED = frozenset(
+    {
+        "commit_message",
+        "diff",
+        "changed_files",
+        "excerpts",
+        "what_changed",
+        "how_it_works",
+        "why_it_matters",
+    }
+)
+
 #: Stage 1's output shape. ``commit_hash`` and ``subsystem`` stay required and
 #: are overwritten from the subject afterwards, so a typo cannot misattribute
 #: the dossier. ``tool_calls_used`` is dropped: the explorer cannot count its
 #: own budget, and the agent fills it in from the real counter.
 LessonResearchDraft = draft_model(
-    LessonResearch, name="LessonResearchDraft", exclude=frozenset({"tool_calls_used"})
+    LessonResearch,
+    name="LessonResearchDraft",
+    exclude=frozenset({"tool_calls_used"}),
+    require=LESSON_RESEARCH_REQUIRED,
 )
 
 #: Fields of ``LessonDigest`` the pipeline fills in from the subject rather
@@ -205,6 +224,14 @@ LESSON_INJECTED_FIELDS = frozenset(
 )
 
 #: Stage 2's output shape: the article fields the writer actually authors.
+#: ``sections`` and ``takeaways`` are required for the same reason as the
+#: dossier's evidence fields — a lesson without a body is not a lesson, and
+#: their defaults on ``LessonDigest`` exist to let a stub be constructed.
+#: ``code_tour`` stays optional: ``_drop_unread_code_refs`` can legitimately
+#: empty it, so requiring it here would promise something we then take away.
 LessonDraft = draft_model(
-    LessonDigest, name="LessonDraft", exclude=LESSON_INJECTED_FIELDS
+    LessonDigest,
+    name="LessonDraft",
+    exclude=LESSON_INJECTED_FIELDS,
+    require=frozenset({"sections", "takeaways"}),
 )

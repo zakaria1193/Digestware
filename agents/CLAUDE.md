@@ -686,6 +686,23 @@ and hundreds of MB.
   `_repair_lesson_item` forces from the subject (commit hash, project, url, the
   three dates). Adding them back spends tokens on values a typo would
   mislabel the whole article with.
+- **A nullable-everything schema is an invitation the model will take.** The
+  draft strips length *caps*, not *obligations*. When every dossier field was
+  nullable, the explorer read the schema as "the two identity fields are a
+  complete answer", returned after one tool call and 53 tokens, and the writer
+  spent $0.08 of Opus truthfully explaining that it had no evidence — an
+  article with `is_stub: false`, committed, one merge from the front page.
+  Under `output_type=str` the prompt carried that obligation; with a schema,
+  the schema carries it. `LESSON_RESEARCH_REQUIRED` in `models/lesson.py` is
+  what keeps the diff and the excerpts non-optional.
+- **An empty dossier must fail as a stub, never as an article.** The writer
+  never opens a file, so with nothing to work from it does not error — it
+  writes *about* having nothing, at length and in good faith, and that passes
+  every downstream check. `_assert_dossier_has_evidence` rejects a dossier with
+  no excerpts, or with neither a diff nor a commit message, so the failure
+  reads as the stage-1 failure it is. It raises `ValueError`, which *is*
+  retried: unlike a schema mismatch, an explorer that returned early often does
+  the work on a second ask, and stage 1 is the cheap tier.
 - **Nothing diagnostic may sit between the pipeline and the commit step.** The
   `lesson-run` artifact upload is `continue-on-error` for this reason: it runs
   *before* validate → build → commit, and when the account's artifact storage
