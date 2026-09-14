@@ -29,9 +29,9 @@ week_end: '2026-09-13'
 commit_date: '2026-09-11'
 date: '2026-09-13'
 is_stub: true
-stub_reason: 'research_failed: ValidationError: 1 validation error for SourceExcerpt
-  code String should have at most 6000 characters [type=string_too_long, input_value=''#
-  libgcc/config/rs6000/f... 236 }\n 237 #endi'
+stub_reason: 'writer_failed: ModelHTTPError: status_code: 402, model_name: anthropic/claude-opus-5,
+  body: {''message'': ''This request would exceed your available credits given your
+  current in-flight requests. Retry a'
 ---
 
 Summary unavailable — see source link.
