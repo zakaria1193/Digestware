@@ -29,9 +29,9 @@ week_end: '2026-09-13'
 commit_date: '2026-09-11'
 date: '2026-09-13'
 is_stub: true
-stub_reason: 'writer_failed: ModelHTTPError: status_code: 402, model_name: anthropic/claude-opus-5,
+stub_reason: 'research_failed: ModelHTTPError: status_code: 402, model_name: google/gemini-2.5-flash,
   body: {''message'': "This request requires more credits, or fewer max_tokens. You
-  requested up to 9000 tokens, but c'
+  requested up to 65535 tokens, bu'
 ---
 
 Summary unavailable — see source link.
