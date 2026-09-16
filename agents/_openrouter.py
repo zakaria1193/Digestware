@@ -87,6 +87,20 @@ DEFAULT_LESSON_WRITER_MODEL = "anthropic/claude-opus-5"
 # headroom while cutting the reservation to under a third, so the call fits in
 # a balance that the unbounded default does not. Raise it only if a real
 # article is ever observed truncating.
+# Stage 1 reserves too, and for years it reserved nothing — meaning the
+# model's own ceiling, 65535 tokens for gemini-2.5-flash. That is ~25x what the
+# stage actually produces: since the dossier became a flat schema plus
+# `note_excerpt` tool calls, its output has measured 1202-2585 tokens across
+# every run. On 2026-09-16 the nightly finally hit it — "you requested up to
+# 65535 tokens" — and lost the lesson at research, before a single file was
+# read.
+#
+# The writer has carried an explicit cap since the same failure bit it. This is
+# the same invariant, applied to the stage that was missed: reserve what the
+# call plausibly needs, not what the model could theoretically emit. 8000 is
+# ~3x the observed maximum.
+LESSON_RESEARCH_MAX_TOKENS = 8000
+
 LESSON_WRITER_MAX_TOKENS = 20000
 # Do not tune this to a balance. On 2026-09-14 the key ran low and OpenRouter
 # started refusing the reservation — "you requested up to 20000 tokens, but can

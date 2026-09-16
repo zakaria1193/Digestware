@@ -42,6 +42,7 @@ from pydantic_ai import Agent
 from agents._openrouter import (
     DEFAULT_LESSON_RESEARCH_MODEL,
     DEFAULT_LESSON_WRITER_MODEL,
+    LESSON_RESEARCH_MAX_TOKENS,
     LESSON_WRITER_MAX_TOKENS,
     build_model,
     model_from_env,
@@ -534,7 +535,7 @@ def run_research(
     budget = _ToolBudget()
     excerpts = _ExcerptLog()
     agent: Agent[None, BaseModel] = Agent(
-        model=build_model(model_name),
+        model=build_model(model_name, max_tokens=LESSON_RESEARCH_MAX_TOKENS),
         # Structured output, not prose the pipeline parses: the dossier carries
         # a raw diff and verbatim C, and hand-encoding that as JSON is what the
         # model kept getting wrong. See agents/models/draft.py. PydanticAI's

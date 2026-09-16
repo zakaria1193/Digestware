@@ -653,6 +653,13 @@ and hundreds of MB.
 - **`continue-on-error` plus stub-on-failure can hide a total failure.** The
   step goes green and commits placeholder articles. When a run "succeeds",
   check `is_stub` in the output before believing it.
+- **BOTH lesson stages send an explicit `max_tokens`, not just the writer.**
+  Stage 1 reserved nothing for years, which means the model's own ceiling —
+  65535 tokens for `gemini-2.5-flash`, roughly 25x what it actually emits
+  (1202–2585 across every run since the dossier became a flat schema). The
+  nightly of 2026-09-16 finally hit it and lost the lesson at research, before
+  a single file was read. `test_both_lesson_stages_reserve_an_explicit_max_tokens`
+  fails the build if either stage goes back to `build_model(model_name)`.
 - **The writer sends an explicit `max_tokens` (`LESSON_WRITER_MAX_TOKENS`) and
   must keep doing so.** OpenRouter doesn't bill the reservation but it does
   *reserve* against the key's balance and returns a hard 402 when the balance
