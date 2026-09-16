@@ -851,3 +851,31 @@ def test_an_optional_nested_string_stays_absent_not_empty(subject):
 
     assert "symbol" not in item["code_tour"][0]
     assert LessonDigest.model_validate(item).code_tour[0].symbol is None
+
+
+def test_both_lesson_stages_reserve_an_explicit_max_tokens():
+    """An uncapped call reserves the model's own ceiling against the balance.
+
+    OpenRouter holds `max_tokens` worth of credit up front. With no cap that is
+    whatever the model could theoretically emit — 65535 for gemini-2.5-flash —
+    so on 2026-09-16 the nightly lost the lesson at research with "you
+    requested up to 65535 tokens", before reading a single file. The writer has
+    carried a cap since the identical failure; stage 1 was simply missed.
+    """
+    import inspect
+
+    import agents.lesson_agent as la
+    from agents._openrouter import (
+        LESSON_RESEARCH_MAX_TOKENS,
+        LESSON_WRITER_MAX_TOKENS,
+    )
+
+    source = inspect.getsource(la)
+    assert "build_model(model_name)" not in source, (
+        "a lesson stage builds its model without max_tokens — it will reserve "
+        "the model's full ceiling against the key's balance"
+    )
+    # Both caps must clear what the stages actually produce: research has
+    # measured 1202-2585 output tokens, a full article 7832.
+    assert LESSON_RESEARCH_MAX_TOKENS > 2585 * 2
+    assert LESSON_WRITER_MAX_TOKENS > 7832
