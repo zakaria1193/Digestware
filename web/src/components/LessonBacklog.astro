@@ -1,0 +1,122 @@
+---
+// The lessons behind the current one.
+//
+// The hero only ever carries the newest lesson, which used to make every
+// earlier piece invisible from the front page — a weekly explainer is worth
+// reading long after its week is over. This band keeps the two most recent
+// predecessors one click away without competing with the hero: no display
+// serif, no hook, just the week and the headline.
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+  entries: CollectionEntry<'lessons'>[];
+  projectSlug: string;
+}
+
+const { entries, projectSlug } = Astro.props;
+
+// Same span-not-a-date reasoning as the hero, in its compact form: a week's
+// lesson is labelled by the week it covers, not the day it was written.
+function weekRange(start: Date, end: Date): string {
+  const sameMonth = start.getMonth() === end.getMonth()
+    && start.getFullYear() === end.getFullYear();
+  const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const endStr = end.toLocaleDateString(
+    'en-US',
+    sameMonth ? { day: 'numeric' } : { month: 'short', day: 'numeric' },
+  );
+  return `${startStr}–${endStr}`;
+}
+---
+
+{entries.length > 0 && (
+  <section class="lesson-backlog">
+    <div class="backlog-head">
+      <span class="backlog-label">Previous Lessons</span>
+      <span class="backlog-rule"></span>
+    </div>
+
+    <ul class="backlog-list">
+      {entries.map(entry => (
+        <li class="backlog-item">
+          <a href={`/${projectSlug}/lessons/${entry.id}`} class="backlog-link">
+            <span class="backlog-date">
+              {weekRange(entry.data.week_start, entry.data.week_end)}
+            </span>
+            <span class="backlog-headline">{entry.data.headline}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </section>
+)}
+
+<style>
+  .lesson-backlog {
+    border-bottom: 1px solid var(--color-rule-strong);
+    padding-bottom: 0.9rem;
+    margin-top: -1.35rem;
+    margin-bottom: 1.75rem;
+  }
+
+  .backlog-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .backlog-label {
+    font-family: var(--font-sans);
+    font-size: 0.58rem;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-dim);
+    white-space: nowrap;
+  }
+
+  .backlog-rule {
+    flex: 1;
+    border-top: 1px solid var(--color-rule);
+  }
+
+  .backlog-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .backlog-link {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .backlog-date {
+    font-family: var(--font-sans);
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-dim);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .backlog-headline {
+    font-family: var(--font-serif);
+    font-size: 0.92rem;
+    line-height: 1.35;
+    color: var(--color-ink);
+  }
+
+  .backlog-link:hover .backlog-headline {
+    color: var(--color-accent);
+  }
+</style>
