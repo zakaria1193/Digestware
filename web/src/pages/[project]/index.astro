@@ -3,6 +3,7 @@ import PublicLayout from '../../layouts/PublicLayout.astro';
 import BentoCard from '../../components/BentoCard.astro';
 import CommitRow from '../../components/CommitRow.astro';
 import LessonHero from '../../components/LessonHero.astro';
+import LessonBacklog from '../../components/LessonBacklog.astro';
 import FilterBar from '../../components/FilterBar.astro';
 import { getCollection } from 'astro:content';
 import { PROJECTS, getProject } from '../../config/projects';
@@ -91,11 +92,16 @@ const tagAssignments: Record<string, string> = tagCategoryFile?.assignments ?? {
 
 // The week's lesson. Newest wins; absent is normal (no eligible commit that
 // week, or a mirror that hasn't caught up yet) and simply renders nothing.
-const latestLesson = (await getCollection(
+// Once a second lesson exists the two behind the hero are listed under it, so
+// the front page always surfaces the three most recent rather than burying
+// everything but the newest.
+const lessons = (await getCollection(
   'lessons',
   ({ data }) => data.project === projectSlug && isPublic(data),
 ))
-  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime())[0] ?? null;
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+const latestLesson = lessons[0] ?? null;
+const previousLessons = lessons.slice(1, 3);
 
 const rankedTags = rankTags([...allDiscussions, ...landings]);
 const groupedTags = groupTags(rankedTags, tagAssignments);
@@ -131,6 +137,7 @@ const totalItems = allDiscussions.length + landings.length;
            collapses it. Intentional: the lesson is the week's editorial
            anchor, not one more filterable item in the feed. -->
       {latestLesson && <LessonHero entry={latestLesson} projectSlug={project.slug} />}
+      <LessonBacklog entries={previousLessons} projectSlug={project.slug} />
 
       <div class="wsj-section-head">
         <h2>Active Discussions</h2>
@@ -172,7 +179,12 @@ const totalItems = allDiscussions.length + landings.length;
     gap: 1.5rem;
   }
 
-  .main-col { min-width: 0; }
+  /* On a phone the single column follows DOM order, which would open the page
+     on the commit stream and push the lesson below it. The lesson is the
+     editorial anchor, so it leads; the stream follows the grid. The desktop
+     rule below restores the stream to its left-hand column. */
+  .main-col { min-width: 0; order: 1; }
+  .commit-stream { order: 2; }
 
   .empty, .empty-wire {
     font-family: var(--font-serif);
@@ -205,6 +217,7 @@ const totalItems = allDiscussions.length + landings.length;
   .commit-stream {
     font-family: var(--font-serif);
   }
+
 
   .stream-sticky-head {
     position: sticky;
@@ -282,6 +295,7 @@ const totalItems = allDiscussions.length + landings.length;
       row-gap: 0;
     }
     .commit-stream {
+      order: 0;
       border-right: 1px solid var(--color-rule-strong);
       padding-right: 1.5rem;
       position: sticky;
