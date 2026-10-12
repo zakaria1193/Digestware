@@ -28,6 +28,10 @@ on:
         description: 'How many complete weeks back to write lessons for (1 lesson each, ~EUR 0.40 apiece)'
         type: string
         default: '1'
+      since_hours:
+        description: 'First lookback window in hours. Raise it to catch up after missed nights; main.py still clamps it to the gap since the newest article on disk'
+        type: string
+        default: '48'
 
 jobs:
   # ── 1. Quality gate (reused from test.yml) ───────────────────────────────────
@@ -151,11 +155,12 @@ jobs:
           MIN_ENTRIES: '5'
           DEBUG_FLAG: ${{ inputs.debug && '--debug' || '' }}
           FORCE_FLAG: ${{ inputs.purge && '--force' || '' }}
+          FIRST_WINDOW: ${{ inputs.since_hours || '48' }}
         run: |
           set -euo pipefail
           count() { find "$1" -type f -name '*.md' 2>/dev/null | wc -l; }
 
-          for hours in 48 168 720 2160; do
+          for hours in "${FIRST_WINDOW}" 168 720 2160; do
             echo "::group::digest run (--since-hours ${hours})"
             python -m agents.main --since-hours "${hours}" --skip-categorize --skip-lesson ${DEBUG_FLAG} ${FORCE_FLAG}
             echo "::endgroup::"
