@@ -66,6 +66,10 @@ FALLBACK_PRICES: dict[str, tuple[float, float]] = {
     "google/gemini-2.5-flash": (0.0000004, 0.0000025),
     "anthropic/claude-sonnet-4.5": (0.0000030, 0.0000150),
     "anthropic/claude-opus-5": (0.0000050, 0.0000250),
+    # Captured 2026-10-12 with the switch to the 5.5 family.
+    "anthropic/claude-haiku-5.5": (0.0000001, 0.0000005),
+    "anthropic/claude-sonnet-5.5": (0.0000020, 0.0000100),
+    "anthropic/claude-opus-5.5": (0.0000040, 0.0000200),
 }
 
 

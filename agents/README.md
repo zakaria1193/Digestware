@@ -252,7 +252,7 @@ def run_landing_agent(
   It backfills `discussion_id_link` **only when the LLM left it `None`** —
   the model's value is always preferred.
 - Items with `impact_score >= 9` are re-run through the premium model
-  (`anthropic/claude-sonnet-4.5`, override via `BENTO_MODEL`). The re-run
+  (`anthropic/claude-sonnet-5.5`, override via `BENTO_MODEL`). The re-run
   receives the **original `RawCommit`** (not the cheap model's summary) to
   preserve full context.
 

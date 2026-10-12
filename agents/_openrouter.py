@@ -9,6 +9,7 @@ import os
 
 from openai import OpenAI
 from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.profiles import ModelProfile
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.settings import ModelSettings
 
@@ -28,8 +29,14 @@ BASE_URL = "https://openrouter.ai/api/v1"
 # context, a fraction of the per-call cost — and is the right fit for the
 # high-volume per-item digest work. Premium depth still comes from the Sonnet
 # re-run on impact_score >= 9 items.
+#
+# Re-priced 2026-10-12 after the key's lifetime cap stopped the nightly. The
+# summariser stays on flash-lite: at $0.10/$0.40 per M it is still the cheapest
+# capable option, and claude-haiku-5.5 ($0.10/$0.50) would cost slightly more
+# on this output-heavy path. The premium tier moves to claude-sonnet-5.5, which
+# is newer than sonnet-4.5 and a third cheaper ($2/$10 vs $3/$15 per M).
 DEFAULT_SUMMARISER_MODEL = "google/gemini-2.5-flash-lite"
-DEFAULT_PREMIUM_MODEL = "anthropic/claude-sonnet-4.5"
+DEFAULT_PREMIUM_MODEL = "anthropic/claude-sonnet-5.5"
 
 # ── Lesson of the Week ──────────────────────────────────────────────────────
 #
@@ -51,7 +58,13 @@ DEFAULT_PREMIUM_MODEL = "anthropic/claude-sonnet-4.5"
 # several source files. The -lite tier used for bulk summarising is not up to
 # it. This runs at most twice a week, so the reasoning tier is affordable here
 # in a way it never was in the per-article digest path.
-DEFAULT_LESSON_RESEARCH_MODEL = "google/gemini-2.5-flash"
+#
+# claude-haiku-5.5 replaced gemini-2.5-flash here on 2026-10-12. Research is
+# input-dominated (every turn resends the conversation: ~1.5M input vs ~38k
+# output tokens over 13 runs), and Haiku 5.5 charges $0.10/M input against
+# Flash's $0.30/M — about 40% less per lesson at measured volumes — while
+# supporting tools, reasoning and structured output.
+DEFAULT_LESSON_RESEARCH_MODEL = "anthropic/claude-haiku-5.5"
 #
 # WRITER — one call, no tools, no conversation to resend. Opus-tier by explicit
 # request: the lesson is the only long-form prose on the site and it is what a
@@ -64,18 +77,22 @@ DEFAULT_LESSON_RESEARCH_MODEL = "google/gemini-2.5-flash"
 # models/lesson.py — which drive the writer's input tokens. Do not silently
 # downgrade the writer; Opus-level prose is the requirement.
 #
-# VERIFIED 2026-09-09 against https://openrouter.ai/api/v1/models: this slug is
+# claude-opus-5.5 replaced claude-opus-5 on 2026-10-12: the newer Opus, at
+# $4/$20 per M against $5/$25. The writer was over half of all logged spend,
+# so this is the largest single saving and it is not a downgrade.
+#
+# VERIFIED 2026-10-12 against https://openrouter.ai/api/v1/models: this slug is
 # served. `python -m agents.check_models` re-checks it (and every other
 # configured slug) before any step that spends tokens, so a provider-side
 # rename fails in seconds rather than after a paid loop. That preflight is how
 # `anthropic/claude-sonnet-4-5` was caught: it had never existed, so every
 # premium digest re-run had been silently falling back to the cheap summary.
-DEFAULT_LESSON_WRITER_MODEL = "anthropic/claude-opus-5"
+DEFAULT_LESSON_WRITER_MODEL = "anthropic/claude-opus-5.5"
 
 # OpenRouter does not bill max_tokens — but it does *reserve* against it, and
 # rejects the request outright with a 402 when the key's remaining balance
 # cannot cover the reservation. Sending no max_tokens means the model's own
-# ceiling applies, which for claude-opus-5 is 65536 output tokens; with a
+# ceiling applies, which for claude-opus-5 was 65536 output tokens; with a
 # nearly-spent balance that is an unaffordable reservation and every writer
 # call fails before a single token is generated. That is exactly what turned
 # the 2026-09-13 and -14 lessons into `writer_failed` stubs: "You requested up
@@ -163,6 +180,22 @@ def fetch_models(client: object | None = None) -> list[dict]:
     return [entry for entry in data if isinstance(entry, dict)]
 
 
+# Models whose every OpenRouter endpoint reports
+# `"supports_tool_choice": {"required": false}`. PydanticAI forces
+# `tool_choice="required"` whenever an agent has a structured output_type (the
+# lesson research and writer stages), and the generic OpenAI profile assumes
+# every model accepts that. For these slugs we let it fall back to "auto";
+# PydanticAI still retries until the output tool is called. Checked 2026-10-12
+# via /models/<slug>/endpoints — re-check when adding a slug here.
+NO_FORCED_TOOL_CHOICE = frozenset(
+    {
+        "anthropic/claude-haiku-5.5",
+        "anthropic/claude-sonnet-5.5",
+        "anthropic/claude-opus-5.5",
+    }
+)
+
+
 def build_model(model_name: str, *, max_tokens: int | None = None) -> OpenAIChatModel:
     """Return a PydanticAI OpenAIChatModel routed through OpenRouter.
 
@@ -172,7 +205,11 @@ def build_model(model_name: str, *, max_tokens: int | None = None) -> OpenAIChat
     """
     provider = OpenAIProvider(base_url=BASE_URL, api_key=_api_key())
     settings = ModelSettings(max_tokens=max_tokens) if max_tokens else None
-    return OpenAIChatModel(model_name, provider=provider, settings=settings)
+    # A partial profile is merged over the provider's defaults.
+    profile: ModelProfile | None = (
+        {"supports_forced_tool_choice": False} if model_name in NO_FORCED_TOOL_CHOICE else None
+    )
+    return OpenAIChatModel(model_name, provider=provider, profile=profile, settings=settings)
 
 
 def build_client() -> OpenAI:
