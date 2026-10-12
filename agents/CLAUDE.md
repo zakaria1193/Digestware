@@ -474,8 +474,16 @@ pjm's maintainer for this repo runs `python -m agents.model_scout` every week.
 It reads OpenRouter's free `/models` listing and, per stage, prices today's
 model at that stage's own input/output mix from `output/usage.log`. It proposes
 a **SWITCH** only to a model of the same vendor and family (`claude-opus`,
-`gemini-flash-lite` …) with a higher version that is cheaper at that mix. Other
-families are listed for a human to judge, never proposed. It changes nothing.
+`gemini-flash-lite` …) with a higher version that is cheaper at that mix. It
+also lists cheaper alternatives from every other family and vendor, Chinese
+labs (DeepSeek, Qwen, Kimi, GLM, MiniMax) included, released no earlier than
+today's pick. It changes nothing.
+
+An alternative may replace a stage only when published benchmarks show it at
+least as good as today's model for that stage's work (tool calling and long
+context for lesson research, summarising for the digests, long-form prose for
+the writer). Name the benchmarks in the commit message. The lesson writer keeps
+its bar: Opus-level prose, so only a model shown to match Opus qualifies.
 
 When it says SWITCH, a switch is one commit that touches:
 

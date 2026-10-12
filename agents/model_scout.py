@@ -20,8 +20,11 @@ the pjm maintainer on its weekly run, which makes the actual switch.
 - for stages that call tools, it advertises ``tools`` and
   ``structured_outputs``.
 
-Other-family options are listed for a human to judge, never proposed:
-"equal quality" across families is a judgement call this script cannot make.
+Cheaper models from any other family or vendor (DeepSeek, Qwen, Kimi, GLM,
+MiniMax, Mistral, Llama … all included) are listed as alternatives when they
+were released no earlier than today's pick. They are never marked SWITCH:
+"equal quality" across families is a judgement this script cannot make, so
+the maintainer makes it from published benchmarks (see agents/CLAUDE.md).
 
 Read-only: no LLM call, no key needed (``/models`` is a public listing), and
 it never edits anything. Exits 0 even when the listing is unreachable, so a
@@ -47,6 +50,9 @@ from agents._openrouter import (
 )
 
 USAGE_LOG = Path(__file__).parent / "output" / "usage.log"
+
+#: How many cheaper models from other families to list per stage.
+MAX_ALTERNATIVES = 8
 
 #: Used when a stage has no rows in usage.log yet: assume input-heavy.
 DEFAULT_INPUT_SHARE = 0.75
@@ -140,6 +146,12 @@ def blended(price: tuple[float, float], share: float) -> float:
     return (price[0] * share + price[1] * (1 - share)) * 1_000_000
 
 
+def _created(entry: dict) -> int:
+    """Release time (epoch seconds) from the listing; 0 when unknown."""
+    value = entry.get("created")
+    return value if isinstance(value, int) else 0
+
+
 def _supports_tools(entry: dict) -> bool:
     params = entry.get("supported_parameters") or []
     return "tools" in params and ("structured_outputs" in params or "response_format" in params)
@@ -165,7 +177,7 @@ class StageReport:
     status: str = "keep"          # keep | switch | missing
     proposal: Option | None = None
     newer_but_dearer: list[Option] = field(default_factory=list)
-    cheaper_other_families: list[Option] = field(default_factory=list)
+    cheaper_alternatives: list[Option] = field(default_factory=list)
 
 
 def scout(stage: Stage, catalogue: dict[str, dict], log_path: Path = USAGE_LOG) -> StageReport:
@@ -182,6 +194,7 @@ def scout(stage: Stage, catalogue: dict[str, dict], log_path: Path = USAGE_LOG) 
     report.current_usd_per_m = round(now, 4)
 
     vendor, family, version = split_slug(current)
+    released = _created(entry or {})
 
     def option(slug: str, p: tuple[float, float]) -> Option:
         cost = blended(p, share)
@@ -198,15 +211,13 @@ def scout(stage: Stage, catalogue: dict[str, dict], log_path: Path = USAGE_LOG) 
         if stage.needs_tools and not _supports_tools(cand):
             continue
         c_vendor, c_family, c_version = split_slug(slug)
-        if c_vendor != vendor:
-            continue
         opt = option(slug, p)
-        if c_family == family:
+        if c_vendor == vendor and c_family == family:
             if c_version <= version:
                 continue
             (cheaper_same if opt.usd_per_m < now else report.newer_but_dearer).append(opt)
-        elif opt.usd_per_m < now:
-            report.cheaper_other_families.append(opt)
+        elif opt.usd_per_m < now and _created(cand) >= released:
+            report.cheaper_alternatives.append(opt)
 
     if cheaper_same:
         # Newest first, then cheapest: when two newer versions both save
@@ -215,8 +226,8 @@ def scout(stage: Stage, catalogue: dict[str, dict], log_path: Path = USAGE_LOG) 
         report.proposal = cheaper_same[0]
         report.status = "switch"
     report.newer_but_dearer.sort(key=lambda o: o.usd_per_m)
-    report.cheaper_other_families.sort(key=lambda o: o.usd_per_m)
-    del report.cheaper_other_families[5:]
+    report.cheaper_alternatives.sort(key=lambda o: o.usd_per_m)
+    del report.cheaper_alternatives[MAX_ALTERNATIVES:]
     return report
 
 
@@ -250,8 +261,8 @@ def render(reports: list[StageReport]) -> str:
                 out.append("- Keep: no newer model of the same family is cheaper.")
             for o in r.newer_but_dearer:
                 out.append(f"- Newer but dearer, not proposed: {_fmt(o)}.")
-            for o in r.cheaper_other_families:
-                out.append(f"- Cheaper, other family (judge quality yourself): {_fmt(o)}.")
+            for o in r.cheaper_alternatives:
+                out.append(f"- Cheaper alternative, other family (judge quality first): {_fmt(o)}.")
         out.append("")
     return "\n".join(out)
 

@@ -13,9 +13,11 @@ from agents.model_scout import Stage, scout, split_slug
 TOOLS = ["tools", "structured_outputs"]
 
 
-def entry(slug: str, prompt_per_m: float, completion_per_m: float, params: list[str] | None = None) -> dict:
+def entry(slug: str, prompt_per_m: float, completion_per_m: float, params: list[str] | None = None,
+          created: int = 0) -> dict:
     return {
         "id": slug,
+        "created": created,
         "pricing": {"prompt": str(prompt_per_m / 1e6), "completion": str(completion_per_m / 1e6)},
         "supported_parameters": TOOLS if params is None else params,
     }
@@ -67,7 +69,21 @@ def test_other_family_is_listed_not_proposed(log: Path) -> None:
     cat = catalogue(entry("anthropic/claude-opus-5.5", 4, 20), entry("anthropic/claude-sonnet-6", 2, 10))
     r = scout(stage("anthropic/claude-opus-5.5"), cat, log)
     assert r.status == "keep"
-    assert [o.slug for o in r.cheaper_other_families] == ["anthropic/claude-sonnet-6"]
+    assert [o.slug for o in r.cheaper_alternatives] == ["anthropic/claude-sonnet-6"]
+
+
+def test_other_vendors_are_listed_too(log: Path) -> None:
+    """Chinese and other vendors are alternatives like any other family."""
+    cat = catalogue(
+        entry("anthropic/claude-opus-5.5", 4, 20, created=200),
+        entry("deepseek/deepseek-v4", 0.5, 2, created=300),
+        entry("qwen/qwen4-max", 1, 4, created=200),
+        entry("moonshotai/kimi-k3", 6, 30, created=300),       # dearer
+        entry("meta-llama/llama-3-8b", 0.01, 0.01, created=100),  # older than today's pick
+    )
+    r = scout(stage("anthropic/claude-opus-5.5"), cat, log)
+    assert r.status == "keep"
+    assert [o.slug for o in r.cheaper_alternatives] == ["deepseek/deepseek-v4", "qwen/qwen4-max"]
 
 
 def test_newer_but_dearer_is_reported_not_proposed(log: Path) -> None:
