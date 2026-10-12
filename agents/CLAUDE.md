@@ -133,6 +133,7 @@ agents/
 ├── landing_agent.py        # Factory — Gemini Flash + Sonnet 4.5 premium rerun
 ├── budget.py               # Month-to-date spend + the EUR 5/month guard
 ├── check_models.py         # Preflight: do the configured model slugs exist?
+├── model_scout.py          # Weekly: is a newer, cheaper model out for a stage?
 ├── lesson_picker.py        # Deterministic weekly subject selection (no LLM)
 ├── lesson_topics.py        # Editorial remit — which subsystems may be taught
 ├── lesson_agent.py         # Lesson — cheap explorer + Opus writer (two stages)
@@ -466,6 +467,38 @@ would make every run compute a spend of zero and the cap would never bind.
 against the free `/models` listing before anything spends, and prints the
 closest available names on a miss. A wrong slug otherwise fails only at request
 time, after the run has paid for everything leading up to it.
+
+### Switching a model (the weekly model scout)
+
+pjm's maintainer for this repo runs `python -m agents.model_scout` every week.
+It reads OpenRouter's free `/models` listing and, per stage, prices today's
+model at that stage's own input/output mix from `output/usage.log`. It proposes
+a **SWITCH** only to a model of the same vendor and family (`claude-opus`,
+`gemini-flash-lite` …) with a higher version that is cheaper at that mix. It
+also lists cheaper alternatives from every other family and vendor, Chinese
+labs (DeepSeek, Qwen, Kimi, GLM, MiniMax) included, released no earlier than
+today's pick. It changes nothing.
+
+An alternative may replace a stage only when published benchmarks show it at
+least as good as today's model for that stage's work (tool calling and long
+context for lesson research, summarising for the digests, long-form prose for
+the writer). Name the benchmarks in the commit message. The lesson writer keeps
+its bar: Opus-level prose, so only a model shown to match Opus qualifies.
+
+When it says SWITCH, a switch is one commit that touches:
+
+1. `_openrouter.py`: the `DEFAULT_*_MODEL` slug, plus a dated line in the
+   comment above it saying what it replaced and the two prices.
+2. `budget.py`: a `FALLBACK_PRICES` row for the new slug (rounded up).
+3. `_openrouter.py` `NO_FORCED_TOOL_CHOICE`, for the lesson stages only: check
+   `https://openrouter.ai/api/v1/models/<slug>/endpoints`; if no endpoint
+   accepts `tool_choice: required`, add the slug.
+4. The model names in this file and in the root `CLAUDE.md` tables.
+
+Then `python -m agents.check_models` and `pytest agents/tests -q` must pass.
+A stage set by a repo variable (`LESSON_RESEARCH_MODEL`, `LESSON_WRITER_MODEL`
+in `gh variable list`) ignores the default: changing the variable is the
+owner's call.
 
 ---
 
