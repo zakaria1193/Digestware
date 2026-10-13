@@ -1,0 +1,39 @@
+---
+project: binutils
+subsystem: binutils/bfd
+patch_id: null
+tags:
+- build
+- versioning
+- binutils
+commit_hash: 80b91cb32b083868945f8da8fdeb2c20b5c9f099
+source_type: public_inbox
+author: GDB Administrator <gdbadmin@sourceware.org>
+headline: 'Binutils: Update release date in version.in'
+tldr: Updates the BFD version date to October 13, 2026.
+impact_score: 1
+performance_win: false
+breaking_change: false
+outcome: committed
+primer_expert: Updates the `BFD_VERSION_DATE` macro in `bfd/version.h` to `20261013`.
+  This change is part of the regular release process for binutils, ensuring that the
+  version information embedded in the library accurately reflects the release timeline.
+  It affects the `version.in` file processed during the build.
+primer_glossary:
+- term: BFD
+  definition: The Binary File Descriptor library. It's a low-level library used by
+    binutils to support various object file formats.
+- term: version.in
+  definition: A template file used in the build system that contains version information.
+    It is processed during the build to generate the final version header files.
+discussion_id_link: null
+bugzilla_pr: null
+series_id: null
+series_parts: []
+url: https://inbox.sourceware.org/binutils-cvs/20261013000012.A4A8B4BA23C3@sourceware.org
+date: '2026-10-13'
+is_stub: true
+stub_reason: low_score
+---
+
+This commit updates the `BFD_VERSION_DATE` macro in `bfd/version.h` to reflect the current release date of October 13, 2026. This is a routine update for the versioning information within the BFD library.
