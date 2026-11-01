@@ -1,0 +1,42 @@
+---
+project: binutils
+subsystem: bfd
+patch_id: null
+tags:
+- release
+- maintenance
+commit_hash: fcff8ede0ad617abc145528f92299c95e6d6cbbc
+source_type: public_inbox
+author: GDB Administrator <gdbadmin@sourceware.org>
+headline: Update BFD library version date
+tldr: The version date for the BFD library has been updated to November 1, 2026.
+impact_score: 1
+performance_win: false
+breaking_change: false
+outcome: committed
+primer_expert: This commit modifies `bfd/version.h` by updating the `BFD_VERSION_DATE`
+  macro. This is a standard maintenance update for the binutils-gdb repository, specifically
+  for the `binutils-2_47-branch`. The date is used in version string generation and
+  internal tracking within the BFD library.
+primer_glossary:
+- term: BFd
+  definition: The Binary File Descriptor library. It's a core component of GNU Binutils,
+    providing a common interface for reading and writing various object file formats
+    (like ELF, COFF, a.out).
+- term: version date
+  definition: A date associated with a software release, often used for tracking and
+    internal versioning purposes. In Binutils, it's hardcoded in `version.h`.
+- term: binutils-gdb
+  definition: The project that encompasses the GNU Binutils (assembler, linker, object
+    file manipulation tools) and the GNU Debugger (GDB).
+discussion_id_link: null
+bugzilla_pr: null
+series_id: null
+series_parts: []
+url: https://inbox.sourceware.org/binutils-cvs/20261101000043.02A2B4BA9023@sourceware.org
+date: '2026-11-01'
+is_stub: true
+stub_reason: low_score
+---
+
+This commit updates the `BFD_VERSION_DATE` macro in `bfd/version.h` from `20261031` to `20261101`. This is a routine update for the binutils-gdb project, reflecting the current date for the `binutils-2_47-branch` release. The change impacts how the library's version information is internally tracked.
