@@ -413,3 +413,29 @@ jobs:
           # "Summary unavailable" with nothing in the diagnostics to say why.
           grep -E "ERROR|WARNING|Traceback|lesson_agent|agents.writer|Budget check|budget is spent" \
             lesson-run.log 2>/dev/null | tail -40 || echo "(no lesson-run.log)"
+
+  # ── 3. Cache pruning ─────────────────────────────────────────────────────────
+  # The source-repo clones and the Pulse index use a unique key per run, so each
+  # night adds a full copy (about 2 GB for the clones) and only the newest is
+  # ever restored. Left alone they fill the repo's 10 GB allowance, and GitHub
+  # then evicts by age, which can include the pip and npm caches. Keeping two
+  # means a bad night still leaves the one before it. This is its own job so the
+  # pipeline's token never holds `actions: write`, and it runs after `digest` so
+  # tonight's entries already exist. A failure here must not fail the night.
+  prune-caches:
+    name: Prune old caches
+    needs: digest
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      actions: write
+    steps:
+      - name: Keep the two newest of each rolling cache
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          for prefix in lesson-repos- pulse-db-; do
+            gh cache list --key "$prefix" --sort created_at --order desc --limit 100 --json id --jq '.[2:][].id' |
+              xargs -r -n1 gh cache delete
+          done
