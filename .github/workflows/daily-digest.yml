@@ -37,6 +37,10 @@ jobs:
   # ── 1. Quality gate (reused from test.yml) ───────────────────────────────────
   test:
     uses: ./.github/workflows/test.yml
+    with:
+      # The digest job builds the site itself, on the new content, before it
+      # commits. Building last night's content here as well cost 22 minutes.
+      skip_build: true
 
   # ── 2. Digest pipeline ───────────────────────────────────────────────────────
   digest:
