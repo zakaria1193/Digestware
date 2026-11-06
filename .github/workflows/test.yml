@@ -2,6 +2,11 @@ name: Tests & Lint
 
 on:
   workflow_call:   # reusable — call from other workflows via `uses:`
+    inputs:
+      skip_build:
+        description: 'Skip the site build, for a caller that builds the site itself'
+        type: boolean
+        default: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -39,6 +44,7 @@ jobs:
   # the Astro collection schema fails here instead of on the live deploy.
   build:
     name: Build site
+    if: ${{ !inputs.skip_build }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
