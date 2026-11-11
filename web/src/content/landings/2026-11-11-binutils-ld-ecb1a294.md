@@ -1,0 +1,48 @@
+---
+project: binutils
+subsystem: binutils/ld
+patch_id: null
+tags:
+- binutils
+- ld
+- build
+- plugins
+commit_hash: ecb1a294cd77f06d5b1bf88054749f192ee40761
+source_type: public_inbox
+author: Alan Modra <amodra@sourceware.org>
+headline: 'ld: Fix build on hosts without dlfcn.h'
+tldr: Binutils linker now builds correctly on systems lacking the dlfcn.h header.
+impact_score: 4
+performance_win: false
+breaking_change: false
+outcome: committed
+primer_expert: The `ld` linker's build process failed on systems without `<dlfcn.h>`
+  because the plugin infrastructure code was not guarded by `BFD_SUPPORTS_PLUGINS`.
+  This commit wraps the existing plugin functions in `#if BFD_SUPPORTS_PLUGINS` and
+  provides no-op stubs when this macro is undefined. This allows `ld` to build on
+  hosts lacking `dlfcn.h`. The test suite is also updated to mark relevant tests as
+  'untested' when plugin support is unavailable.
+primer_glossary:
+- term: ld
+  definition: The GNU linker, responsible for combining object files and libraries
+    into an executable or shared library.
+- term: dlfcn.h
+  definition: A C header file that provides an interface for dynamically loading and
+    linking shared libraries at runtime.
+- term: BFD
+  definition: Binutils Format Description. A library used by GNU Binutils to support
+    various object file formats.
+- term: plugin
+  definition: A modular piece of code that can be loaded at runtime to extend the
+    functionality of a program, such as the linker.
+discussion_id_link: public_inbox:binutils#34985
+bugzilla_pr: null
+series_id: null
+series_parts: []
+url: https://inbox.sourceware.org/binutils-cvs/20261111024132.3AAE34BA2E3B@sourceware.org
+date: '2026-11-11'
+is_stub: false
+stub_reason: ''
+---
+
+This commit resolves an issue where the GNU linker (`ld`) failed to build on hosts that do not provide the `<dlfcn.h>` header. It conditionally compiles plugin-related code and provides stub functions when plugin support is not available, ensuring that `ld` can be built even in minimal environments. Test cases are also adjusted to reflect this change.
