@@ -641,7 +641,7 @@ def main() -> int:
     written_discussions = 0
     for d in discussions:
         try:
-            path = write_discussion(d)
+            path = write_discussion(d, output_dir=args.content_root / "discussions")
             logger.debug("Wrote discussion → %s", path)
             written_discussions += 1
         except Exception as exc:
@@ -650,7 +650,7 @@ def main() -> int:
     written_landings = 0
     for landing in landings:
         try:
-            path = write_landing(landing)
+            path = write_landing(landing, output_dir=args.content_root / "landings")
             logger.debug("Wrote landing → %s", path)
             written_landings += 1
         except Exception as exc:

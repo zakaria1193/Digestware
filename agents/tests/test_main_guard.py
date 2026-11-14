@@ -64,6 +64,9 @@ class TestMissingKeyGuard:
         )
         rc = main_module.main()
         assert rc != 2
+        # Any outputs written must stay inside tmp_path, never the default content tree.
+        for child in tmp_path.glob("**/*.md"):
+            assert str(child).startswith(str(tmp_path))
 
 
 class TestAllBatchesStubbedExit:
