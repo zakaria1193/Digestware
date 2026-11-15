@@ -8,7 +8,7 @@
 // the prose against the source.
 import PublicLayout from '../../../layouts/PublicLayout.astro';
 import FilterBar from '../../../components/FilterBar.astro';
-import { getCollection } from 'astro:content';
+import { getCollection, render } from 'astro:content';
 import { PROJECTS, getProject } from '../../../config/projects';
 import { rankTags, groupTags } from '../../../lib/filterTags';
 import { isPublic } from '../../../lib/visibility';
@@ -35,7 +35,7 @@ export async function getStaticPaths() {
 const { entry, projectSlug } = Astro.props as { entry: any; projectSlug: string };
 const project = getProject(projectSlug)!;
 const d = entry.data;
-const { Content } = await entry.render();
+const { Content } = await render(entry);
 
 const all = (await getCollection(
   'lessons',

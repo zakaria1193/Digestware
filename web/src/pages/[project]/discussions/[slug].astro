@@ -1,6 +1,6 @@
 ---
 import PublicLayout from '../../../layouts/PublicLayout.astro';
-import { getCollection } from 'astro:content';
+import { getCollection, render } from 'astro:content';
 import { PROJECTS, getProject } from '../../../config/projects';
 import { SHOW_IMPACT_SCORE } from '../../../config/features';
 import { isPublic } from '../../../lib/visibility';
@@ -28,7 +28,7 @@ export async function getStaticPaths() {
 const { entry, projectSlug } = Astro.props as { entry: any; projectSlug: string };
 const project = getProject(projectSlug)!;
 const d = entry.data;
-const { Content } = await entry.render();
+const { Content } = await render(entry);
 
 // Prev/next stays within the same project — no cross-project merging.
 const all = (await getCollection(
