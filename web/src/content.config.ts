@@ -1,4 +1,6 @@
-import { defineCollection, z } from 'astro:content';
+import { defineCollection } from 'astro:content';
+import { glob } from 'astro/loaders';
+import { z } from 'astro/zod';
 
 const seriesPart = z.object({
   title: z.string(),
@@ -18,7 +20,7 @@ const glossaryEntry = z.object({
 });
 
 const discussions = defineCollection({
-  type: 'content',
+  loader: glob({ pattern: '**/*.md', base: './src/content/discussions' }),
   schema: z.object({
     project: z.string(),
     subsystem: z.string(),
@@ -50,7 +52,7 @@ const discussions = defineCollection({
 });
 
 const landings = defineCollection({
-  type: 'content',
+  loader: glob({ pattern: '**/*.md', base: './src/content/landings' }),
   schema: z.object({
     project: z.string(),
     subsystem: z.string(),
@@ -104,7 +106,7 @@ const furtherReading = z.object({
 });
 
 const lessons = defineCollection({
-  type: 'content',
+  loader: glob({ pattern: '**/*.md', base: './src/content/lessons' }),
   schema: z.object({
     project: z.string(),
     subsystem: z.string(),

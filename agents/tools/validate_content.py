@@ -8,7 +8,7 @@ the commit step, so a bad file fails the pipeline loudly while the damage is
 still confined to the runner.
 
 It deliberately duplicates only the load-bearing subset of the Astro schema in
-`web/src/content/config.ts` — the fields whose absence breaks the build. It is
+`web/src/content.config.ts` — the fields whose absence breaks the build. It is
 a fast smoke test, not a replacement for `astro build`, which CI also runs.
 
 Usage:
