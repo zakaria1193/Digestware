@@ -13,7 +13,7 @@ Digestware/
 │   ├── index/       # derived SQLite search index over the Markdown corpus
 │   ├── mcp/         # MCP server exposing that index to agents
 │   └── output/      # local Markdown output for dev/testing
-├── web/             # Astro 6 — Bento Grid + Pulse Stream UI
+├── web/             # Astro 7 — Bento Grid + Pulse Stream UI
 │   └── src/
 │       ├── content/digests/   # Markdown files written by the agent
 │       ├── pages/
@@ -30,7 +30,7 @@ Digestware/
 | LLM provider | OpenRouter | Model-agnostic, pay-per-token |
 | Cheap summariser model | `google/gemini-2.5-flash` or `mistralai/mistral-small` | Near-zero cost for bulk work |
 | Premium model (Bento logic) | `anthropic/claude-sonnet-5.5` | Only for final ranking / formatting |
-| Frontend | Astro 6 + Tailwind 4 | Static-first, Content Collections, fast |
+| Frontend | Astro 7 + Tailwind 4 | Static-first, Content Collections, fast |
 | Newsletter | Resend API + React Email | Developer-friendly, generous free tier |
 | Storage | Markdown files in Git | Zero infra cost, version-controlled history |
 

@@ -1,4 +1,4 @@
-# Phase 3 — The Web UI (Astro 6 + Tailwind 4)
+# Phase 3 — The Web UI (Astro 7 + Tailwind 4)
 
 Build the "Bento + Commit Stream" frontend. Two Astro Content Collections
 (`landings/` and `discussions/`) drive all content — no database, no API.
