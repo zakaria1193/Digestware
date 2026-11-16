@@ -55,3 +55,12 @@ export function projectUrl(target: ProjectDef): string {
   if (useHostnames) return `https://${target.hostname}/`;
   return `/${target.slug}/`;
 }
+
+// Build a production absolute URL for a path within a project, always on
+// that project's own hostname. Used for canonical links, OG/Twitter tags,
+// JSON-LD, sitemaps and llms.txt — all of which must stay correct
+// regardless of PUBLIC_USE_HOSTNAMES, since one build serves two hosts.
+export function absoluteUrl(project: ProjectDef, path: string): string {
+  const normalized = path.startsWith('/') ? path : `/${path}`;
+  return `https://${project.hostname}${normalized}`;
+}
