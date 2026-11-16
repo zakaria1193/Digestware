@@ -3,8 +3,9 @@
 // deployments, each hostname's edge config is expected to rewrite `/` to
 // `/<project>/` directly, so this page is primarily for single-origin
 // previews and local development.
-import { DEFAULT_PROJECT } from '../config/projects';
+import { DEFAULT_PROJECT, getProject, absoluteUrl } from '../config/projects';
 const target = `/${DEFAULT_PROJECT}/`;
+const canonicalUrl = absoluteUrl(getProject(DEFAULT_PROJECT)!, target);
 ---
 <!doctype html>
 <html lang="en">
@@ -12,7 +13,7 @@ const target = `/${DEFAULT_PROJECT}/`;
     <meta charset="utf-8" />
     <title>Redirecting…</title>
     <meta http-equiv="refresh" content={`0; url=${target}`} />
-    <link rel="canonical" href={target} />
+    <link rel="canonical" href={canonicalUrl} />
   </head>
   <body>
     <p>Redirecting to <a href={target}>{target}</a>&hellip;</p>

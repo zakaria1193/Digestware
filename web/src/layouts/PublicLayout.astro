@@ -1,15 +1,66 @@
 ---
 import '../styles/global.css';
-import { PROJECTS, projectUrl, type ProjectDef } from '../config/projects';
+import { PROJECTS, projectUrl, absoluteUrl, type ProjectDef } from '../config/projects';
 
 interface Props {
   project: ProjectDef;
   title?: string;
   description?: string;
+  // Path (within this project's own hostname) the canonical/OG/JSON-LD URLs
+  // point at. Defaults to the route actually being rendered, which is right
+  // for every page except ones that alias another URL.
+  path?: string;
+  // Project home page: adds a `WebSite` JSON-LD block.
+  isHome?: boolean;
+  // Landing/discussion pages pass "NewsArticle", lesson pages "TechArticle".
+  // Omitted (the MCP page, the home page) means no article JSON-LD and
+  // `og:type` stays "website" instead of "article".
+  articleSchema?: 'NewsArticle' | 'TechArticle';
+  headline?: string;
+  publishedDate?: Date;
+  sourceUrl?: string | null;
 }
-const { project, title, description } = Astro.props;
+const { project, title, description, path, isHome = false, articleSchema, headline, publishedDate, sourceUrl } = Astro.props;
 const pageTitle = title ? `${title} — ${project.name}` : project.name;
 const pageDesc = description ?? project.description;
+
+const canonicalPath = path ?? Astro.url.pathname;
+const canonicalUrl = absoluteUrl(project, canonicalPath);
+const ogImage = absoluteUrl(project, `/og/${project.slug}.png`);
+const projectHomeUrl = absoluteUrl(project, `/${project.slug}/`);
+const isArticle = Boolean(articleSchema);
+
+// Built from data rather than string-templated, so a headline/description
+// containing `<`, `&`, quotes, or newlines can never produce invalid JSON.
+// The extra escape of `<` (valid in JSON, but not inside a <script> body)
+// stops a headline like "a <script> tag" from closing the element early.
+const jsonLd = isHome
+  ? {
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: project.name,
+      url: canonicalUrl,
+      description: pageDesc,
+      inLanguage: 'en',
+      publisher: { '@type': 'Organization', name: project.name, url: projectHomeUrl },
+    }
+  : articleSchema
+    ? {
+        '@context': 'https://schema.org',
+        '@type': articleSchema,
+        headline: headline ?? pageTitle,
+        description: pageDesc,
+        datePublished: (publishedDate ?? new Date()).toISOString(),
+        url: canonicalUrl,
+        mainEntityOfPage: canonicalUrl,
+        image: ogImage,
+        inLanguage: 'en',
+        author: { '@type': 'Organization', name: project.name },
+        publisher: { '@type': 'Organization', name: project.name, url: projectHomeUrl },
+        ...(sourceUrl ? { isBasedOn: sourceUrl } : {}),
+      }
+    : null;
+const jsonLdScript = jsonLd ? JSON.stringify(jsonLd).replace(/</g, '\\u003c') : null;
 
 const now = new Date();
 const longDate = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase();
@@ -22,6 +73,20 @@ const longDate = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric'
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{pageTitle}</title>
     <meta name="description" content={pageDesc} />
+    <link rel="canonical" href={canonicalUrl} />
+    <meta property="og:type" content={isArticle ? 'article' : 'website'} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={pageDesc} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:site_name" content={project.name} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:locale" content="en_US" />
+    {isArticle && <meta property="article:published_time" content={(publishedDate ?? new Date()).toISOString()} />}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:description" content={pageDesc} />
+    <meta name="twitter:image" content={ogImage} />
+    {jsonLdScript && <script type="application/ld+json" set:html={jsonLdScript} />}
     <link rel="alternate" type="application/rss+xml" title={`${project.name} Feed`} href={`/${project.slug}/rss.xml`} />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

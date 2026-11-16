@@ -108,7 +108,7 @@ const groupedTags = groupTags(rankedTags, tagAssignments);
 const totalItems = allDiscussions.length + landings.length;
 ---
 
-<PublicLayout project={project}>
+<PublicLayout project={project} isHome>
   <FilterBar rankedTags={rankedTags} groupedTags={groupedTags} totalItems={totalItems} />
 
   <div class="page-grid">

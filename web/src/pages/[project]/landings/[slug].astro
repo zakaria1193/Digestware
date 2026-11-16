@@ -110,7 +110,15 @@ const totalItems = sameProjectDiscussions.length + all.length;
 
 ---
 
-<PublicLayout project={project} title={d.headline} description={d.tldr}>
+<PublicLayout
+  project={project}
+  title={d.headline}
+  description={d.tldr}
+  articleSchema="NewsArticle"
+  headline={d.headline}
+  publishedDate={d.date}
+  sourceUrl={d.url}
+>
 
   <script is:inline>
     // Pre-paint scroll-restore setup. When the previous page stashed a

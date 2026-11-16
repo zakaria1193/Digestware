@@ -65,7 +65,15 @@ function scoreColor(n: number | null | undefined): string {
 
 ---
 
-<PublicLayout project={project} title={d.headline} description={d.tldr}>
+<PublicLayout
+  project={project}
+  title={d.headline}
+  description={d.tldr}
+  articleSchema="NewsArticle"
+  headline={d.headline}
+  publishedDate={d.date}
+  sourceUrl={d.url}
+>
   <article class="article">
     <nav class="crumb">
       <a href={`/${project.slug}/`}>Front Page</a>

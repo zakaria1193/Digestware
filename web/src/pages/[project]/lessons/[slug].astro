@@ -101,7 +101,15 @@ const groupedTags = groupTags(rankedTags, tagAssignments);
 const totalItems = discussions.length + landings.length;
 ---
 
-<PublicLayout project={project} title={d.headline} description={d.tldr}>
+<PublicLayout
+  project={project}
+  title={d.headline}
+  description={d.hook}
+  articleSchema="TechArticle"
+  headline={d.headline}
+  publishedDate={d.date}
+  sourceUrl={d.url}
+>
   <FilterBar rankedTags={rankedTags} groupedTags={groupedTags} totalItems={totalItems} />
 
   <div class="lesson-layout">
