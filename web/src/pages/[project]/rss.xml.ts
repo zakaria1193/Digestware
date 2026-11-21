@@ -1,7 +1,7 @@
 import rss from '@astrojs/rss';
 import { getCollection } from 'astro:content';
 import type { APIContext } from 'astro';
-import { PROJECTS, getProject } from '../../config/projects';
+import { PROJECTS, SITE_ORIGIN, getProject } from '../../config/projects';
 import { isPublic } from '../../lib/visibility';
 
 export async function getStaticPaths() {
@@ -48,7 +48,7 @@ export async function GET(context: APIContext) {
   return rss({
     title: project.name,
     description: project.description,
-    site: context.site ?? `https://${project.hostname}`,
+    site: context.site ?? SITE_ORIGIN,
     items,
     customData: '<language>en-us</language>',
   });
