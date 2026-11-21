@@ -108,7 +108,7 @@ const longDate = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric'
       </header>
 
       <!-- Tab line: one tab per project. Current project is highlighted;
-           others redirect to their own hostname (prod) or subpath (dev). -->
+           each tab links to its `/<slug>/` subpath on the shared origin. -->
       <nav class="projtabs" aria-label="Projects">
         {PROJECTS.map(p => (
           <a

@@ -2,5 +2,5 @@ User-agent: *
 Allow: /
 Disallow: /admin
 
-Sitemap: https://gccdigest.dev/gcc/sitemap.xml
-Sitemap: https://binutilsdigest.dev/binutils/sitemap.xml
+Sitemap: https://digestware.pages.dev/gcc/sitemap.xml
+Sitemap: https://digestware.pages.dev/binutils/sitemap.xml

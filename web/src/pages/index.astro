@@ -1,8 +1,6 @@
 ---
-// Root path redirects to the default project. In hostname-routed production
-// deployments, each hostname's edge config is expected to rewrite `/` to
-// `/<project>/` directly, so this page is primarily for single-origin
-// previews and local development.
+// Root path redirects to the default project (`/<project>/`) on the shared
+// origin.
 import { DEFAULT_PROJECT, getProject, absoluteUrl } from '../config/projects';
 const target = `/${DEFAULT_PROJECT}/`;
 const canonicalUrl = absoluteUrl(getProject(DEFAULT_PROJECT)!, target);
